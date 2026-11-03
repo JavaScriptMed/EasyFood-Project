@@ -3,12 +3,49 @@
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\V1\SaludController;
+use App\Http\Controllers\Api\ProviderController;
+use App\Http\Controllers\Api\Admin\UserController as AdminUserController;
+use App\Http\Controllers\Api\MenuController;
+use App\Http\Controllers\Api\CatalogCategoryController;
 
 // -----------------------------------------------------------------
 // API v1 (nombres de rutas en español, ver CLAUDE.md)
 // -----------------------------------------------------------------
 Route::prefix('v1')->group(function () {
     Route::get('/salud', SaludController::class)->name('v1.salud');
+});
+
+Route::middleware('auth:api')->group(function () {
+
+    // Rutas de consulta (Clientes, Repartidores, Proveedores y Admin)
+    Route::get('/catalog-categories', [CatalogCategoryController::class, 'index']);
+    Route::get('/catalog-categories/{id}', [CatalogCategoryController::class, 'show']);
+
+    // Rutas de administración (Crear, Editar, Eliminar)
+    Route::middleware('role:admin')->group(function () {
+        Route::post('/catalog-categories', [CatalogCategoryController::class, 'store']);
+        Route::put('/catalog-categories/{id}', [CatalogCategoryController::class, 'update']);
+        Route::delete('/catalog-categories/{id}', [CatalogCategoryController::class, 'destroy']);
+    });
+});
+
+Route::middleware('auth:api')->group(function () {
+
+    // Rutas públicas/clientes para explorar comida
+    Route::get('/menus', [MenuController::class, 'index']);
+    Route::get('/menus/{id}', [MenuController::class, 'show']);
+
+    // Rutas protegidas para administración de platillos (Admin y Proveedor)
+    Route::middleware('role:admin,provider')->group(function () {
+        Route::post('/menus', [MenuController::class, 'store']);
+        Route::put('/menus/{id}', [MenuController::class, 'update']);
+        Route::delete('/menus/{id}', [MenuController::class, 'destroy']);
+    });
+});
+
+Route::middleware(['auth:api', 'role:admin'])->prefix('admin')->group(function () {
+    // CRUD administrativo de usuarios
+    Route::apiResource('users', AdminUserController::class);
 });
 
 // -----------------------------------------------------------------
@@ -31,6 +68,19 @@ Route::middleware('auth:sanctum')->group(function () {
     // -------------------------------------------------------------
     // Rutas protegidas por Rol (Middleware: role:nombre_del_rol)
     // -------------------------------------------------------------
+
+    Route::middleware('auth:api')->group(function () {
+
+        // Rutas operativas de proveedores (Administración)
+        Route::middleware('role:admin')->prefix('admin')->group(function () {
+            Route::post('/providers/{id}/restore', [ProviderController::class, 'restore']);
+            Route::apiResource('providers', ProviderController::class);
+        });
+
+        // Consulta de proveedores para clientes o usuarios autenticados
+        Route::get('/providers', [ProviderController::class, 'index']);
+        Route::get('/providers/{id}', [ProviderController::class, 'show']);
+    });
 
     // Solo Administradores
     Route::middleware('role:admin')->prefix('admin')->group(function () {
