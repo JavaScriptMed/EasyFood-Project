@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600" role="img" aria-labelledby="t">
+  <title id="t">Lonchera térmica dorada con aguacate, chile y limón</title>
+  <defs>
+    <radialGradient id="halo" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#E0A813" stop-opacity=".35"/><stop offset="1" stop-color="#E0A813" stop-opacity="0"/></radialGradient>
+    <linearGradient id="oro" x1="0" x2="1"><stop offset="0" stop-color="#8a6205"/><stop offset=".3" stop-color="#f3cb55"/><stop offset=".55" stop-color="#E0A813"/><stop offset="1" stop-color="#7b5906"/></linearGradient>
+    <linearGradient id="crema" x1="0" x2="1"><stop offset="0" stop-color="#cfc9b8"/><stop offset=".35" stop-color="#FAF8F2"/><stop offset="1" stop-color="#bdb6a2"/></linearGradient>
+    <radialGradient id="sombra" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#000" stop-opacity=".55"/><stop offset="1" stop-color="#000" stop-opacity="0"/></radialGradient>
+  </defs>
+  <circle cx="300" cy="300" r="290" fill="url(#halo)"/>
+  <ellipse cx="300" cy="488" rx="190" ry="24" fill="url(#sombra)"/>
+  <path d="M162 318h276l-34 154c-3 12-14 20-27 20H223c-13 0-24-8-27-20z" fill="url(#oro)"/>
+  <rect x="172" y="372" width="256" height="16" rx="8" fill="url(#crema)"/>
+  <rect x="150" y="296" width="300" height="26" rx="13" fill="url(#crema)"/>
+  <path d="M158 304c0-92 66-148 142-148s142 56 142 148z" fill="url(#crema)"/>
+  <path d="M190 292c8-62 52-104 110-110" fill="none" stroke="#fff" stroke-opacity=".7" stroke-width="10" stroke-linecap="round"/>
+  <circle cx="300" cy="150" r="20" fill="url(#oro)"/>
+  <rect x="140" y="300" width="22" height="46" rx="8" fill="url(#oro)"/><rect x="438" y="300" width="22" height="46" rx="8" fill="url(#oro)"/>
+  <g transform="translate(86 196) rotate(-14)"><ellipse cx="0" cy="0" rx="38" ry="52" fill="#3f6b2a"/><ellipse cx="0" cy="4" rx="31" ry="44" fill="#d3df7c"/><circle cx="0" cy="14" r="16" fill="#7b4a24"/></g>
+  <g transform="translate(508 232) rotate(38)"><path d="M0-52c18 0 26 14 22 34l-22 70c-4 12-20 6-22-6l-8-62c-2-22 12-36 30-36z" fill="#c62828"/><rect x="-5" y="-70" width="10" height="24" rx="4" fill="#3f7d2a"/></g>
+  <g transform="translate(476 430) rotate(-20)"><circle r="46" fill="#9bc53d"/><circle r="39" fill="#f1f3a8"/><g stroke="#fff9d6" stroke-width="4" stroke-linecap="round"><path d="M0-38V38M-38 0H38M-27-27L27 27M27-27L-27 27"/></g><circle r="5" fill="#fff9d6"/></g>
+</svg>
