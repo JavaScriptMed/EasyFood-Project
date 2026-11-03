@@ -30,7 +30,8 @@ return [
 
     'max_age' => 600,
 
-    // Necesario si el front usa Sanctum con cookies (modo SPA); con tokens Bearer no estorba.
-    'supports_credentials' => true,
+    // La API autentica con tokens Bearer (Authorization), que no necesitan credenciales de navegador.
+    // Actívalo solo si el front pasa a usar Sanctum con cookies (CORS_SUPPORTS_CREDENTIALS=true).
+    'supports_credentials' => filter_var(env('CORS_SUPPORTS_CREDENTIALS', false), FILTER_VALIDATE_BOOL),
 
 ];

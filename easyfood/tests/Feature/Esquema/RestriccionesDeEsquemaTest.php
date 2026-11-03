@@ -9,9 +9,8 @@ use Tests\TestCase;
 
 /**
  * Las restricciones viven en PostgreSQL (CHECK, índices parciales, triggers), así que estas pruebas
- * necesitan esa base. Para correrlas:
- *   docker compose exec -e DB_CONNECTION=pgsql -e DB_DATABASE=easylunch_pruebas app php artisan test --filter=RestriccionesDeEsquema
- * (con sqlite, el valor por defecto de phpunit.xml, se omiten).
+ * corren contra la base «easylunch_pruebas» (ver phpunit.xml): docker compose exec app php artisan test
+ * Si alguien las lanza con otro motor (por ejemplo sqlite), se omiten en lugar de fallar.
  */
 class RestriccionesDeEsquemaTest extends TestCase
 {
