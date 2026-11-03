@@ -15,8 +15,8 @@ return new class extends Migration
             $table->decimal('porcentaje_subsidio', 5, 2); // 0 a 100
             $table->integer('compra_minima_mensual');
             $table->decimal('precio_por_platillo', 10, 2);
-            $table->date('fecha_inicio');
-            $table->date('fecha_fin');
+            $table->date('vigencia_inicio');
+            $table->date('vigencia_fin');
             $table->time('hora_entrega');             // hora estimada de llegada
             $table->time('ventana_entrega_inicio');   // ventana en la que la empresa recibe
             $table->time('ventana_entrega_fin');
@@ -31,7 +31,7 @@ return new class extends Migration
                 ADD CONSTRAINT contratos_empresa_subsidio_entre_0_y_100 CHECK (porcentaje_subsidio BETWEEN 0 AND 100),
                 ADD CONSTRAINT contratos_empresa_compra_minima_positiva CHECK (compra_minima_mensual > 0),
                 ADD CONSTRAINT contratos_empresa_precio_positivo CHECK (precio_por_platillo > 0),
-                ADD CONSTRAINT contratos_empresa_fechas_validas CHECK (fecha_fin > fecha_inicio),
+                ADD CONSTRAINT contratos_empresa_vigencia_valida CHECK (vigencia_fin > vigencia_inicio),
                 ADD CONSTRAINT contratos_empresa_ventana_valida CHECK (ventana_entrega_fin > ventana_entrega_inicio),
                 ADD CONSTRAINT contratos_empresa_hora_dentro_de_ventana CHECK (hora_entrega BETWEEN ventana_entrega_inicio AND ventana_entrega_fin),
                 ADD CONSTRAINT contratos_empresa_desactivacion_coherente

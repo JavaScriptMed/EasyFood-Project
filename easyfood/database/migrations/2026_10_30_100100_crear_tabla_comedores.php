@@ -11,8 +11,8 @@ return new class extends Migration
     {
         Schema::create('comedores', function (Blueprint $table) {
             $table->id();
-            // Contacto titular con acceso al portal del comedor.
-            $table->foreignId('usuario_id')->unique()->constrained('usuarios')->restrictOnDelete();
+            // Contacto titular con acceso al portal del comedor (tabla users, la del login existente).
+            $table->foreignId('usuario_id')->unique()->constrained('users')->restrictOnDelete();
             $table->string('nombre', 150)->unique();
             $table->string('zona', 100);
             $table->boolean('activo')->default(true);

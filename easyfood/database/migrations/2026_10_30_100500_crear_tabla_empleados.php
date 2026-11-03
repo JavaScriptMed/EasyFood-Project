@@ -12,7 +12,7 @@ return new class extends Migration
         Schema::create('empleados', function (Blueprint $table) {
             $table->id();
             // Una persona es empleado de una sola empresa.
-            $table->foreignId('usuario_id')->unique()->constrained('usuarios')->restrictOnDelete();
+            $table->foreignId('usuario_id')->unique()->constrained('users')->restrictOnDelete();
             $table->foreignId('empresa_id')->constrained('empresas')->restrictOnDelete();
             $table->string('departamento', 100)->nullable();
             $table->boolean('activo')->default(true);

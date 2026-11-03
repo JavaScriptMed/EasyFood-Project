@@ -41,19 +41,23 @@ class RestriccionesDeEsquemaTest extends TestCase
         $this->fail("La base aceptó algo que debía rechazar con «{$restriccion}».");
     }
 
-    private function usuario(string $rol = 'empleado', array $extra = []): int
+    /** Usuario de la tabla `users` (la del login existente). Su rol es un registro de `roles`; aquí basta con que exista. */
+    private function usuario(): int
     {
-        return DB::table('usuarios')->insertGetId(array_merge([
-            'nombre' => 'Persona de prueba',
-            'correo' => uniqid('u', true).'@ejemplo.mx',
-            'rol' => $rol,
-        ], $extra));
+        DB::table('roles')->insertOrIgnore(['id' => 1, 'name' => 'customer', 'display_name' => 'Cliente']);
+
+        return DB::table('users')->insertGetId([
+            'name' => 'Persona de prueba',
+            'email' => uniqid('u', true).'@ejemplo.mx',
+            'password' => 'no-importa-en-estas-pruebas',
+            'role_id' => 1,
+        ]);
     }
 
     private function empresa(): int
     {
         return DB::table('empresas')->insertGetId([
-            'usuario_id' => $this->usuario('empresa'),
+            'usuario_id' => $this->usuario(),
             'nombre' => 'Empresa '.uniqid(),
             'dominio' => 'ejemplo.mx',
             'zona' => 'Zapopan',
@@ -64,7 +68,7 @@ class RestriccionesDeEsquemaTest extends TestCase
     private function comedor(): int
     {
         return DB::table('comedores')->insertGetId([
-            'usuario_id' => $this->usuario('comedor'),
+            'usuario_id' => $this->usuario(),
             'nombre' => 'Comedor '.uniqid(),
             'zona' => 'Zapopan Norte',
         ]);
@@ -77,31 +81,12 @@ class RestriccionesDeEsquemaTest extends TestCase
             'porcentaje_subsidio' => 60,
             'compra_minima_mensual' => 420,
             'precio_por_platillo' => 130,
-            'fecha_inicio' => '2026-07-01',
-            'fecha_fin' => '2026-12-31',
+            'vigencia_inicio' => '2026-07-01',
+            'vigencia_fin' => '2026-12-31',
             'hora_entrega' => '12:40',
             'ventana_entrega_inicio' => '12:30',
             'ventana_entrega_fin' => '12:50',
         ];
-    }
-
-    // ---------------------------------------------------------------- usuarios
-
-    public function test_el_rol_debe_ser_uno_de_los_siete_roles(): void
-    {
-        $this->rechaza('usuarios_rol_valido', fn () => $this->usuario('superhéroe'));
-
-        foreach (['administrador', 'soporte', 'comedor', 'empresa', 'empleado', 'cliente', 'repartidor'] as $rol) {
-            $this->assertGreaterThan(0, $this->usuario($rol));
-        }
-    }
-
-    public function test_el_correo_es_unico_sin_importar_mayusculas_y_tiene_formato_valido(): void
-    {
-        $this->usuario('cliente', ['correo' => 'Ana@Ejemplo.mx']);
-
-        $this->rechaza('usuarios_correo_unico', fn () => $this->usuario('cliente', ['correo' => 'ana@ejemplo.MX']));
-        $this->rechaza('usuarios_correo_formato', fn () => $this->usuario('cliente', ['correo' => 'esto-no-es-un-correo']));
     }
 
     // ---------------------------------------------------------------- contratos
@@ -125,22 +110,22 @@ class RestriccionesDeEsquemaTest extends TestCase
     {
         $this->rechaza('contratos_empresa_compra_minima_positiva', fn () => DB::table('contratos_empresa')->insert($this->datosContratoEmpresa($this->empresa(), ['compra_minima_mensual' => 0])));
         $this->rechaza('contratos_comedor_compra_minima_positiva', fn () => DB::table('contratos_comedor')->insert([
-            'comedor_id' => $this->comedor(), 'compra_minima_mensual' => 0, 'fecha_inicio' => '2026-07-01', 'fecha_fin' => '2026-12-31',
+            'comedor_id' => $this->comedor(), 'compra_minima_mensual' => 0, 'vigencia_inicio' => '2026-07-01', 'vigencia_fin' => '2026-12-31',
         ]));
     }
 
-    public function test_la_fecha_fin_debe_ser_posterior_a_la_de_inicio(): void
+    public function test_la_vigencia_fin_debe_ser_posterior_a_la_de_inicio(): void
     {
-        $this->rechaza('contratos_empresa_fechas_validas', fn () => DB::table('contratos_empresa')->insert($this->datosContratoEmpresa($this->empresa(), ['fecha_fin' => '2026-07-01'])));
-        $this->rechaza('contratos_empresa_fechas_validas', fn () => DB::table('contratos_empresa')->insert($this->datosContratoEmpresa($this->empresa(), ['fecha_fin' => '2026-06-30'])));
-        $this->rechaza('contratos_comedor_fechas_validas', fn () => DB::table('contratos_comedor')->insert([
-            'comedor_id' => $this->comedor(), 'fecha_inicio' => '2026-07-01', 'fecha_fin' => '2026-07-01',
+        $this->rechaza('contratos_empresa_vigencia_valida', fn () => DB::table('contratos_empresa')->insert($this->datosContratoEmpresa($this->empresa(), ['vigencia_fin' => '2026-07-01'])));
+        $this->rechaza('contratos_empresa_vigencia_valida', fn () => DB::table('contratos_empresa')->insert($this->datosContratoEmpresa($this->empresa(), ['vigencia_fin' => '2026-06-30'])));
+        $this->rechaza('contratos_comedor_vigencia_valida', fn () => DB::table('contratos_comedor')->insert([
+            'comedor_id' => $this->comedor(), 'vigencia_inicio' => '2026-07-01', 'vigencia_fin' => '2026-07-01',
         ]));
     }
 
     public function test_el_contrato_de_comedor_arranca_con_49_pesos_y_200_platillos(): void
     {
-        DB::table('contratos_comedor')->insert(['comedor_id' => $this->comedor(), 'fecha_inicio' => '2026-07-01', 'fecha_fin' => '2026-12-31']);
+        DB::table('contratos_comedor')->insert(['comedor_id' => $this->comedor(), 'vigencia_inicio' => '2026-07-01', 'vigencia_fin' => '2026-12-31']);
 
         $this->assertDatabaseHas('contratos_comedor', ['precio_por_platillo' => '49.00', 'compra_minima_mensual' => 200]);
     }
@@ -159,11 +144,11 @@ class RestriccionesDeEsquemaTest extends TestCase
         $empresa = $this->empresa();
         $contrato = DB::table('contratos_empresa')->insertGetId($this->datosContratoEmpresa($empresa));
 
-        $this->rechaza('contratos_empresa_un_activo_por_empresa', fn () => DB::table('contratos_empresa')->insert($this->datosContratoEmpresa($empresa, ['fecha_inicio' => '2027-01-01', 'fecha_fin' => '2027-06-30'])));
+        $this->rechaza('contratos_empresa_un_activo_por_empresa', fn () => DB::table('contratos_empresa')->insert($this->datosContratoEmpresa($empresa, ['vigencia_inicio' => '2027-01-01', 'vigencia_fin' => '2027-06-30'])));
 
         // Desactivado el anterior, ya se puede registrar el siguiente.
         DB::table('contratos_empresa')->where('id', $contrato)->update(['activo' => false, 'desactivado_en' => now()]);
-        DB::table('contratos_empresa')->insert($this->datosContratoEmpresa($empresa, ['fecha_inicio' => '2027-01-01', 'fecha_fin' => '2027-06-30']));
+        DB::table('contratos_empresa')->insert($this->datosContratoEmpresa($empresa, ['vigencia_inicio' => '2027-01-01', 'vigencia_fin' => '2027-06-30']));
         $this->assertSame(2, DB::table('contratos_empresa')->where('empresa_id', $empresa)->count());
     }
 
@@ -197,19 +182,31 @@ class RestriccionesDeEsquemaTest extends TestCase
     public function test_las_claves_foraneas_no_aceptan_referencias_inexistentes(): void
     {
         $this->rechaza('empleados_empresa_id_foreign', fn () => DB::table('empleados')->insert(['usuario_id' => $this->usuario(), 'empresa_id' => 999999]));
-        $this->rechaza('contratos_comedor_comedor_id_foreign', fn () => DB::table('contratos_comedor')->insert(['comedor_id' => 999999, 'fecha_inicio' => '2026-07-01', 'fecha_fin' => '2026-12-31']));
+        $this->rechaza('contratos_comedor_comedor_id_foreign', fn () => DB::table('contratos_comedor')->insert(['comedor_id' => 999999, 'vigencia_inicio' => '2026-07-01', 'vigencia_fin' => '2026-12-31']));
     }
 
     // ---------------------------------------------------------------- configuracion
 
+    public function test_la_configuracion_nace_con_los_valores_confirmados(): void
+    {
+        $this->assertEquals([
+            'hora_corte' => '18:00',
+            'regla_sin_eleccion' => 'ultimo_platillo',
+            'dias_entrega' => 'lunes_viernes',
+            'capacidad_auto_entregas' => '30',
+            'capacidad_auto_platillos' => '120',
+        ], DB::table('configuracion')->pluck('valor', 'clave')->all());
+    }
+
     public function test_la_configuracion_solo_acepta_sus_cinco_claves_con_valores_validos(): void
     {
-        $validos = ['hora_corte' => '18:00', 'regla_sin_eleccion' => 'ultimo_platillo', 'dias_entrega' => 'lunes_viernes', 'capacidad_auto_entregas' => '30', 'capacidad_auto_platillos' => '120'];
-        foreach ($validos as $clave => $valor) {
-            DB::table('configuracion')->insert(['clave' => $clave, 'valor' => $valor]);
-        }
-        $this->assertDatabaseCount('configuracion', 5);
+        // Valores válidos distintos a los iniciales.
+        DB::table('configuracion')->where('clave', 'hora_corte')->update(['valor' => '17:30']);
+        DB::table('configuracion')->where('clave', 'regla_sin_eleccion')->update(['valor' => 'no_entregar']);
+        DB::table('configuracion')->where('clave', 'dias_entrega')->update(['valor' => 'lunes_sabado']);
+        $this->assertDatabaseHas('configuracion', ['clave' => 'hora_corte', 'valor' => '17:30']);
 
+        $this->rechaza('configuracion_pkey', fn () => DB::table('configuracion')->insert(['clave' => 'hora_corte', 'valor' => '19:00']));
         $this->rechaza('configuracion_clave_conocida', fn () => DB::table('configuracion')->insert(['clave' => 'otra_cosa', 'valor' => 'x']));
         $this->rechaza('configuracion_hora_corte_valida', fn () => DB::table('configuracion')->where('clave', 'hora_corte')->update(['valor' => '25:00']));
         $this->rechaza('configuracion_hora_corte_valida', fn () => DB::table('configuracion')->where('clave', 'hora_corte')->update(['valor' => '6 pm']));
@@ -219,13 +216,28 @@ class RestriccionesDeEsquemaTest extends TestCase
         $this->rechaza('configuracion_capacidad_positiva', fn () => DB::table('configuracion')->where('clave', 'capacidad_auto_platillos')->update(['valor' => '-5']));
     }
 
-    public function test_si_se_desactiva_quien_cambio_la_configuracion_el_dato_se_conserva_sin_autor(): void
+    public function test_el_autor_de_un_cambio_de_configuracion_no_bloquea_ni_borra_el_dato(): void
     {
-        $admin = $this->usuario('administrador');
-        DB::table('configuracion')->insert(['clave' => 'hora_corte', 'valor' => '18:00', 'actualizado_por' => $admin]);
-
         // El FK es ON DELETE SET NULL; como los usuarios no se borran, se comprueba la definición.
         $regla = DB::selectOne("select confdeltype from pg_constraint where conname = 'configuracion_actualizado_por_foreign'");
         $this->assertSame('n', $regla->confdeltype);
+    }
+
+    // ---------------------------------------------------------------- montos
+
+    public function test_los_montos_van_en_numeric_10_2(): void
+    {
+        $columnas = [['menus', 'price'], ['contratos_comedor', 'precio_por_platillo'], ['contratos_empresa', 'precio_por_platillo']];
+
+        foreach ($columnas as [$tabla, $columna]) {
+            $definicion = DB::selectOne('select numeric_precision, numeric_scale from information_schema.columns where table_name = ? and column_name = ?', [$tabla, $columna]);
+            $this->assertSame([10, 2], [(int) $definicion->numeric_precision, (int) $definicion->numeric_scale], "{$tabla}.{$columna}");
+        }
+    }
+
+    public function test_las_coordenadas_de_proveedores_conservan_su_precision(): void
+    {
+        $lat = DB::selectOne("select numeric_precision, numeric_scale from information_schema.columns where table_name = 'providers' and column_name = 'latitude'");
+        $this->assertSame([10, 8], [(int) $lat->numeric_precision, (int) $lat->numeric_scale]);
     }
 }

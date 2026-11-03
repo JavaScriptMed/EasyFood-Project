@@ -11,8 +11,8 @@ return new class extends Migration
     {
         Schema::create('empresas', function (Blueprint $table) {
             $table->id();
-            // Contacto de RR. HH. con acceso al portal de empresas.
-            $table->foreignId('usuario_id')->unique()->constrained('usuarios')->restrictOnDelete();
+            // Contacto de RR. HH. con acceso al portal de empresas (tabla users, la del login existente).
+            $table->foreignId('usuario_id')->unique()->constrained('users')->restrictOnDelete();
             $table->string('nombre', 150)->unique();
             // Dominio del correo de sus empleados (nexo.mx).
             $table->string('dominio', 150);

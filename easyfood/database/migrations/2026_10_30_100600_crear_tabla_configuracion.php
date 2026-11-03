@@ -12,8 +12,8 @@ return new class extends Migration
         Schema::create('configuracion', function (Blueprint $table) {
             $table->string('clave', 60)->primary();
             $table->string('valor', 255);
-            // Quién la cambió por última vez; si esa persona se desactiva el dato queda, sin autor.
-            $table->foreignId('actualizado_por')->nullable()->constrained('usuarios')->nullOnDelete();
+            // Quién la cambió por última vez (tabla users); si ese usuario desaparece, el dato queda sin autor.
+            $table->foreignId('actualizado_por')->nullable()->constrained('users')->nullOnDelete();
             $table->timestampTz('actualizado_en')->useCurrent();
         });
 
@@ -30,6 +30,16 @@ return new class extends Migration
                 ADD CONSTRAINT configuracion_capacidad_positiva
                     CHECK (clave NOT IN ('capacidad_auto_entregas', 'capacidad_auto_platillos') OR valor ~ '^[1-9][0-9]{0,8}$')
         SQL);
+
+        // Valores iniciales (confirmados): corte 6:00 p. m., sin elección se repite el último platillo,
+        // entregas de lunes a viernes y un auto lleva hasta 30 entregas o 120 platillos.
+        DB::table('configuracion')->insert([
+            ['clave' => 'hora_corte', 'valor' => '18:00'],
+            ['clave' => 'regla_sin_eleccion', 'valor' => 'ultimo_platillo'],
+            ['clave' => 'dias_entrega', 'valor' => 'lunes_viernes'],
+            ['clave' => 'capacidad_auto_entregas', 'valor' => '30'],
+            ['clave' => 'capacidad_auto_platillos', 'valor' => '120'],
+        ]);
     }
 
     public function down(): void
