@@ -1,6 +1,8 @@
 'use client'
 
 import { FormEvent, useState } from 'react'
+import Link from 'next/link'
+import { iniciarSesion } from '@/lib/sesion'
 import { ArrowRight, Eye, EyeOff, LockKeyhole, Mail, ShieldCheck, Truck } from 'lucide-react'
 
 export default function LoginPage() {
@@ -16,7 +18,7 @@ export default function LoginPage() {
     window.setTimeout(() => {
       const normalizedEmail = email.toLowerCase()
       if (normalizedEmail.includes('bloqueado')) setStatus('locked')
-      else if (normalizedEmail.includes('admin') || normalizedEmail.includes('soporte')) window.location.href = '/admin'
+      else if (normalizedEmail.includes('admin') || normalizedEmail.includes('soporte')) { iniciarSesion(normalizedEmail.includes('admin') ? 'administrador' : 'soporte'); window.location.href = '/admin' }
       else setStatus('error')
     }, 700)
   }
@@ -75,7 +77,7 @@ export default function LoginPage() {
             </label>
             <div className="flex items-center justify-between text-sm">
               <label className="flex cursor-pointer items-center gap-2 text-slate-400"><input type="checkbox" checked={remember} onChange={(event) => setRemember(event.target.checked)} className="size-4 accent-[#e7b31c]" /> Recordarme</label>
-              <button type="button" className="font-semibold text-[#e7b31c] hover:text-[#f4ca4d]">¿Olvidaste tu contraseña?</button>
+              <Link href="/admin/olvide-contrasena" className="font-semibold text-[#e7b31c] hover:text-[#f4ca4d]">¿Olvidaste tu contraseña?</Link>
             </div>
             {status === 'error' && <p role="alert" className="rounded-xl border border-red-400/30 bg-red-400/10 px-4 py-3 text-sm text-red-200">No pudimos validar tus datos. Revisa tu correo y contraseña.</p>}
             {status === 'locked' && <p role="alert" className="rounded-xl border border-orange-300/30 bg-orange-300/10 px-4 py-3 text-sm text-orange-100">Esta cuenta está bloqueada temporalmente. Contacta a soporte.</p>}

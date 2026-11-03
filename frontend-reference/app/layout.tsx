@@ -1,15 +1,17 @@
 import { Analytics } from '@vercel/analytics/next'
 import type { Metadata, Viewport } from 'next'
-import { Inter, Plus_Jakarta_Sans } from 'next/font/google'
-import { Toaster } from 'sonner'
+import { DM_Sans, Inter, Plus_Jakarta_Sans } from 'next/font/google'
+import { AvisosTema } from '@/components/tema'
+import { scriptTema } from '@/lib/tema'
 import './globals.css'
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' })
 const jakarta = Plus_Jakarta_Sans({ subsets: ['latin'], variable: '--font-jakarta' })
+const dmSans = DM_Sans({ subsets: ['latin'], variable: '--font-dm-sans' })
 
 export const metadata: Metadata = {
-  title: 'EasyLunch · Sistema de diseño',
-  description: 'Sistema de diseño para la operación de comida programada de EasyLunch.',
+  title: 'EasyLunch · Tu comida de la semana, resuelta',
+  description: 'Comedores certificados cocinan y EasyLunch lleva la comida a tu empresa o a tu casa en Guadalajara.',
   generator: 'v0.app',
   icons: {
     icon: [
@@ -44,10 +46,13 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="es-MX">
-      <body className={`${inter.variable} ${jakarta.variable} antialiased`}>
+    <html lang="es-MX" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: scriptTema }} />
+      </head>
+      <body className={`${inter.variable} ${jakarta.variable} ${dmSans.variable} antialiased`}>
         {children}
-        <Toaster richColors position="bottom-right" />
+        <AvisosTema />
         {process.env.NODE_ENV === 'production' && <Analytics />}
       </body>
     </html>
