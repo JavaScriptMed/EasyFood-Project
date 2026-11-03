@@ -10,20 +10,10 @@ use Tests\TestCase;
 /**
  * Las restricciones viven en PostgreSQL (CHECK, índices parciales, triggers), así que estas pruebas
  * corren contra la base «easylunch_pruebas» (ver phpunit.xml): docker compose exec app php artisan test
- * Si alguien las lanza con otro motor (por ejemplo sqlite), se omiten en lugar de fallar.
  */
 class RestriccionesDeEsquemaTest extends TestCase
 {
     use RefreshDatabase;
-
-    protected function setUp(): void
-    {
-        if (($_ENV['DB_CONNECTION'] ?? getenv('DB_CONNECTION')) !== 'pgsql') {
-            $this->markTestSkipped('Estas pruebas necesitan PostgreSQL.');
-        }
-
-        parent::setUp();
-    }
 
     // ---------------------------------------------------------------- ayudas
 

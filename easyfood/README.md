@@ -22,7 +22,7 @@ docker compose exec app php artisan migrate
 - Si ya tenías el volumen de la base de datos creado antes de esta configuración, crea la base de pruebas una vez:
   `docker compose exec db psql -U <DB_USERNAME> -d postgres -c "CREATE DATABASE easylunch_pruebas"`
 
-**El backend requiere PostgreSQL.** Las migraciones usan CHECK, índices parciales, triggers y PostGIS; con SQLite fallan a propósito con un mensaje que lo explica.
+**El backend requiere PostgreSQL.** Las migraciones usan CHECK, índices parciales, triggers y PostGIS; SQLite ya no está configurado en el proyecto, y con cualquier otro motor la primera migración falla con un mensaje que lo explica.
 
 ## Pruebas
 
