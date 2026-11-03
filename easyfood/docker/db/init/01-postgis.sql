@@ -1,0 +1,2 @@
+-- Corre una sola vez, al crear el volumen de datos por primera vez.
+CREATE EXTENSION IF NOT EXISTS postgis;

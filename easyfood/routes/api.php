@@ -2,10 +2,18 @@
 
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\V1\SaludController;
 use App\Http\Controllers\Api\ProviderController;
 use App\Http\Controllers\Api\Admin\UserController as AdminUserController;
 use App\Http\Controllers\Api\MenuController;
 use App\Http\Controllers\Api\CatalogCategoryController;
+
+// -----------------------------------------------------------------
+// API v1 (nombres de rutas en español, ver CLAUDE.md)
+// -----------------------------------------------------------------
+Route::prefix('v1')->group(function () {
+    Route::get('/salud', SaludController::class)->name('v1.salud');
+});
 
 Route::middleware('auth:api')->group(function () {
 
