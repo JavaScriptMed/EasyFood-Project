@@ -71,7 +71,7 @@ class ModelosEloquentTest extends TestCase
             'empresas', 'contratos_comedor', 'contratos_empresa', 'empleados', 'configuracion', 'disponibilidad_dia', 'cortes',
             'elecciones_empleado', 'ordenes_produccion', 'repartidores', 'rutas', 'entregas_empresa', 'paquetes', 'pedidos',
             'pedido_dias', 'paradas', 'incidencias', 'facturas_mensuales', 'liquidaciones_comedor', 'dias_sin_servicio',
-            'invitaciones', 'tickets', 'mensajes_ticket', 'registros_auditoria', 'mensajes_contacto',
+            'invitaciones', 'tickets', 'mensajes_ticket', 'registros_auditoria', 'mensajes_contacto', 'zonas', 'avisos',
             'providers', 'menus', 'addresses', 'catalog_items',
         ];
         $this->assertSame([], array_values(array_diff($esperadas, $tablas)));
@@ -243,11 +243,12 @@ class ModelosEloquentTest extends TestCase
     public function test_el_cliente_ve_sus_pedidos_con_paquete_y_direccion(): void
     {
         $cliente = User::findOrFail($this->usuario());
+        $this->zonaDePruebas();
         $direccion = Address::create(['user_id' => $cliente->id, 'street_address' => 'Av. Vallarta 100', 'latitude' => 20.67, 'longitude' => -103.35]);
         $paquete = Paquete::create(['nombre' => 'Semana', 'dias' => 6, 'descuento_porcentaje' => 10]);
         $pedido = Pedido::create([
             'folio' => 'PED-0001', 'cliente_id' => $cliente->id, 'paquete_id' => $paquete->id, 'direccion_id' => $direccion->id,
-            'fecha_inicio' => '2026-11-16', 'fecha_fin' => '2026-11-21', 'total' => 588, 'estado' => 'pendiente_pago',
+            'fecha_inicio' => '2026-11-16', 'fecha_fin' => '2026-11-21', 'total' => 588, 'estado' => 'pendiente_pago', 'vence_pago_en' => '2026-11-15 18:00:00',
         ]);
 
         $this->assertTrue($cliente->pedidos->contains($pedido));

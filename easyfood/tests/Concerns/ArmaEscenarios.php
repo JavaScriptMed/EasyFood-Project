@@ -3,6 +3,7 @@
 namespace Tests\Concerns;
 
 use App\Models\Configuracion;
+use App\Models\ContratoComedor;
 use App\Models\ContratoEmpresa;
 use App\Models\DisponibilidadDia;
 use App\Models\Empleado;
@@ -28,6 +29,15 @@ trait ArmaEscenarios
     protected function comedorNuevo(): Provider
     {
         return Provider::create(['business_name' => 'Comedor '.uniqid(), 'phone' => '33 0000 0000', 'address' => 'Calle 1', 'zona' => 'Zapopan']);
+    }
+
+    /** Un comedor con contrato vigente (de julio de 2026 a enero de 2027). Sin contrato no participa en el platillo del día. */
+    protected function comedorConContrato(int $minimo = 200, float $precio = 49): Provider
+    {
+        $comedor = $this->comedorNuevo();
+        ContratoComedor::create(['comedor_id' => $comedor->id, 'precio_por_platillo' => $precio, 'compra_minima_mensual' => $minimo, 'vigencia_inicio' => '2026-07-01', 'vigencia_fin' => '2027-01-31']);
+
+        return $comedor;
     }
 
     protected function platillo(?Provider $comedor = null, string $tiempo = 'comida', array $extra = []): Menu

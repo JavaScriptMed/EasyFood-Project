@@ -11,7 +11,7 @@ use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Factura mensual de una empresa (una por empresa y mes).
+ * Factura mensual de una empresa (una por empresa y mes). Folio EL-AAAAMM-NNN: NNN es el consecutivo de facturas del mes.
  *
  *   consumo           = platillos entregados × precio congelado de cada elección
  *   parte de empresa  = por cada platillo, precio congelado × subsidio congelado %
@@ -77,7 +77,7 @@ class GeneradorDeFacturas
             }
 
             return FacturaMensual::create($datos + [
-                'folio' => sprintf('EL-%s-%03d', $inicio->format('Ym'), $empresaId),
+                'folio' => Folios::factura($inicio),
                 'empresa_id' => $empresaId, 'mes' => $inicio->toDateString(), 'estado' => 'borrador',
             ])->refresh();
         });

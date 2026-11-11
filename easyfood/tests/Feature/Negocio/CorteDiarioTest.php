@@ -131,6 +131,7 @@ class CorteDiarioTest extends TestCase
         $this->empresaConContrato();
         $menu = $this->platillo();
         $this->disponible($menu, self::ENTREGA);
+        $this->zonaDePruebas();
         $cliente = \App\Models\User::findOrFail($this->usuario());
         $direccion = \App\Models\Address::create(['user_id' => $cliente->id, 'street_address' => 'Av. Vallarta 100', 'latitude' => 20.67, 'longitude' => -103.35]);
         $paquete = Paquete::create(['nombre' => 'Un día', 'dias' => 1, 'descuento_porcentaje' => 0]);
@@ -146,8 +147,9 @@ class CorteDiarioTest extends TestCase
         $orden = OrdenProduccion::first();
         $this->assertSame([1, 0, 1], [$orden->porciones_totales, $orden->porciones_empresas, $orden->porciones_individuales]);
         $this->assertSame('recibido', $pagado->estado);
-        $this->assertSame('con_advertencias', $corte->estado);
-        $this->assertStringContainsString('clientes individuales', $corte->mensaje);
+        $this->assertSame('con_advertencias', $corte->estado, 'sin repartidor en la zona queda sin ruta');
+        $this->assertStringContainsString('sin ruta', $corte->mensaje);
+        $this->assertStringNotContainsString('aún falta definir', $corte->mensaje);
     }
 
     public function test_consolida_una_sola_entrega_por_empresa_con_la_ventana_de_su_contrato(): void
@@ -245,7 +247,7 @@ class CorteDiarioTest extends TestCase
     {
         $this->ajuste('regla_sin_eleccion', 'platillo_del_dia');
         $empleado = $this->empleadoDe($this->empresaConContrato());
-        $comedor = $this->comedorNuevo();
+        $comedor = $this->comedorConContrato();
         $normal = $this->platillo($comedor);
         $delDia = $this->platillo($comedor);
         $cena = $this->platillo($comedor, 'cena');

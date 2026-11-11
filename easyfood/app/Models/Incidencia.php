@@ -19,6 +19,7 @@ class Incidencia extends ModeloEasyLunch
         'nota',
         'ruta_id',
         'entrega_empresa_id',
+        'pedido_dia_id',
         'repartidor_reasignado_id',
         'resuelta_en',
     ];
@@ -39,6 +40,11 @@ class Incidencia extends ModeloEasyLunch
     public function entregaEmpresa(): BelongsTo
     {
         return $this->belongsTo(EntregaEmpresa::class, 'entrega_empresa_id');
+    }
+
+    public function pedidoDia(): BelongsTo
+    {
+        return $this->belongsTo(PedidoDia::class, 'pedido_dia_id');
     }
 
     public function repartidorReasignado(): BelongsTo

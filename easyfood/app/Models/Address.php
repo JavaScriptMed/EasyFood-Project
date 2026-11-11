@@ -21,9 +21,13 @@ class Address extends Model
         'is_default',
     ];
 
+    // `ubicacion` (geography), `zona` y `sin_cobertura` los calcula la base al guardar latitude/longitude: son de solo lectura.
+    protected $hidden = ['ubicacion'];
+
     protected function casts(): array
     {
         return [
+            'sin_cobertura' => 'boolean',
             'latitude' => 'float',
             'longitude' => 'float',
             'is_default' => 'boolean',

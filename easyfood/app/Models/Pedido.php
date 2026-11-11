@@ -21,7 +21,20 @@ class Pedido extends ModeloEasyLunch
         'metodo_pago',
         'ultimos_digitos',
         'pagado_en',
+        'vence_pago_en',
     ];
+
+    /** Lo que el front muestra del pedido por pagar: cuándo vence y cuántos segundos quedan (nulo si ya no está por pagar). */
+    protected $appends = ['segundos_para_pagar'];
+
+    public function getSegundosParaPagarAttribute(): ?int
+    {
+        if ($this->estado !== 'pendiente_pago' || ! $this->vence_pago_en) {
+            return null;
+        }
+
+        return max(0, (int) now()->diffInSeconds($this->vence_pago_en, false));
+    }
 
     protected function casts(): array
     {
@@ -30,6 +43,7 @@ class Pedido extends ModeloEasyLunch
             'fecha_fin' => 'date:Y-m-d',
             'total' => 'decimal:2',
             'pagado_en' => 'datetime',
+            'vence_pago_en' => 'datetime',
         ];
     }
 

@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Exceptions\ReglaDeNegocioException;
 use App\Models\Configuracion;
+use App\Models\ContratoComedor;
 use App\Models\ContratoEmpresa;
 use App\Models\Corte;
 use App\Models\DiaSinServicio;
@@ -15,6 +16,7 @@ use App\Models\Incidencia;
 use App\Models\Menu;
 use App\Models\OrdenProduccion;
 use App\Models\Parada;
+use App\Models\PedidoDia;
 use App\Models\Repartidor;
 use App\Models\Ruta;
 use Carbon\CarbonImmutable;
@@ -29,7 +31,9 @@ use Throwable;
  *  2. cierra las elecciones (cerrada_en): desde ese momento ya no se cambian;
  *  3. genera una orden de producción por comedor y platillo;
  *  4. consolida una sola entrega por empresa;
- *  5. crea rutas respetando la capacidad del auto (entregas y platillos) y agrupando por zona.
+ *  5. crea rutas respetando la capacidad del auto (entregas y platillos) y agrupando por zona: primero las entregas a empresas
+ *     y después las de clientes individuales (cuya zona sale de su dirección).
+ * Antes de contar nada cancela los pedidos individuales por pagar que ya no se pueden pagar.
  *
  * Es idempotente: ejecutarlo otra vez para la misma fecha no cambia nada y deja un registro «sin_cambios».
  * Si algo falla, nada se guarda salvo un registro «fallido» con el motivo, y se puede volver a ejecutar.
@@ -41,7 +45,16 @@ class EjecutorDelCorte
 
     private const HORA_DE_ENTREGA_SIN_DATOS = '12:00';
 
-    public function __construct(private readonly CalendarioDeServicio $calendario) {}
+    /** Una ruta que solo lleva entregas a clientes individuales arranca a esta hora… */
+    private const INICIO_SIN_EMPRESAS = '12:00:00';
+
+    /** …y cada entrega a un cliente individual se estima esta cantidad de minutos después de la anterior (tras las de empresas). */
+    private const MINUTOS_ENTRE_ENTREGAS_INDIVIDUALES = 10;
+
+    public function __construct(
+        private readonly CalendarioDeServicio $calendario,
+        private readonly ContratacionDePaquetes $paquetes,
+    ) {}
 
     /**
      * @param  int|null  $usuarioId  null = lo lanza el sistema a la hora de corte; con valor, lo lanzó esa persona a mano.
@@ -87,6 +100,8 @@ class EjecutorDelCorte
             ]);
         }
 
+        $this->paquetes->cancelarVencidos($ahora, $fecha);
+
         $advertencias = [];
         $contratos = $this->contratosVigentes($dia);
 
@@ -109,13 +124,7 @@ class EjecutorDelCorte
         $ordenes = $this->generarOrdenes($corte, $fecha, $porEmpresa, $contratos);
         [$rutas, $sinRuta] = $this->crearRutas($corte, $fecha);
         if ($sinRuta > 0) {
-            $advertencias[] = "{$sinRuta} entrega(s) quedaron sin ruta por falta de repartidores con capacidad: hay una incidencia abierta por cada una.";
-        }
-
-        $individuales = DB::table('pedido_dias as d')->join('pedidos as p', 'p.id', '=', 'd.pedido_id')
-            ->whereDate('d.fecha', $fecha)->where('d.estado', 'programada')->whereIn('p.estado', ['recibido', 'activo'])->count();
-        if ($individuales > 0) {
-            $advertencias[] = "{$individuales} entrega(s) a clientes individuales están en la producción pero sin ruta: aún falta definir cómo se asigna su zona.";
+            $advertencias[] = "{$sinRuta} entrega(s) quedaron sin ruta por falta de repartidores con capacidad (o por una dirección sin zona): hay una incidencia abierta por cada una.";
         }
 
         $corte->update([
@@ -163,10 +172,17 @@ class EjecutorDelCorte
                 && $disp->porciones_tomadas + ($tomadas[$menuId] ?? 0) < $disp->porciones_maximas;
         };
 
-        $platilloDelDia = function (string $tiempo) use ($disponibilidad, $hayPorcion): ?int {
-            foreach ($disponibilidad as $menuId => $disp) {
-                if ($disp->es_platillo_del_dia && $hayPorcion($menuId, $tiempo)) {
-                    return $menuId;
+        // Con varios comedores que marcaron su platillo del día, va primero el que más atrás está en su compra mínima del mes.
+        // El avance se calcula una sola vez, antes de repartir, para que todos los tiempos de comida usen la misma foto.
+        $marcados = $disponibilidad->filter(fn ($d) => $d->es_platillo_del_dia)->keys()->map(fn ($id) => $menus->get($id)?->provider_id)->filter()->unique()->values()->all();
+        $avance = $marcados ? $this->avanceDeComedores($marcados, $dia) : [];
+        $ranking = [];
+
+        $platilloDelDia = function (string $tiempo) use ($disponibilidad, $menus, $avance, &$ranking, $hayPorcion): ?int {
+            $ranking[$tiempo] ??= $this->menusDelDiaPorRezago($disponibilidad, $menus, $avance, $tiempo);
+            foreach ($ranking[$tiempo] as $menuId) {
+                if ($hayPorcion($menuId, $tiempo)) {
+                    return $menuId; // el que sigue en el orden si el anterior ya no tiene porciones libres
                 }
             }
 
@@ -208,6 +224,73 @@ class EjecutorDelCorte
         }
 
         return [$creadas, $sinEntrega];
+    }
+
+    /**
+     * Avance de cada comedor en su compra mínima del mes de la entrega: platillos del mes / mínimo de su contrato vigente.
+     * Platillos del mes = porciones de sus órdenes de producción de los días anteriores del mes (ya cortados)
+     *                   + lo ya elegido para la fecha que se está cortando (empleados y clientes individuales pagados).
+     * Un comedor sin contrato vigente no participa.
+     *
+     * @param  array<int, int>  $comedores
+     * @return array<int, array{platillos:int, minimo:int}> por comedor
+     */
+    private function avanceDeComedores(array $comedores, CarbonImmutable $dia): array
+    {
+        $fecha = $dia->toDateString();
+        $inicioMes = $dia->startOfMonth()->toDateString();
+
+        $minimos = ContratoComedor::query()->activos()->whereIn('comedor_id', $comedores)
+            ->whereDate('vigencia_inicio', '<=', $fecha)->whereDate('vigencia_fin', '>=', $fecha)
+            ->pluck('compra_minima_mensual', 'comedor_id');
+
+        $previos = DB::table('ordenes_produccion')->whereIn('comedor_id', $comedores)
+            ->whereDate('fecha', '>=', $inicioMes)->whereDate('fecha', '<', $fecha)
+            ->groupBy('comedor_id')->selectRaw('comedor_id, sum(porciones_totales) as total')->pluck('total', 'comedor_id');
+
+        $elegidos = DB::table('elecciones_empleado as e')->join('menus as m', 'm.id', '=', 'e.menu_id')
+            ->whereIn('m.provider_id', $comedores)->whereDate('e.fecha', $fecha)
+            ->groupBy('m.provider_id')->selectRaw('m.provider_id, count(*) as total')->pluck('total', 'provider_id');
+
+        $individuales = DB::table('pedido_dias as d')->join('pedidos as p', 'p.id', '=', 'd.pedido_id')->join('menus as m', 'm.id', '=', 'd.menu_id')
+            ->whereIn('m.provider_id', $comedores)->whereDate('d.fecha', $fecha)->where('d.estado', 'programada')->whereIn('p.estado', ['recibido', 'activo'])
+            ->groupBy('m.provider_id')->selectRaw('m.provider_id, count(*) as total')->pluck('total', 'provider_id');
+
+        $avance = [];
+        foreach ($minimos as $comedorId => $minimo) {
+            $avance[$comedorId] = [
+                'platillos' => (int) ($previos[$comedorId] ?? 0) + (int) ($elegidos[$comedorId] ?? 0) + (int) ($individuales[$comedorId] ?? 0),
+                'minimo' => (int) $minimo,
+            ];
+        }
+
+        return $avance;
+    }
+
+    /**
+     * Platillos del día marcados para un tiempo de comida, del comedor más atrás al más adelantado:
+     * menor avance (platillos / mínimo); si empatan, el de menos platillos; si aún empatan, el de menor id.
+     * Se compara con productos cruzados para no depender de decimales.
+     *
+     * @param  array<int, array{platillos:int, minimo:int}>  $avance
+     * @return array<int, int> ids de menú en orden de asignación
+     */
+    private function menusDelDiaPorRezago(Collection $disponibilidad, Collection $menus, array $avance, string $tiempo): array
+    {
+        $candidatos = [];
+        foreach ($disponibilidad as $menuId => $disp) {
+            $menu = $menus->get($menuId);
+            if ($disp->es_platillo_del_dia && $menu && $menu->estado_revision === 'publicado' && $menu->is_available
+                && $menu->tiempo_comida === $tiempo && isset($avance[$menu->provider_id])) {
+                $candidatos[] = ['menu' => $menuId, 'comedor' => $menu->provider_id] + $avance[$menu->provider_id];
+            }
+        }
+
+        usort($candidatos, fn ($a, $b) => ($a['platillos'] * $b['minimo']) <=> ($b['platillos'] * $a['minimo'])
+            ?: $a['platillos'] <=> $b['platillos']
+            ?: $a['comedor'] <=> $b['comedor']);
+
+        return array_column($candidatos, 'menu');
     }
 
     // ------------------------------------------------------------------ 3 y 4. órdenes y entregas
@@ -290,17 +373,27 @@ class EjecutorDelCorte
     // ------------------------------------------------------------------ 5. rutas
 
     /**
-     * Agrupa por zona de la empresa y llena un auto a la vez sin pasar de su capacidad (entregas y platillos).
-     * Lo que no cabe queda sin ruta y genera una incidencia abierta.
+     * Agrupa por zona y llena un auto a la vez sin pasar de su capacidad (entregas y platillos). En cada zona van primero
+     * las entregas a empresas (por ventana) y después las de clientes individuales (cada una cuenta como 1 entrega y 1 platillo).
+     * Lo que no cabe, o una dirección sin zona, queda sin ruta y genera una incidencia abierta.
      *
      * @return array{0:int,1:int} rutas creadas y entregas sin ruta
      */
     private function crearRutas(Corte $corte, string $fecha): array
     {
         $capacidad = $this->calendario->capacidadDelAuto();
-        $pendientes = EntregaEmpresa::query()->with('empresa')->whereDate('fecha', $fecha)->whereNull('ruta_id')->where('estado', 'programada')
+
+        $empresas = EntregaEmpresa::query()->with('empresa')->whereDate('fecha', $fecha)->whereNull('ruta_id')->where('estado', 'programada')
             ->orderBy('ventana_inicio')->orderBy('id')->get()
-            ->groupBy(fn ($entrega) => $this->zona($entrega->empresa->zona));
+            ->map(fn (EntregaEmpresa $e) => ['tipo' => 'empresa', 'zona' => $e->empresa->zona, 'peso' => (int) $e->platillos, 'modelo' => $e]);
+
+        $individuales = PedidoDia::query()->with(['pedido.cliente', 'pedido.direccion'])
+            ->whereDate('fecha', $fecha)->where('estado', 'programada')->doesntHave('parada')
+            ->whereHas('pedido', fn ($q) => $q->whereIn('estado', ['recibido', 'activo']))
+            ->orderBy('id')->get()
+            ->map(fn (PedidoDia $d) => ['tipo' => 'cliente', 'zona' => $d->pedido->direccion->zona, 'peso' => 1, 'modelo' => $d]);
+
+        $porZona = $empresas->concat($individuales)->groupBy(fn ($item) => $item['zona'] === null ? '' : $this->zona($item['zona']));
 
         $ocupados = Ruta::query()->whereDate('fecha', $fecha)->pluck('repartidor_id')->all();
         $repartidores = Repartidor::query()->activos()->where('estado', '<>', 'no_disponible')->whereNotIn('id', $ocupados)
@@ -308,70 +401,115 @@ class EjecutorDelCorte
 
         $rutas = 0;
         $sinRuta = [];
-        foreach ($pendientes as $zona => $entregas) {
-            $resto = $entregas->all();
-            foreach ($repartidores->get($zona, collect()) as $repartidor) {
-                if (! $resto) {
-                    break;
+        foreach ($porZona as $zona => $items) {
+            $resto = $items->all();
+            if ($zona !== '') {
+                foreach ($repartidores->get($zona, collect()) as $repartidor) {
+                    if (! $resto) {
+                        break;
+                    }
+                    [$asignados, $resto] = $this->llenarAuto($resto, $capacidad);
+                    if (! $asignados) {
+                        break; // Ninguno cabe solo en un auto: otro auto igual tampoco serviría.
+                    }
+                    $this->guardarRuta($corte, $fecha, $repartidor, $asignados, $capacidad);
+                    $rutas++;
                 }
-                [$asignadas, $resto] = $this->llenarAuto($resto, $capacidad);
-                if (! $asignadas) {
-                    break; // Ninguna cabe sola en un auto: otro auto igual tampoco serviría.
-                }
-                $this->guardarRuta($corte, $fecha, $repartidor, $asignadas, $capacidad);
-                $rutas++;
             }
             array_push($sinRuta, ...$resto);
         }
 
-        foreach ($sinRuta as $entrega) {
-            Incidencia::create([
-                'fecha' => $fecha, 'tipo' => 'falta_repartidores', 'prioridad' => 'inmediata', 'estado' => 'abierta',
-                'entrega_empresa_id' => $entrega->id,
-                'descripcion' => "La entrega de {$entrega->empresa->nombre} ({$entrega->platillos} platillos, zona {$entrega->empresa->zona}) quedó sin ruta: no hay repartidor con capacidad en la zona.",
-            ]);
+        foreach ($sinRuta as $item) {
+            $this->abrirIncidenciaDeFaltaDeRuta($fecha, $item);
         }
 
         return [$rutas, count($sinRuta)];
     }
 
-    /** @return array{0: array<int, EntregaEmpresa>, 1: array<int, EntregaEmpresa>} las que caben en un auto y las que sobran */
-    private function llenarAuto(array $entregas, array $capacidad): array
+    /** @return array{0: array<int, array>, 1: array<int, array>} los que caben en un auto y los que sobran */
+    private function llenarAuto(array $items, array $capacidad): array
     {
-        $asignadas = [];
+        $asignados = [];
         $resto = [];
         $platillos = 0;
-        foreach ($entregas as $entrega) {
-            if (count($asignadas) < $capacidad['entregas'] && $platillos + $entrega->platillos <= $capacidad['platillos']) {
-                $asignadas[] = $entrega;
-                $platillos += $entrega->platillos;
+        foreach ($items as $item) {
+            if (count($asignados) < $capacidad['entregas'] && $platillos + $item['peso'] <= $capacidad['platillos']) {
+                $asignados[] = $item;
+                $platillos += $item['peso'];
             } else {
-                $resto[] = $entrega;
+                $resto[] = $item;
             }
         }
 
-        return [$asignadas, $resto];
+        return [$asignados, $resto];
     }
 
-    /** @param array<int, EntregaEmpresa> $entregas */
-    private function guardarRuta(Corte $corte, string $fecha, Repartidor $repartidor, array $entregas, array $capacidad): void
+    /** @param array<int, array> $items entregas a empresas primero y luego clientes individuales */
+    private function guardarRuta(Corte $corte, string $fecha, Repartidor $repartidor, array $items, array $capacidad): void
     {
-        $entregas = collect($entregas);
+        $items = collect($items);
+        $empresas = $items->where('tipo', 'empresa');
+        $clientes = $items->where('tipo', 'cliente')->values();
+
+        $inicio = $empresas->map(fn ($i) => $i['modelo']->ventana_inicio)->min() ?? self::INICIO_SIN_EMPRESAS;
+        $finEmpresas = $empresas->map(fn ($i) => $i['modelo']->ventana_fin)->max() ?? $inicio;
+        $horaDeCliente = fn (int $n) => CarbonImmutable::createFromTimeString($finEmpresas)->addMinutes($n * self::MINUTOS_ENTRE_ENTREGAS_INDIVIDUALES)->format('H:i:s');
+        $fin = $clientes->isEmpty() ? $finEmpresas : $horaDeCliente($clientes->count());
+
         $ruta = Ruta::create([
-            'fecha' => $fecha, 'repartidor_id' => $repartidor->id, 'corte_id' => $corte->id, 'zona' => $entregas->first()->empresa->zona,
-            'ventana_inicio' => $entregas->min('ventana_inicio'), 'ventana_fin' => $entregas->max('ventana_fin'),
+            'fecha' => $fecha, 'repartidor_id' => $repartidor->id, 'corte_id' => $corte->id, 'zona' => $items->first()['zona'],
+            'ventana_inicio' => $inicio, 'ventana_fin' => $fin,
             'capacidad_entregas' => $capacidad['entregas'], 'capacidad_platillos' => $capacidad['platillos'],
-            'entregas_asignadas' => $entregas->count(), 'platillos_asignados' => $entregas->sum('platillos'),
-            'hora_fin_estimada' => $entregas->max('ventana_fin'), 'excede_bloque' => false, 'estado' => 'borrador',
+            'entregas_asignadas' => $items->count(), 'platillos_asignados' => $items->sum('peso'),
+            'hora_fin_estimada' => $fin, 'excede_bloque' => false, 'estado' => 'borrador',
         ]);
 
-        foreach ($entregas->values() as $i => $entrega) {
+        $orden = 0;
+        foreach ($empresas as $item) {
+            /** @var EntregaEmpresa $entrega */
+            $entrega = $item['modelo'];
             $entrega->update(['ruta_id' => $ruta->id]);
             Parada::create([
-                'ruta_id' => $ruta->id, 'orden' => $i + 1, 'entrega_empresa_id' => $entrega->id, 'nombre_destinatario' => $entrega->empresa->nombre,
+                'ruta_id' => $ruta->id, 'orden' => ++$orden, 'entrega_empresa_id' => $entrega->id, 'nombre_destinatario' => $entrega->empresa->nombre,
                 'direccion' => $entrega->empresa->direccion_entrega, 'hora_estimada' => $entrega->ventana_inicio, 'estado' => 'pendiente',
             ]);
         }
+        foreach ($clientes as $n => $item) {
+            /** @var PedidoDia $dia */
+            $dia = $item['modelo'];
+            $direccion = $dia->pedido->direccion;
+            $parada = Parada::create([
+                'ruta_id' => $ruta->id, 'orden' => ++$orden, 'pedido_dia_id' => $dia->id, 'nombre_destinatario' => $dia->pedido->cliente->name,
+                'direccion' => mb_substr(trim($direccion->street_address.($direccion->internal_number ? ' int. '.$direccion->internal_number : '')), 0, 255),
+                'hora_estimada' => $horaDeCliente($n + 1), 'estado' => 'pendiente',
+            ]);
+            // El punto en el mapa de la parada es el de la dirección (PostGIS).
+            DB::update('update paradas set ubicacion = (select ubicacion from addresses where id = ?) where id = ?', [$direccion->id, $parada->id]);
+        }
+    }
+
+    private function abrirIncidenciaDeFaltaDeRuta(string $fecha, array $item): void
+    {
+        if ($item['tipo'] === 'empresa') {
+            /** @var EntregaEmpresa $entrega */
+            $entrega = $item['modelo'];
+            Incidencia::create([
+                'fecha' => $fecha, 'tipo' => 'falta_repartidores', 'prioridad' => 'inmediata', 'estado' => 'abierta', 'entrega_empresa_id' => $entrega->id,
+                'descripcion' => "La entrega de {$entrega->empresa->nombre} ({$entrega->platillos} platillos, zona {$entrega->empresa->zona}) quedó sin ruta: no hay repartidor con capacidad en la zona.",
+            ]);
+
+            return;
+        }
+
+        /** @var PedidoDia $dia */
+        $dia = $item['modelo'];
+        $sinZona = $item['zona'] === null;
+        Incidencia::create([
+            'fecha' => $fecha, 'tipo' => $sinZona ? 'otro' : 'falta_repartidores', 'prioridad' => 'inmediata', 'estado' => 'abierta', 'pedido_dia_id' => $dia->id,
+            'descripcion' => $sinZona
+                ? "La entrega del pedido {$dia->pedido->folio} no tiene zona: su dirección quedó fuera de cobertura después de pedir."
+                : "La entrega del pedido {$dia->pedido->folio} (zona {$item['zona']}) quedó sin ruta: no hay repartidor con capacidad en la zona.",
+        ]);
     }
 
     // ------------------------------------------------------------------ apoyo

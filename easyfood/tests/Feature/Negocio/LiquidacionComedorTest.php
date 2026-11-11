@@ -57,6 +57,7 @@ class LiquidacionComedorTest extends TestCase
     private function entregadosAIndividuales(Menu $menu, int $cantidad, string $estado = 'entregada'): void
     {
         $cliente = DB::table('users')->where('id', $this->usuario())->first();
+        $this->zonaDePruebas();
         $direccion = Address::create(['user_id' => $cliente->id, 'street_address' => 'Av. 1', 'latitude' => 20.67, 'longitude' => -103.35]);
         $paquete = \App\Models\Paquete::firstOrCreate(['nombre' => 'Un día'], ['dias' => 1, 'descuento_porcentaje' => 0]);
         for ($i = 0; $i < $cantidad; $i++) {

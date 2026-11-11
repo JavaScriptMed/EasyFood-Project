@@ -65,7 +65,7 @@ class FacturaMensualTest extends TestCase
         $this->assertSame('780.00', $f->diferencia_minimo, '6 × 130, el precio por platillo del contrato');
         $this->assertSame('1300.00', $f->total, '312 + 208 + 780');
         $this->assertSame('borrador', $f->estado);
-        $this->assertSame(sprintf('EL-202610-%03d', $empresa->id), $f->folio);
+        $this->assertSame('EL-202610-001', $f->folio);
     }
 
     public function test_si_cumple_el_minimo_no_hay_diferencia(): void

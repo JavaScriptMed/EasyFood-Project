@@ -30,7 +30,7 @@ docker compose exec app php artisan migrate
 docker compose exec app php artisan test
 ```
 
-Corren contra la base `easylunch_pruebas` (nunca contra la de desarrollo: se borra y se recrea en cada corrida). Fuera de Docker, apunta `DB_HOST` a tu PostgreSQL.
+Corren contra la base `easylunch_pruebas` (nunca contra la de desarrollo: se borra y se recrea en cada corrida). `ConcurrenciaTest` lanza procesos de PHP en paralelo y rehace esa base con `migrate:fresh` al terminar (tarda unos 15 s). Fuera de Docker, apunta `DB_HOST` a tu PostgreSQL.
 
 ## Mapa de tablas
 
@@ -43,7 +43,7 @@ Corren contra la base `easylunch_pruebas` (nunca contra la de desarrollo: se bor
 | Reparto | `repartidores` (nuestro personal), `rutas`, `paradas`, `incidencias` |
 | Clientes individuales | `paquetes`, `pedidos`, `pedido_dias`, `tickets`, `mensajes_ticket` |
 | Dinero | `facturas_mensuales`, `liquidaciones_comedor` |
-| Sistema | `configuracion`, `registros_auditoria` (bitácora, solo se agrega), `mensajes_contacto` |
+| Sistema | `configuracion`, `registros_auditoria` (bitácora, solo se agrega), `mensajes_contacto`, `zonas`, `avisos`, `contadores_folio` |
 
 Las reglas de negocio importantes están como restricciones de PostgreSQL (CHECK, índices parciales y triggers) y cada una tiene su prueba en `tests/Feature/Esquema`.
 ## Modelos Eloquent
@@ -62,7 +62,11 @@ Viven en `app/Services` y cada una tiene su prueba en `tests/Feature/Negocio`. L
 | `EjecutorDelCorte` | Aplica la regla de quien no eligió, cierra elecciones, genera una orden por comedor y platillo, consolida una entrega por empresa y crea rutas por zona sin pasar la capacidad del auto. Idempotente: repetirlo deja un registro «sin_cambios». Si falla, no guarda nada. |
 | `GeneradorDeFacturas` | Total = parte empresa + parte empleados + diferencia por mínimo. Solo cuentan entregas «entregada»; el mes debe haber terminado. |
 | `GeneradorDeLiquidaciones` | Al comedor se le paga lo entregado más lo que faltó para su mínimo, a su precio fijo. |
-| `ContratacionDePaquetes` | Paquetes de 1, 2 o 6 días de servicio; precio congelado por día, descuento del paquete, pago simulado. |
+| `ContratacionDePaquetes` | Paquetes de 1, 2 o 6 días de servicio; precio congelado por día, descuento del paquete, pago simulado. La dirección debe tener cobertura. Un pedido por pagar vence en el corte de su primer día (`vence_pago_en`, `segundos_para_pagar`) y se cancela. |
+| `AvisosDeVencimiento` | Avisa a la empresa y a los administradores de los contratos que vencen en el mes en curso o en los 7 días siguientes (tabla `avisos`). |
+| `Folios` | Consecutivos `EL-AAAAMM-NNN` y `GDL-AAAAMMDD-NNNN` sin repetirse aunque dos procesos pidan folio a la vez (tabla `contadores_folio`). |
+
+**Zonas.** `zonas` guarda un polígono PostGIS por zona (lo carga el administrador; sin zonas cargadas ninguna dirección tiene cobertura). Al guardar una dirección la base calcula su punto (`ubicacion`) y su `zona`; si ninguna zona activa la cubre, `sin_cobertura` es verdadera. El nombre de la zona debe coincidir con `empresas.zona` y `repartidores.zona_base` para que compartan ruta (se comparan sin mayúsculas ni espacios sobrantes).
 
 Los montos se calculan en centavos enteros (`Dinero`) o con `numeric` de PostgreSQL, nunca con decimales de punto flotante.
 

@@ -31,6 +31,7 @@ class PaquetesTest extends TestCase
     {
         parent::setUp();
         $this->ahoraEs('2026-11-09 10:00'); // lunes
+        $this->zonaDePruebas();
         $this->cliente = User::findOrFail($this->usuario());
         $this->direccion = Address::create(['user_id' => $this->cliente->id, 'street_address' => 'Av. Vallarta 100', 'latitude' => 20.67, 'longitude' => -103.35]);
     }
