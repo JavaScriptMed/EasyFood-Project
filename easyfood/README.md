@@ -32,6 +32,27 @@ docker compose exec app php artisan test
 
 Corren contra la base `easylunch_pruebas` (nunca contra la de desarrollo: se borra y se recrea en cada corrida). Fuera de Docker, apunta `DB_HOST` a tu PostgreSQL.
 
+## Mapa de tablas
+
+| Área | Tablas |
+|---|---|
+| Cuentas | `users`, `roles`, `user_profiles`, `addresses` (del equipo), `invitaciones` |
+| Comedores | `providers` (= comedores), `contratos_comedor`, `menus` (= platillos: estado de revisión, alérgenos, tiempo de comida) |
+| Empresas | `empresas`, `contratos_empresa`, `empleados` (los de las empresas cliente), `dias_sin_servicio` |
+| Operación diaria | `disponibilidad_dia`, `elecciones_empleado`, `cortes`, `ordenes_produccion`, `entregas_empresa` |
+| Reparto | `repartidores` (nuestro personal), `rutas`, `paradas`, `incidencias` |
+| Clientes individuales | `paquetes`, `pedidos`, `pedido_dias`, `tickets`, `mensajes_ticket` |
+| Dinero | `facturas_mensuales`, `liquidaciones_comedor` |
+| Sistema | `configuracion`, `registros_auditoria` (bitácora, solo se agrega), `mensajes_contacto` |
+
+Las reglas de negocio importantes están como restricciones de PostgreSQL (CHECK, índices parciales y triggers) y cada una tiene su prueba en `tests/Feature/Esquema`.
+## Modelos Eloquent
+
+Hay un modelo por tabla en `app/Models`. Los de tablas en español extienden `ModeloEasyLunch` (marcas `creado_en` / `actualizado_en`) y los que tienen `activo` usan el trait `Desactivable` (`activos()`, `desactivar()`, `reactivar()`; el DELETE lo impide la base). Los de las tablas del equipo conservan su nombre en inglés (`Provider` = comedor, `Menu` = platillo, `Address`, `CatalogItem`).
+Montos y porcentajes salen como texto con 2 decimales (`decimal:2`), las fechas como `YYYY-MM-DD`, y `alergenos` / `etiquetas` (text[]) como arreglos de PHP con `App\Casts\ArregloPostgres`. Las ubicaciones PostGIS (`paradas.ubicacion`, `repartidores.ultima_ubicacion`) no se leen como atributo: se escriben y consultan con SQL de PostGIS.
+
+Al sembrar datos hay que ejecutar `php artisan db:seed --class=InitialDataSeeder` para crear los siete roles.
+
 ## Convenciones
 
 - Zona horaria `America/Mexico_City` e idioma `es` (mensajes en `lang/es`).
