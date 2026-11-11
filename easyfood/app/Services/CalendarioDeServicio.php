@@ -138,6 +138,12 @@ class CalendarioDeServicio
         return $fechas;
     }
 
+    /** ¿Ya terminó el mes (AAAA-MM o una fecha de ese mes)? Facturas y liquidaciones solo se generan de meses terminados. */
+    public function mesTerminado(CarbonInterface|string $mes, ?CarbonInterface $ahora = null): bool
+    {
+        return $this->ahora($ahora)->gte($this->dia($mes)->startOfMonth()->addMonth());
+    }
+
     /** Contrato de la empresa que cubre una fecha (uno activo por empresa; debe estar dentro de su vigencia). */
     public function contratoVigente(int $empresaId, CarbonInterface|string $fecha): ?ContratoEmpresa
     {
