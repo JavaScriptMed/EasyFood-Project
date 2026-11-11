@@ -7,6 +7,7 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class User extends Authenticatable
@@ -42,6 +43,34 @@ class User extends Authenticatable
     public function profile(): HasOne
     {
         return $this->hasOne(UserProfile::class);
+    }
+
+    /** Empresa de la que este usuario es contacto de RR. HH. */
+    public function empresa(): HasOne
+    {
+        return $this->hasOne(Empresa::class, 'usuario_id');
+    }
+
+    /** Registro de empleado (si pertenece al personal de una empresa cliente). */
+    public function empleado(): HasOne
+    {
+        return $this->hasOne(Empleado::class, 'usuario_id');
+    }
+
+    public function repartidor(): HasOne
+    {
+        return $this->hasOne(Repartidor::class, 'usuario_id');
+    }
+
+    /** Pedidos de paquetes como cliente individual. */
+    public function pedidos(): HasMany
+    {
+        return $this->hasMany(Pedido::class, 'cliente_id');
+    }
+
+    public function addresses(): HasMany
+    {
+        return $this->hasMany(Address::class);
     }
 
     // Para la verificación de los roles dentro del sistema 

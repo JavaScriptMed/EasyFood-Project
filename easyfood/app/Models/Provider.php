@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Provider extends Model
 {
@@ -40,5 +41,25 @@ class Provider extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function menus(): HasMany
+    {
+        return $this->hasMany(Menu::class);
+    }
+
+    public function contratos(): HasMany
+    {
+        return $this->hasMany(ContratoComedor::class, 'comedor_id');
+    }
+
+    public function ordenesProduccion(): HasMany
+    {
+        return $this->hasMany(OrdenProduccion::class, 'comedor_id');
+    }
+
+    public function liquidaciones(): HasMany
+    {
+        return $this->hasMany(LiquidacionComedor::class, 'comedor_id');
     }
 }
