@@ -46,6 +46,18 @@ Corren contra la base `easylunch_pruebas` (nunca contra la de desarrollo: se bor
 | Sistema | `configuracion`, `registros_auditoria` (bitácora, solo se agrega), `mensajes_contacto`, `zonas`, `avisos`, `contadores_folio` |
 
 Las reglas de negocio importantes están como restricciones de PostgreSQL (CHECK, índices parciales y triggers) y cada una tiene su prueba en `tests/Feature/Esquema`.
+## Tareas automáticas
+
+El servicio `scheduler` de docker-compose ejecuta `php artisan schedule:work` (con la base ya migrada). En producción basta un cron: `* * * * * php artisan schedule:run`.
+
+| Comando | Cuándo | Qué hace |
+|---|---|---|
+| `easylunch:corte-automatico` | cada minuto | Ejecuta el corte de la siguiente fecha de entrega en cuanto llega su hora (18:00 por defecto). Solo corta días de servicio; no repite si ya hay corte (automático o manual). Si falla, reintenta cada 5 min hasta 12 veces. |
+| `easylunch:cancelar-pedidos-vencidos` | cada minuto | Cancela los pedidos individuales que no se pagaron antes del corte de su primer día. |
+| `easylunch:avisos-de-contratos` | diario 08:00 | Avisos de contratos que vencen este mes o en los 7 días siguientes. |
+
+Cada comando decide por sí mismo si le toca, así que llamarlos de más no cambia nada. Un corte fallido queda registrado en `cortes` con su mensaje y en el log (`storage/logs`).
+
 ## Modelos Eloquent
 
 Hay un modelo por tabla en `app/Models`. Los de tablas en español extienden `ModeloEasyLunch` (marcas `creado_en` / `actualizado_en`) y los que tienen `activo` usan el trait `Desactivable` (`activos()`, `desactivar()`, `reactivar()`; el DELETE lo impide la base). Los de las tablas del equipo conservan su nombre en inglés (`Provider` = comedor, `Menu` = platillo, `Address`, `CatalogItem`).
