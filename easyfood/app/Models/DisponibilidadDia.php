@@ -13,6 +13,7 @@ class DisponibilidadDia extends ModeloEasyLunch
         'fecha',
         'porciones_maximas',
         'porciones_tomadas',
+        'es_platillo_del_dia',
     ];
 
     protected function casts(): array
@@ -21,6 +22,7 @@ class DisponibilidadDia extends ModeloEasyLunch
             'fecha' => 'date:Y-m-d',
             'porciones_maximas' => 'integer',
             'porciones_tomadas' => 'integer',
+            'es_platillo_del_dia' => 'boolean',
         ];
     }
 

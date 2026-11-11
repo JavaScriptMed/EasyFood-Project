@@ -18,6 +18,24 @@ services:
       db:
         condition: service_healthy
 
+  # Tareas automáticas (corte diario, pedidos vencidos, avisos de contratos): ejecuta el scheduler de Laravel cada minuto.
+  # Usa la misma imagen y el mismo código que «app». Requiere la base ya migrada (php artisan migrate).
+  scheduler:
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile
+      args:
+        HOST_UID: ${HOST_UID:-1000}
+        HOST_GID: ${HOST_GID:-1000}
+    restart: unless-stopped
+    working_dir: /var/www/html
+    command: php artisan schedule:work
+    volumes:
+      - .:/var/www/html
+    depends_on:
+      db:
+        condition: service_healthy
+
   # Nginx: único servicio expuesto al navegador. Entrega /public y pasa los .php a PHP-FPM.
   nginx:
     image: nginx:1.27-alpine

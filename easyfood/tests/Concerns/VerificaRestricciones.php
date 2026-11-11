@@ -80,12 +80,34 @@ trait VerificaRestricciones
         $cliente = $this->usuario();
         // Solo puede haber un paquete activo por cantidad de días: se reutiliza el de 2 días si ya existe.
         $paquete = DB::table('paquetes')->where('dias', 2)->value('id') ?? DB::table('paquetes')->insertGetId(['nombre' => 'Paquete de 2 días', 'dias' => 2]);
+        $this->zonaDePruebas();
         $direccion = DB::table('addresses')->insertGetId(['user_id' => $cliente, 'street_address' => 'Av. Vallarta 1248', 'latitude' => 20.6767, 'longitude' => -103.3472]);
 
         return DB::table('pedidos')->insertGetId(array_merge([
             'folio' => uniqid('GDL-'), 'cliente_id' => $cliente, 'paquete_id' => $paquete, 'direccion_id' => $direccion,
-            'fecha_inicio' => '2026-11-16', 'fecha_fin' => '2026-11-17', 'total' => 398,
+            'fecha_inicio' => '2026-11-16', 'fecha_fin' => '2026-11-17', 'total' => 398, 'vence_pago_en' => '2026-11-15 18:00:00',
         ], $extra));
+    }
+
+    /**
+     * Una zona activa que es un cuadro de ±0.1° alrededor de ($lon, $lat) (por defecto el centro de Guadalajara).
+     * Las direcciones de prueba en esas coordenadas quedan con cobertura. Si la zona ya existe, no hace nada.
+     */
+    private function zonaDePruebas(string $nombre = 'Centro', float $lon = -103.35, float $lat = 20.67, float $mitad = 0.1): int
+    {
+        return $this->zonaConPoligono($nombre, [[$lon - $mitad, $lat - $mitad], [$lon + $mitad, $lat - $mitad], [$lon + $mitad, $lat + $mitad], [$lon - $mitad, $lat + $mitad]]);
+    }
+
+    /** @param array<int, array{0: float, 1: float}> $vertices [lon, lat] en orden; el polígono se cierra solo */
+    private function zonaConPoligono(string $nombre, array $vertices): int
+    {
+        if ($id = DB::table('zonas')->where('nombre', $nombre)->value('id')) {
+            return $id;
+        }
+        $vertices[] = $vertices[0];
+        $wkt = 'POLYGON(('.implode(', ', array_map(fn ($v) => "{$v[0]} {$v[1]}", $vertices)).'))';
+
+        return DB::selectOne('insert into zonas (nombre, area) values (?, ST_Multi(ST_GeomFromText(?, 4326))::geography) returning id', [$nombre, $wkt])->id;
     }
 
     private function pedidoDia(?int $pedido = null, array $extra = []): int

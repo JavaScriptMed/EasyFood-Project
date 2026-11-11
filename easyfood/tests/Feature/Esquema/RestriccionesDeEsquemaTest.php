@@ -184,7 +184,7 @@ class RestriccionesDeEsquemaTest extends TestCase
         $this->assertEquals([
             'hora_corte' => '18:00',
             'regla_sin_eleccion' => 'ultimo_platillo',
-            'dias_entrega' => 'lunes_viernes',
+            'dias_entrega' => 'lunes_sabado',
             'capacidad_auto_entregas' => '30',
             'capacidad_auto_platillos' => '120',
         ], DB::table('configuracion')->pluck('valor', 'clave')->all());
@@ -195,7 +195,7 @@ class RestriccionesDeEsquemaTest extends TestCase
         // Valores válidos distintos a los iniciales.
         DB::table('configuracion')->where('clave', 'hora_corte')->update(['valor' => '17:30']);
         DB::table('configuracion')->where('clave', 'regla_sin_eleccion')->update(['valor' => 'no_entregar']);
-        DB::table('configuracion')->where('clave', 'dias_entrega')->update(['valor' => 'lunes_sabado']);
+        DB::table('configuracion')->where('clave', 'dias_entrega')->update(['valor' => 'lunes_viernes']);
         $this->assertDatabaseHas('configuracion', ['clave' => 'hora_corte', 'valor' => '17:30']);
 
         $this->rechaza('configuracion_pkey', fn () => DB::table('configuracion')->insert(['clave' => 'hora_corte', 'valor' => '19:00']));
