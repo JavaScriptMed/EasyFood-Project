@@ -51,6 +51,21 @@ Las reglas de negocio importantes están como restricciones de PostgreSQL (CHECK
 Hay un modelo por tabla en `app/Models`. Los de tablas en español extienden `ModeloEasyLunch` (marcas `creado_en` / `actualizado_en`) y los que tienen `activo` usan el trait `Desactivable` (`activos()`, `desactivar()`, `reactivar()`; el DELETE lo impide la base). Los de las tablas del equipo conservan su nombre en inglés (`Provider` = comedor, `Menu` = platillo, `Address`, `CatalogItem`).
 Montos y porcentajes salen como texto con 2 decimales (`decimal:2`), las fechas como `YYYY-MM-DD`, y `alergenos` / `etiquetas` (text[]) como arreglos de PHP con `App\Casts\ArregloPostgres`. Las ubicaciones PostGIS (`paradas.ubicacion`, `repartidores.ultima_ubicacion`) no se leen como atributo: se escriben y consultan con SQL de PostGIS.
 
+## Reglas de negocio
+
+Viven en `app/Services` y cada una tiene su prueba en `tests/Feature/Negocio`. Las infracciones lanzan `ReglaDeNegocioException` con un `codigo` estable (`corte_cerrado`, `sin_porciones`, `mes_sin_terminar`…).
+
+| Servicio | Regla |
+|---|---|
+| `CalendarioDeServicio` | Se entrega de lunes a sábado (`dias_entrega`), domingo nunca. El corte es a `hora_corte` (18:00, hora de Guadalajara) del día calendario anterior. Un pedido nuevo va a la primera fecha de servicio con el corte abierto: viernes 17:00 → sábado, viernes 19:00 → lunes, domingo 19:00 → martes. |
+| `EleccionDePlatillos` | Elegir, cambiar o quitar solo antes del corte (a las 18:00:00 ya está cerrado). Al elegir se congelan el precio y el subsidio del contrato de la empresa. Respeta porciones, publicación y tiempo de comida. |
+| `EjecutorDelCorte` | Aplica la regla de quien no eligió, cierra elecciones, genera una orden por comedor y platillo, consolida una entrega por empresa y crea rutas por zona sin pasar la capacidad del auto. Idempotente: repetirlo deja un registro «sin_cambios». Si falla, no guarda nada. |
+| `GeneradorDeFacturas` | Total = parte empresa + parte empleados + diferencia por mínimo. Solo cuentan entregas «entregada»; el mes debe haber terminado. |
+| `GeneradorDeLiquidaciones` | Al comedor se le paga lo entregado más lo que faltó para su mínimo, a su precio fijo. |
+| `ContratacionDePaquetes` | Paquetes de 1, 2 o 6 días de servicio; precio congelado por día, descuento del paquete, pago simulado. |
+
+Los montos se calculan en centavos enteros (`Dinero`) o con `numeric` de PostgreSQL, nunca con decimales de punto flotante.
+
 Al sembrar datos hay que ejecutar `php artisan db:seed --class=InitialDataSeeder` para crear los siete roles.
 
 ## Convenciones
