@@ -32,6 +32,22 @@ docker compose exec app php artisan test
 
 Corren contra la base `easylunch_pruebas` (nunca contra la de desarrollo: se borra y se recrea en cada corrida). Fuera de Docker, apunta `DB_HOST` a tu PostgreSQL.
 
+## Mapa de tablas
+
+| Área | Tablas |
+|---|---|
+| Cuentas | `users`, `roles`, `user_profiles`, `addresses` (del equipo), `invitaciones` |
+| Comedores | `providers` (= comedores), `contratos_comedor`, `menus` (= platillos: estado de revisión, alérgenos, tiempo de comida) |
+| Empresas | `empresas`, `contratos_empresa`, `empleados` (los de las empresas cliente), `dias_sin_servicio` |
+| Operación diaria | `disponibilidad_dia`, `elecciones_empleado`, `cortes`, `ordenes_produccion`, `entregas_empresa` |
+| Reparto | `repartidores` (nuestro personal), `rutas`, `paradas`, `incidencias` |
+| Clientes individuales | `paquetes`, `pedidos`, `pedido_dias`, `tickets`, `mensajes_ticket` |
+| Dinero | `facturas_mensuales`, `liquidaciones_comedor` |
+| Sistema | `configuracion`, `registros_auditoria` (bitácora, solo se agrega), `mensajes_contacto` |
+
+Las reglas de negocio importantes están como restricciones de PostgreSQL (CHECK, índices parciales y triggers) y cada una tiene su prueba en `tests/Feature/Esquema`.
+Al sembrar datos hay que ejecutar `php artisan db:seed --class=InitialDataSeeder` para crear los siete roles.
+
 ## Convenciones
 
 - Zona horaria `America/Mexico_City` e idioma `es` (mensajes en `lang/es`).
