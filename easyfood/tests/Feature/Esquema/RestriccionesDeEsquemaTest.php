@@ -5,6 +5,7 @@ namespace Tests\Feature\Esquema;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 /**
@@ -55,12 +56,13 @@ class RestriccionesDeEsquemaTest extends TestCase
         ]);
     }
 
+    /** Un comedor es un registro de `providers` (tabla del equipo). */
     private function comedor(): int
     {
-        return DB::table('comedores')->insertGetId([
-            'usuario_id' => $this->usuario(),
-            'nombre' => 'Comedor '.uniqid(),
-            'zona' => 'Zapopan Norte',
+        return DB::table('providers')->insertGetId([
+            'business_name' => 'Comedor '.uniqid(),
+            'phone' => '33 1458 2201',
+            'address' => 'Av. Industria 1450, Zapopan',
         ]);
     }
 
@@ -229,5 +231,23 @@ class RestriccionesDeEsquemaTest extends TestCase
     {
         $lat = DB::selectOne("select numeric_precision, numeric_scale from information_schema.columns where table_name = 'providers' and column_name = 'latitude'");
         $this->assertSame([10, 8], [(int) $lat->numeric_precision, (int) $lat->numeric_scale]);
+    }
+
+    // ---------------------------------------------------------------- comedores = providers
+
+    public function test_los_contratos_de_comedor_apuntan_a_providers_y_ya_no_existe_comedores(): void
+    {
+        $this->assertFalse(Schema::hasTable('comedores'));
+
+        $destino = DB::selectOne("select ccu.table_name from information_schema.referential_constraints rc join information_schema.constraint_column_usage ccu on ccu.constraint_name = rc.unique_constraint_name where rc.constraint_name = 'contratos_comedor_comedor_id_foreign'");
+        $this->assertSame('providers', $destino->table_name);
+    }
+
+    public function test_no_se_puede_borrar_fisicamente_un_comedor_con_contrato(): void
+    {
+        $comedor = $this->comedor();
+        DB::table('contratos_comedor')->insert(['comedor_id' => $comedor, 'vigencia_inicio' => '2026-07-01', 'vigencia_fin' => '2026-12-31']);
+
+        $this->rechaza('contratos_comedor_comedor_id_foreign', fn () => DB::table('providers')->where('id', $comedor)->delete());
     }
 }
