@@ -46,6 +46,23 @@ Corren contra la base `easylunch_pruebas` (nunca contra la de desarrollo: se bor
 | Sistema | `configuracion`, `registros_auditoria` (bitácora, solo se agrega), `mensajes_contacto`, `zonas`, `avisos`, `contadores_folio` |
 
 Las reglas de negocio importantes están como restricciones de PostgreSQL (CHECK, índices parciales y triggers) y cada una tiene su prueba en `tests/Feature/Esquema`.
+## API v1
+
+Rutas en `routes/v1.php` (prefijo `/api/v1`), JSON en español y token Bearer de Sanctum (`POST /api/auth/login`). Los errores de `/api/v1/*` tienen siempre la forma `{ "mensaje": "…", "codigo": "…", "errores": { campo: […] } }` (`codigo` en reglas de negocio, `errores` al validar). Los campos coinciden con `/lib/types.ts` del front.
+
+| Grupo (rol) | Prefijo | Construido | Solo ruta (501) |
+|---|---|---|---|
+| Panel de administración (`admin`; `support` en clientes, pedidos, tickets e incidencias) | `/admin` | empresas y comedores (lectura), contratos por vencer, platillos (crear, editar, revisar), configuración, calendario, corte, repartidores, rutas, entregas, incidencias, facturas, liquidaciones, clientes, pedidos, tickets, bitácora | dashboard, crear empresa, renovar contratos, historial de precios, imágenes, vista previa del corte, crear repartidor, generar rutas, reasignar incidencias, reporte de proveedor |
+| Portal de empresas (`company`) | `/empresa` | empleados (ver, activar/desactivar), facturas | agregar empleados, pedidos de mañana, consumo |
+| Portal de comedores (`provider`) | `/comedor` | perfil, platillos, disponibilidad, producción, pagos | imágenes |
+| Portal de empleados (`employee`) | `/empleado` | menú, elegir/quitar platillo, historial | |
+| App móvil (`customer`) | `/cliente` | paquetes, direcciones, pedidos (pedir y pagar) | menú semanal |
+| Público | `/contacto`, `/cuentas` | formulario de contacto | invitaciones y restablecer contraseña (necesitan correo) |
+
+Un endpoint «solo ruta» ya tiene su URL, su rol y su nombre, pero responde `501 { "codigo": "no_implementado" }` desde `NoImplementadoController` hasta que se construya; entonces solo se cambia su línea en `routes/v1.php`. `php artisan route:list --path=api/v1` muestra el mapa completo.
+
+Cada portal solo ve lo suyo: la empresa, el comedor o el empleado se resuelven del usuario autenticado (`ContextoDelUsuario`).
+
 ## Tareas automáticas
 
 El servicio `scheduler` de docker-compose ejecuta `php artisan schedule:work` (con la base ya migrada). En producción basta un cron: `* * * * * php artisan schedule:run`.

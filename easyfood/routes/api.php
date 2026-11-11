@@ -14,6 +14,8 @@ use App\Http\Controllers\Api\CatalogCategoryController;
 Route::prefix('v1')->group(function () {
     Route::get('/salud', SaludController::class)->name('v1.salud');
 });
+// Resto de la API v1 (admin, empresas, comedores, empleados y clientes): ver routes/v1.php
+Route::prefix('v1')->group(base_path('routes/v1.php'));
 
 Route::middleware('auth:api')->group(function () {
 
