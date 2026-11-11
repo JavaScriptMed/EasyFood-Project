@@ -235,6 +235,33 @@ class RestriccionesDeEsquemaTest extends TestCase
 
     // ---------------------------------------------------------------- comedores = providers
 
+    public function test_el_comedor_guarda_su_zona_y_es_opcional(): void
+    {
+        $sinZona = $this->comedor();
+        $this->assertNull(DB::table('providers')->where('id', $sinZona)->value('zona'));
+
+        DB::table('providers')->where('id', $sinZona)->update(['zona' => 'Zapopan Norte']);
+        $this->assertSame('Zapopan Norte', DB::table('providers')->where('id', $sinZona)->value('zona'));
+    }
+
+    public function test_cada_empresa_fija_su_propio_subsidio_y_puede_cambiarlo(): void
+    {
+        $a = $this->empresa();
+        $b = $this->empresa();
+        $contratoA = DB::table('contratos_empresa')->insertGetId($this->datosContratoEmpresa($a, ['porcentaje_subsidio' => 40]));
+        DB::table('contratos_empresa')->insert($this->datosContratoEmpresa($b, ['porcentaje_subsidio' => 80]));
+
+        DB::table('contratos_empresa')->where('id', $contratoA)->update(['porcentaje_subsidio' => 55]);
+
+        $this->assertSame(55.0, (float) DB::table('contratos_empresa')->where('id', $contratoA)->value('porcentaje_subsidio'));
+        $this->assertSame(80.0, (float) DB::table('contratos_empresa')->where('empresa_id', $b)->value('porcentaje_subsidio'));
+    }
+
+    public function test_los_paquetes_no_traen_descuentos_sembrados(): void
+    {
+        $this->assertSame(0, DB::table('paquetes')->count());
+    }
+
     public function test_los_contratos_de_comedor_apuntan_a_providers_y_ya_no_existe_comedores(): void
     {
         $this->assertFalse(Schema::hasTable('comedores'));

@@ -20,6 +20,7 @@ class Provider extends Model
         'email',
         'address',
         'postal_code',
+        'zona',
         'latitude',
         'longitude',
         'daily_capacity',
