@@ -50,6 +50,26 @@ Todo funciona con el backend **excepto** lo que el backend todavía no construye
 - **Operación:** reasignar una incidencia (y ver candidatos) y regenerar rutas (las crea el corte).
 - **Datos sin tabla todavía:** historial de precios (vacío) y las cifras del resumen del dashboard (ejemplo; las alertas sí son incidencias reales).
 
+## Ventanas de crear, editar, eliminar y ver detalle
+
+Las ventanas viven en `components/ventanas.tsx` (formulario, confirmación y panel de detalle) y cada pantalla las usa. En EasyLunch **nada se borra**: «eliminar» es **desactivar** (con confirmación) y se puede reactivar.
+
+| Entidad | Crear | Editar | Desactivar | Ver detalle |
+|---|---|---|---|---|
+| Empresas (admin) | sí | sí | sí | sí |
+| Comedores (admin) | — | sí | sí | sí |
+| Platillos (admin y comedor) | sí | sí | sí | sí |
+| Precio de un platillo | programar | — | — | historial |
+| Planes | — | sí | — | sí |
+| Repartidores | sí | sí | sí | sí |
+| Límites por vehículo | — | sí | — | sí |
+| Empleados (empresa) | sí | sí | sí | sí |
+| Usuarios con acceso | invitar | sí | sí | — |
+| Facturas, pedidos de mañana, pagos al comedor | — | — | — | sí |
+| Elección del empleado | sí | sí | quitar | sí |
+
+**Ventanas listas, rutas del backend pendientes** (devuelven «… todavía no está disponible en el servidor»; las funciones ya existen en `lib/api.ts` y en la maqueta): `editarEmpresa`, `cambiarEstadoEmpresa`, `editarComedor`, `cambiarEstadoComedor`, `editarEmpleado`, `cambiarEstadoPlatillo`, `editarPlan`, `programarPrecioPlatillo`, `editarRepartidor`, `cambiarEstadoRepartidor`, `guardarCapacidadesVehiculo`, `editarUsuarioAcceso` y `cambiarEstadoUsuarioAcceso`. Ya son reales: editar platillo (`PUT …/platillos/{id}`) y quitar la elección (`DELETE /empleado/elecciones`).
+
 ## Probar sin backend
 
 `NEXT_PUBLIC_USAR_MOCK=true` en `.env.local` y reinicia `pnpm dev`: todo vuelve a los datos de ejemplo.

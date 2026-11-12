@@ -45,6 +45,7 @@ export interface Empresa {
   dominio: string
   zona: string
   direccion_entrega: string
+  activo?: boolean // si falta, se trata como activa
 }
 
 export interface ContratoComedor {
@@ -149,6 +150,7 @@ export interface Repartidor {
   entregas_asignadas: number
   entregas_completadas: number
   ultima_ubicacion_en: string // ISO
+  activo?: boolean // si falta, se trata como activo
 }
 
 export interface Ruta {
@@ -463,6 +465,58 @@ export interface NuevoRepartidor {
   tipo_vehiculo: TipoVehiculo
   placas: string
   zona_base: string
+}
+
+// Entradas de las ventanas de edición. Nada se borra: "eliminar" es desactivar (cambiarEstado…), y se puede reactivar.
+export interface EdicionEmpresa {
+  nombre: string
+  direccion_entrega: string
+  contacto_nombre: string
+  contacto_telefono: string
+  porcentaje_subsidio: number
+  compra_minima_mensual: number
+  ventana_entrega_inicio: string
+  ventana_entrega_fin: string
+}
+
+export interface EdicionComedor {
+  nombre: string
+  zona: string
+  contacto_nombre: string
+  contacto_telefono: string
+  precio_por_platillo: number
+  compra_minima_mensual: number
+}
+
+export interface EdicionRepartidor {
+  nombre: string
+  telefono: string
+  numero_empleado: string
+  tipo_vehiculo: TipoVehiculo
+  placas: string
+  zona_base: string
+}
+
+export interface EdicionEmpleado {
+  nombre: string
+  departamento: string
+}
+
+export interface EdicionPlan {
+  nombre: string
+  descuento_porcentaje: number
+  detalle: string
+  destacado: boolean
+}
+
+export interface EdicionUsuarioAcceso {
+  nombre: string
+  rol: Rol
+}
+
+export interface ProgramarPrecio {
+  precio_venta: number
+  vigente_desde: string // YYYY-MM-DD
 }
 
 export interface GuardarPlatillo {

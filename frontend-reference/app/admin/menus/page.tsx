@@ -2,7 +2,7 @@
 
 import { PageTitle } from "@/components/panel"
 import { useMemo, useState } from "react"
-import { Search, Plus, SlidersHorizontal, X, Upload, CalendarDays, Check, ChevronLeft, ChevronRight, GripVertical, UtensilsCrossed } from "lucide-react"
+import { Search, Plus, Pencil, Power, SlidersHorizontal, X, Upload, CalendarDays, Check, ChevronLeft, ChevronRight, GripVertical, UtensilsCrossed } from "lucide-react"
 import { AdminShell } from "@/components/admin-shell"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -12,10 +12,12 @@ import { Separator } from "@/components/ui/separator"
 import { Switch } from "@/components/ui/switch"
 import { toast } from "sonner"
 import { BloqueEstado } from "@/components/estados"
-import { guardarPlatillo, listarComedores, listarHistorialPrecios, listarPlanes, listarPlatillos, obtenerMenuSemanal } from "@/lib/api"
+import { CampoLista, CampoParrafo, CampoTexto, VentanaConfirmar, VentanaFormulario } from "@/components/ventanas"
+import { cambiarEstadoPlatillo, editarPlan, guardarPlatillo, listarComedores, listarHistorialPrecios, listarPlanes, listarPlatillos, obtenerMenuSemanal, programarPrecioPlatillo } from "@/lib/api"
+import { FECHA_MANANA } from "@/lib/config"
 import { etiquetasTiempoComida } from "@/lib/etiquetas"
 import { etiquetaDiaCorta, formatDate } from "@/lib/format"
-import type { PlatilloDetalle, TiempoComida } from "@/lib/types"
+import type { Plan, PlatilloDetalle, TiempoComida } from "@/lib/types"
 import { useAsync } from "@/lib/use-async"
 
 export default function MenusPage() {
@@ -25,6 +27,25 @@ export default function MenusPage() {
   const [activeOnly, setActiveOnly] = useState(false)
   const [selected, setSelected] = useState<PlatilloDetalle | null>(null)
   const [showNew, setShowNew] = useState(false)
+  const [editando, setEditando] = useState(false)
+  const [desactivando, setDesactivando] = useState(false)
+  const [programando, setProgramando] = useState(false)
+  const [cambiandoEstado, setCambiandoEstado] = useState(false)
+  const [versionPrecios, setVersionPrecios] = useState(0)
+  async function cambiarEstado(platillo: PlatilloDetalle, activo: boolean) {
+    setCambiandoEstado(true)
+    try {
+      const actualizado = await cambiarEstadoPlatillo(platillo.id, activo)
+      toast.success(activo ? `${platillo.nombre} quedó activo` : `${platillo.nombre} quedó inactivo`, { description: activo ? undefined : "Ya no se ofrece, pero conserva su historial." })
+      setSelected(actualizado)
+      setDesactivando(false)
+      platillos.reload({ silent: true })
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "No se pudo cambiar el estado del platillo")
+    } finally {
+      setCambiandoEstado(false)
+    }
+  }
   const platillos = useAsync(() => listarPlatillos())
   const filtered = useMemo(() => (platillos.data ?? []).filter((dish) => (!query || dish.nombre.toLowerCase().includes(query.toLowerCase())) && (meal === "Todos" || etiquetasTiempoComida[dish.tiempo_comida] === meal) && (!activeOnly || dish.activo)), [platillos.data, query, meal, activeOnly])
 
@@ -41,7 +62,7 @@ export default function MenusPage() {
       {tab === "Menú semanal" && <WeeklyMenu />}
       {tab === "Planes" && <Plans />}
     </div>
-    {(selected || showNew) && <aside className="fixed inset-y-0 right-0 z-50 w-full max-w-md overflow-y-auto border-l bg-background p-6 shadow-2xl"><div className="mb-6 flex items-center justify-between"><div><p className="text-xs font-semibold uppercase tracking-wider text-primary">{showNew ? "Nuevo registro" : "Detalle del platillo"}</p><h2 className="font-display text-2xl font-bold">{showNew ? "Crear platillo" : selected?.nombre}</h2></div><Button variant="ghost" size="icon" onClick={() => { setSelected(null); setShowNew(false) }}><X /></Button></div>{showNew ? <NewDishForm onSaved={() => { setShowNew(false); platillos.reload({ silent: true }) }} /> : <>{selected?.foto_url ? <img src={selected.foto_url} alt="" className="mb-5 h-44 w-full rounded-xl object-cover" /> : <div className="mb-5 h-44 w-full rounded-xl bg-gradient-to-br from-primary/30 to-muted" />}<div className="grid grid-cols-2 gap-3 text-sm"><div className="rounded-lg bg-muted p-3"><p className="text-muted-foreground">Proveedor</p><strong>{selected?.comedor_nombre}</strong></div><div className="rounded-lg bg-muted p-3"><p className="text-muted-foreground">Calorías</p><strong>{selected?.calorias} kcal</strong></div></div><Separator className="my-6" /><div className="flex items-center justify-between"><h3 className="font-display text-lg font-bold">Historial de precios</h3><Button variant="outline" size="sm">Programar precio</Button></div>{selected && <HistorialPrecios platilloId={selected.id} />}</>}</aside>}
+    {(selected || showNew) && <aside className="fixed inset-y-0 right-0 z-50 w-full max-w-md overflow-y-auto border-l bg-background p-6 shadow-2xl"><div className="mb-6 flex items-center justify-between"><div><p className="text-xs font-semibold uppercase tracking-wider text-primary">{showNew ? "Nuevo registro" : selected?.activo === false ? "Detalle del platillo · Inactivo" : "Detalle del platillo"}</p><h2 className="font-display text-2xl font-bold">{showNew ? "Crear platillo" : selected?.nombre}</h2></div><Button variant="ghost" size="icon" onClick={() => { setSelected(null); setShowNew(false) }}><X /></Button></div>{showNew ? <NewDishForm onSaved={() => { setShowNew(false); platillos.reload({ silent: true }) }} /> : <>{selected?.foto_url ? <img src={selected.foto_url} alt="" className="mb-5 h-44 w-full rounded-xl object-cover" /> : <div className="mb-5 h-44 w-full rounded-xl bg-gradient-to-br from-primary/30 to-muted" />}<div className="grid grid-cols-2 gap-3 text-sm"><div className="rounded-lg bg-muted p-3"><p className="text-muted-foreground">Proveedor</p><strong>{selected?.comedor_nombre}</strong></div><div className="rounded-lg bg-muted p-3"><p className="text-muted-foreground">Calorías</p><strong>{selected?.calorias} kcal</strong></div></div><Separator className="my-6" /><div className="flex items-center justify-between"><h3 className="font-display text-lg font-bold">Historial de precios</h3><Button variant="outline" size="sm" onClick={() => setProgramando(true)}>Programar precio</Button></div>{selected && <HistorialPrecios key={versionPrecios} platilloId={selected.id} />}<Separator className="my-6" /><div className="flex flex-wrap gap-2"><Button variant="outline" onClick={() => setEditando(true)}><Pencil /> Editar platillo</Button>{selected?.activo === false ? <Button variant="outline" disabled={cambiandoEstado} onClick={() => selected && cambiarEstado(selected, true)}><Power /> Reactivar</Button> : <Button variant="outline" className="border-destructive/40 text-destructive hover:bg-destructive/10" onClick={() => setDesactivando(true)}><Power /> Desactivar</Button>}</div></>}</aside>}{selected && editando && <EditarPlatillo platillo={selected} onCerrar={() => setEditando(false)} onGuardado={(p) => { setEditando(false); setSelected(p); platillos.reload({ silent: true }) }} />}{selected && desactivando && <VentanaConfirmar titulo={`¿Desactivar ${selected.nombre}?`} descripcion="Dejará de ofrecerse a los empleados. Conserva su historial y puedes reactivarlo cuando quieras." textoConfirmar="Desactivar" trabajando={cambiandoEstado} onCerrar={() => setDesactivando(false)} onConfirmar={() => cambiarEstado(selected, false)} />}{selected && programando && <ProgramarPrecio platillo={selected} onCerrar={() => setProgramando(false)} onProgramado={() => { setProgramando(false); setVersionPrecios((v) => v + 1) }} />}
   </AdminShell>
 }
 
@@ -80,5 +101,82 @@ function WeeklyMenu() {
 
 function Plans() {
   const planes = useAsync(listarPlanes)
-  return <><BloqueEstado variante="tarjetas" cantidad={3} cargando={planes.loading} error={planes.error} vacio={!planes.data?.length} mensajeVacio="Todavía no hay planes configurados." onReintentar={planes.reload} /><div className="grid gap-5 md:grid-cols-3">{planes.data?.map((plan) => <Card key={plan.id} className={plan.destacado ? "border-primary shadow-lg" : ""}><CardHeader><Badge className="w-fit">{plan.destacado ? "Más elegido" : "Plan flexible"}</Badge><CardTitle className="font-display text-2xl">{plan.nombre}</CardTitle></CardHeader><CardContent><p className="mb-5 text-sm text-muted-foreground">{plan.detalle}</p><div className="mb-5 text-4xl font-bold text-primary">{plan.descuento_porcentaje}%<small className="text-sm text-muted-foreground"> descuento</small></div><Button variant="outline" className="w-full">Editar plan</Button></CardContent></Card>)}</div></>
+  const [editandoPlan, setEditandoPlan] = useState<Plan | null>(null)
+  return <><BloqueEstado variante="tarjetas" cantidad={3} cargando={planes.loading} error={planes.error} vacio={!planes.data?.length} mensajeVacio="Todavía no hay planes configurados." onReintentar={planes.reload} /><div className="grid gap-5 md:grid-cols-3">{planes.data?.map((plan) => <Card key={plan.id} className={plan.destacado ? "border-primary shadow-lg" : ""}><CardHeader><Badge className="w-fit">{plan.destacado ? "Más elegido" : "Plan flexible"}</Badge><CardTitle className="font-display text-2xl">{plan.nombre}</CardTitle></CardHeader><CardContent><p className="mb-5 text-sm text-muted-foreground">{plan.detalle}</p><div className="mb-5 text-4xl font-bold text-primary">{plan.descuento_porcentaje}%<small className="text-sm text-muted-foreground"> descuento</small></div><Button variant="outline" className="w-full" onClick={() => setEditandoPlan(plan)}><Pencil /> Editar plan</Button></CardContent></Card>)}</div>{editandoPlan && <EditarPlan plan={editandoPlan} onCerrar={() => setEditandoPlan(null)} onGuardado={() => { setEditandoPlan(null); planes.reload({ silent: true }) }} />}</>
+}
+
+/** Editar un platillo desde el panel del administrador. Conserva su estado de revisión. */
+function EditarPlatillo({ platillo, onCerrar, onGuardado }: { platillo: PlatilloDetalle; onCerrar: () => void; onGuardado: (p: PlatilloDetalle) => void }) {
+  const [form, setForm] = useState({ nombre: platillo.nombre, descripcion: platillo.descripcion, tiempo_comida: platillo.tiempo_comida, calorias: String(platillo.calorias), precio_venta: String(platillo.precio_venta), alergenos: platillo.alergenos.join(", ") })
+  const [guardando, setGuardando] = useState(false)
+  const campo = (clave: keyof typeof form) => ({ value: form[clave], onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => setForm((f) => ({ ...f, [clave]: e.target.value })) })
+  async function guardar() {
+    setGuardando(true)
+    try {
+      const actualizado = await guardarPlatillo({
+        id: platillo.id, comedor_id: platillo.comedor_id, nombre: form.nombre, descripcion: form.descripcion, tiempo_comida: form.tiempo_comida as TiempoComida, calorias: Number(form.calorias) || 0,
+        alergenos: form.alergenos.split(",").map((a) => a.trim()).filter(Boolean), precio_venta: Number(form.precio_venta) || undefined, estado_revision: platillo.estado_revision,
+      })
+      toast.success("Cambios guardados")
+      onGuardado(actualizado)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "No se pudo guardar el platillo")
+    } finally {
+      setGuardando(false)
+    }
+  }
+  return <VentanaFormulario titulo={`Editar ${platillo.nombre}`} textoEnviar="Guardar cambios" trabajando={guardando} deshabilitarEnvio={!form.nombre.trim()} onCerrar={onCerrar} onEnviar={guardar}>
+    <CampoTexto etiqueta="Nombre" required autoFocus {...campo("nombre")} />
+    <CampoParrafo etiqueta="Descripción" {...campo("descripcion")} />
+    <div className="grid gap-4 sm:grid-cols-2"><CampoLista etiqueta="Tiempo de comida" opciones={(Object.keys(etiquetasTiempoComida) as TiempoComida[]).map((t) => ({ valor: t, texto: etiquetasTiempoComida[t] }))} {...campo("tiempo_comida")} /><CampoTexto etiqueta="Calorías" type="number" min={0} {...campo("calorias")} /></div>
+    <div className="grid gap-4 sm:grid-cols-2"><CampoTexto etiqueta="Precio de venta (MXN)" type="number" min={1} step="0.01" {...campo("precio_venta")} /><CampoTexto etiqueta="Alérgenos" placeholder="gluten, lácteos" ayuda="Sepáralos con comas." {...campo("alergenos")} /></div>
+  </VentanaFormulario>
+}
+
+/** Programa un precio de venta nuevo, con fecha de inicio a partir de mañana. */
+function ProgramarPrecio({ platillo, onCerrar, onProgramado }: { platillo: PlatilloDetalle; onCerrar: () => void; onProgramado: () => void }) {
+  const [precio, setPrecio] = useState("")
+  const [desde, setDesde] = useState(FECHA_MANANA)
+  const [guardando, setGuardando] = useState(false)
+  async function guardar() {
+    setGuardando(true)
+    try {
+      await programarPrecioPlatillo(platillo.id, { precio_venta: Number(precio), vigente_desde: desde })
+      toast.success("Precio programado")
+      onProgramado()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "No se pudo programar el precio")
+    } finally {
+      setGuardando(false)
+    }
+  }
+  return <VentanaFormulario titulo="Programar precio" descripcion={`${platillo.nombre} cuesta hoy $${platillo.precio_venta} MXN. El precio nuevo aplica desde la fecha que elijas.`} textoEnviar="Programar" trabajando={guardando} deshabilitarEnvio={!(Number(precio) > 0) || desde < FECHA_MANANA} onCerrar={onCerrar} onEnviar={guardar}>
+    <CampoTexto etiqueta="Precio nuevo (MXN)" type="number" min={1} step="0.01" required autoFocus value={precio} onChange={(e) => setPrecio(e.target.value)} />
+    <CampoTexto etiqueta="Vigente desde" type="date" min={FECHA_MANANA} required value={desde} onChange={(e) => setDesde(e.target.value)} />
+  </VentanaFormulario>
+}
+
+/** Editar el nombre, el descuento y la descripción de un plan (paquete). */
+function EditarPlan({ plan, onCerrar, onGuardado }: { plan: Plan; onCerrar: () => void; onGuardado: () => void }) {
+  const [form, setForm] = useState({ nombre: plan.nombre, descuento_porcentaje: String(plan.descuento_porcentaje), detalle: plan.detalle, destacado: plan.destacado })
+  const [guardando, setGuardando] = useState(false)
+  const descuento = Number(form.descuento_porcentaje)
+  async function guardar() {
+    setGuardando(true)
+    try {
+      await editarPlan(plan.id, { ...form, descuento_porcentaje: descuento })
+      toast.success("Plan actualizado")
+      onGuardado()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "No se pudo guardar el plan")
+    } finally {
+      setGuardando(false)
+    }
+  }
+  return <VentanaFormulario titulo={`Editar ${plan.nombre}`} descripcion="El descuento aplica a los pedidos nuevos; los ya contratados conservan el suyo." textoEnviar="Guardar cambios" trabajando={guardando} deshabilitarEnvio={!form.nombre.trim() || form.descuento_porcentaje === "" || descuento < 0 || descuento > 100} onCerrar={onCerrar} onEnviar={guardar}>
+    <CampoTexto etiqueta="Nombre del plan" required autoFocus value={form.nombre} onChange={(e) => setForm((f) => ({ ...f, nombre: e.target.value }))} />
+    <CampoTexto etiqueta="Descuento (%)" type="number" min={0} max={100} value={form.descuento_porcentaje} onChange={(e) => setForm((f) => ({ ...f, descuento_porcentaje: e.target.value }))} />
+    <CampoParrafo etiqueta="Descripción" value={form.detalle} onChange={(e) => setForm((f) => ({ ...f, detalle: e.target.value }))} />
+    <label className="flex items-center gap-2 text-sm font-medium"><input type="checkbox" checked={form.destacado} onChange={(e) => setForm((f) => ({ ...f, destacado: e.target.checked }))} /> Mostrar como «Más elegido»</label>
+  </VentanaFormulario>
 }

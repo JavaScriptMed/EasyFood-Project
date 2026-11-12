@@ -12,7 +12,7 @@ import { PORTALES, portalDeRol } from './portales'
 import * as db from './mock-data'
 import type {
   CalendarioServicio, CambioDisponibilidad, CandidatoReasignacion, ContratoPorVencer, FiltroBitacora, IncidenciaDetalle, TipoIncidencia, Comedor, ComedorDetalle, ConfiguracionOperacion, Corte, DiaSinServicio, EntregaEmpresa, VistaPreviaCorte, DashboardAdmin, DisponibilidadConPlatillo, EleccionEmpleado, Empleado, EmpleadoDetalle, Empresa, EmpresaDetalle,
-  EntregaDetalle, EstadoContrato, FacturaConEmpresa, FacturaDetalle, FacturaMensual, FilaReporteProveedor, GuardarPlatillo, HistorialPrecio,
+  ProgramarPrecio, EdicionComedor, EdicionEmpleado, EdicionEmpresa, EdicionPlan, EdicionRepartidor, EdicionUsuarioAcceso, EntregaDetalle, EstadoContrato, FacturaConEmpresa, FacturaDetalle, FacturaMensual, FilaReporteProveedor, GuardarPlatillo, HistorialPrecio,
   LiquidacionComedor, LiquidacionConComedor, MenuSemanalDia, MensajeTicket, NuevaEmpresa, NuevoRepartidor, OrdenProduccionDetalle, PedidoDetalle,
   PedidosMananaEmpresa, Plan, Platillo, PlatilloDetalle, RegistroAuditoriaDetalle, RepartidorDetalle, ResultadoAltaEmpleados, ResultadoCorte, RutaDetalle,
   MensajeContacto, NuevoMensajeContacto, ClienteDetalle, ClienteResumen, ConsumoDiario, EstadoInvitacion, Incidencia, MiEleccion, MiMenu, OpcionMenu, InvitacionDetalle, InvitacionPublica, Invitacion, NuevaInvitacion, Portal, ResultadoAceptacion, SolicitudRestablecimiento, TipoOrganizacion, UsuarioAcceso, ValidacionToken, RegistroAuditoria, Repartidor, Ruta, TicketDetalle, TicketResumen, TiempoComida, TipoVehiculo, Usuario, UsuarioResumen,
@@ -162,6 +162,29 @@ export const obtenerEmpresa = (empresa_id: string) => llamar<EmpresaDetalle>(() 
   return detalleEmpresa(empresa)
 })
 
+export const editarEmpresa = (empresa_id: string, datos: EdicionEmpresa) => llamar<EmpresaDetalle>(() => {
+  const empresa = db.empresas.find((e) => e.id === empresa_id)
+  if (!empresa) throw new Error('La empresa no existe.')
+  if (!datos.nombre.trim()) throw new Error('Escribe el nombre de la empresa.')
+  if (datos.porcentaje_subsidio < 0 || datos.porcentaje_subsidio > 100) throw new Error('El subsidio debe estar entre 0 y 100 %.')
+  if (datos.compra_minima_mensual < 0) throw new Error('El mínimo mensual no puede ser negativo.')
+  const contrato = contratoEmpresaDe(empresa_id)
+  Object.assign(empresa, { nombre: datos.nombre.trim(), direccion_entrega: datos.direccion_entrega.trim() })
+  Object.assign(contrato, { porcentaje_subsidio: datos.porcentaje_subsidio, compra_minima_mensual: datos.compra_minima_mensual, ventana_entrega_inicio: datos.ventana_entrega_inicio, ventana_entrega_fin: datos.ventana_entrega_fin, hora_entrega: datos.ventana_entrega_inicio })
+  const contacto = buscarUsuario(empresa.usuario_id)
+  if (contacto) Object.assign(contacto, { nombre: datos.contacto_nombre.trim() || contacto.nombre, telefono: datos.contacto_telefono.trim() || null })
+  auditar('actualizar', 'empresa', empresa_id, `Editó la empresa ${empresa.nombre}`)
+  return detalleEmpresa(empresa)
+})
+
+export const cambiarEstadoEmpresa = (empresa_id: string, activo: boolean) => llamar<EmpresaDetalle>(() => {
+  const empresa = db.empresas.find((e) => e.id === empresa_id)
+  if (!empresa) throw new Error('La empresa no existe.')
+  empresa.activo = activo
+  auditar(activo ? 'activar' : 'desactivar', 'empresa', empresa_id, `${activo ? 'Reactivó' : 'Desactivó'} la empresa ${empresa.nombre}`)
+  return detalleEmpresa(empresa)
+})
+
 export const crearEmpresa = (datos: NuevaEmpresa) => llamar<EmpresaDetalle>(() => {
   if (!datos.nombre.trim()) throw new Error('Escribe el nombre de la empresa.')
   const id = siguienteId('EMP-', db.empresas.map((e) => e.id))
@@ -284,6 +307,30 @@ export const invitarUsuario = (datos: NuevaInvitacion) => llamar<UsuarioAcceso>(
   const invitacion = crearInvitacion(usuario.id, correo, datos.rol, datos.organizacion_tipo, datos.organizacion_id)
   auditar('invitar', 'usuario', usuario.id, `Invitó a ${usuario.nombre} a ${nombreOrganizacion(datos.organizacion_tipo, datos.organizacion_id)}`)
   return { usuario_id: usuario.id, nombre: usuario.nombre, correo, rol: usuario.rol, activo: false, es_principal: false, invitacion: conEstadoInvitacion(invitacion) }
+})
+
+const filaDeUsuario = (usuario: Usuario): UsuarioAcceso => {
+  const invitacion = db.invitaciones.find((i) => i.usuario_id === usuario.id)
+  return { usuario_id: usuario.id, nombre: usuario.nombre, correo: usuario.correo, rol: usuario.rol, activo: usuario.activo, es_principal: !invitacion, invitacion: invitacion ? conEstadoInvitacion(invitacion) : null }
+}
+
+export const editarUsuarioAcceso = (usuario_id: string, datos: EdicionUsuarioAcceso) => llamar<UsuarioAcceso>(() => {
+  const usuario = buscarUsuario(usuario_id)
+  if (!usuario) throw new Error('El usuario no existe.')
+  if (!datos.nombre.trim()) throw new Error('Escribe el nombre de la persona.')
+  usuario.nombre = datos.nombre.trim()
+  usuario.rol = datos.rol
+  auditar('actualizar', 'usuario', usuario_id, `Editó al usuario ${usuario.nombre}`)
+  return filaDeUsuario(usuario)
+})
+
+export const cambiarEstadoUsuarioAcceso = (usuario_id: string, activo: boolean) => llamar<UsuarioAcceso>(() => {
+  const usuario = buscarUsuario(usuario_id)
+  if (!usuario) throw new Error('El usuario no existe.')
+  if (usuario.id === USUARIO_ACTUAL_ID && !activo) throw new Error('No puedes desactivar tu propia cuenta.')
+  usuario.activo = activo
+  auditar(activo ? 'activar' : 'desactivar', 'usuario', usuario_id, `${activo ? 'Reactivó' : 'Desactivó'} al usuario ${usuario.nombre}`)
+  return filaDeUsuario(usuario)
 })
 
 /** Renueva la vigencia y el enlace de una invitación enviada o vencida. */
@@ -432,6 +479,25 @@ export const cambiarEstadoEmpleado = (empleado_id: string, activo: boolean) => l
   if (!activo) db.elecciones_empleado.filter((e) => e.empleado_id === empleado_id && e.fecha === FECHA_MANANA).forEach(quitarEleccion)
   auditar(activo ? 'activar' : 'desactivar', 'empleado', empleado_id, `${activo ? 'Activó' : 'Desactivó'} al empleado ${usuario?.nombre ?? empleado_id}`)
   return empleado
+})
+
+export const editarEmpleado = (empleado_id: string, datos: EdicionEmpleado) => llamar<Empleado>(() => {
+  const empleado = db.empleados.find((e) => e.id === empleado_id)
+  if (!empleado) throw new Error('El empleado no existe.')
+  if (!datos.nombre.trim()) throw new Error('Escribe el nombre del empleado.')
+  const usuario = buscarUsuario(empleado.usuario_id)
+  if (usuario) usuario.nombre = datos.nombre.trim()
+  empleado.departamento = datos.departamento.trim() || null
+  auditar('actualizar', 'empleado', empleado_id, `Editó al empleado ${datos.nombre.trim()}`)
+  return empleado
+})
+
+/** El empleado quita su elección de un día (mientras el corte siga abierto). */
+export const quitarMiEleccion = (empleado_id: string, fecha: string, tiempo_comida: TiempoComida) => llamar<void>(() => {
+  if (corteCerrado(fecha)) throw new Error('Los pedidos de ese día ya se cerraron.')
+  const eleccion = db.elecciones_empleado.find((e) => e.empleado_id === empleado_id && e.fecha === fecha && e.tiempo_comida === tiempo_comida)
+  if (!eleccion) throw new Error('No tienes una elección para ese día.')
+  quitarEleccion(eleccion)
 })
 
 // ---------------------------------------------------------------- elecciones y corte de pedidos
@@ -805,6 +871,27 @@ function detalleComedor(comedor: Comedor): ComedorDetalle {
 
 export const listarComedores = () => llamar<ComedorDetalle[]>(() => db.comedores.map(detalleComedor))
 
+export const editarComedor = (comedor_id: string, datos: EdicionComedor) => llamar<ComedorDetalle>(() => {
+  const comedor = db.comedores.find((c) => c.id === comedor_id)
+  if (!comedor) throw new Error('El comedor no existe.')
+  if (!datos.nombre.trim()) throw new Error('Escribe el nombre del comedor.')
+  if (datos.precio_por_platillo <= 0) throw new Error('El precio por platillo debe ser mayor a cero.')
+  Object.assign(comedor, { nombre: datos.nombre.trim(), zona: datos.zona.trim() || comedor.zona })
+  Object.assign(contratoComedorDe(comedor_id), { precio_por_platillo: datos.precio_por_platillo, compra_minima_mensual: datos.compra_minima_mensual })
+  const contacto = buscarUsuario(comedor.usuario_id)
+  if (contacto) Object.assign(contacto, { nombre: datos.contacto_nombre.trim() || contacto.nombre, telefono: datos.contacto_telefono.trim() || null })
+  auditar('actualizar', 'comedor', comedor_id, `Editó el comedor ${comedor.nombre}`)
+  return detalleComedor(comedor)
+})
+
+export const cambiarEstadoComedor = (comedor_id: string, activo: boolean) => llamar<ComedorDetalle>(() => {
+  const comedor = db.comedores.find((c) => c.id === comedor_id)
+  if (!comedor) throw new Error('El comedor no existe.')
+  comedor.activo = activo
+  auditar(activo ? 'activar' : 'desactivar', 'comedor', comedor_id, `${activo ? 'Reactivó' : 'Desactivó'} el comedor ${comedor.nombre}`)
+  return detalleComedor(comedor)
+})
+
 export const obtenerComedor = (comedor_id: string) => llamar<ComedorDetalle>(() => {
   const comedor = db.comedores.find((c) => c.id === comedor_id)
   if (!comedor) throw new Error('El comedor no existe.')
@@ -848,8 +935,40 @@ export const revisarPlatillo = (platillo_id: string, decision: 'aprobar' | 'rech
   return conComedor(platillo)
 })
 
+export const cambiarEstadoPlatillo = (platillo_id: string, activo: boolean) => llamar<PlatilloDetalle>(() => {
+  const platillo = db.platillos.find((p) => p.id === platillo_id)
+  if (!platillo) throw new Error('El platillo no existe.')
+  platillo.activo = activo
+  auditar(activo ? 'activar' : 'desactivar', 'platillo', platillo_id, `${activo ? 'Reactivó' : 'Desactivó'} el platillo ${platillo.nombre}`)
+  return conComedor(platillo)
+})
+
+export const editarPlan = (plan_id: string, datos: EdicionPlan) => llamar<Plan>(() => {
+  const plan = db.planes.find((p) => p.id === plan_id)
+  if (!plan) throw new Error('El plan no existe.')
+  if (!datos.nombre.trim()) throw new Error('Escribe el nombre del plan.')
+  if (datos.descuento_porcentaje < 0 || datos.descuento_porcentaje > 100) throw new Error('El descuento debe estar entre 0 y 100 %.')
+  Object.assign(plan, { nombre: datos.nombre.trim(), descuento_porcentaje: datos.descuento_porcentaje, detalle: datos.detalle.trim(), destacado: datos.destacado })
+  auditar('actualizar', 'plan', plan_id, `Editó el plan ${plan.nombre}`)
+  return plan
+})
+
 export const listarHistorialPrecios = (platillo_id: string) =>
   llamar<HistorialPrecio[]>(() => db.historial_precios.filter((h) => h.platillo_id === platillo_id).sort((a, b) => b.vigente_desde.localeCompare(a.vigente_desde)))
+
+/** Programa un precio de venta nuevo; el anterior queda vigente hasta el día previo. */
+export const programarPrecioPlatillo = (platillo_id: string, datos: ProgramarPrecio) => llamar<HistorialPrecio>(() => {
+  const platillo = db.platillos.find((p) => p.id === platillo_id)
+  if (!platillo) throw new Error('El platillo no existe.')
+  if (!(datos.precio_venta > 0)) throw new Error('El precio debe ser mayor a cero.')
+  if (!datos.vigente_desde || datos.vigente_desde < FECHA_MANANA) throw new Error('El precio nuevo debe empezar a partir de mañana.')
+  const actual = db.historial_precios.filter((h) => h.platillo_id === platillo_id && !h.vigente_hasta).sort((a, b) => b.vigente_desde.localeCompare(a.vigente_desde))[0]
+  if (actual) actual.vigente_hasta = sumarDias(datos.vigente_desde, -1)
+  const registro: HistorialPrecio = { id: `HP-${Date.now()}`, platillo_id, vigente_desde: datos.vigente_desde, vigente_hasta: null, precio_venta: datos.precio_venta, costo: actual?.costo ?? 0 }
+  db.historial_precios.push(registro)
+  auditar('programar_precio', 'platillo', platillo_id, `Programó el precio de ${platillo.nombre} en $${datos.precio_venta} desde ${datos.vigente_desde}`)
+  return registro
+})
 
 export const listarPlanes = () => llamar<Plan[]>(() => db.planes)
 
@@ -943,6 +1062,38 @@ export const crearRepartidor = (datos: NuevoRepartidor) => llamar<RepartidorDeta
   db.repartidores.push(repartidor)
   auditar('crear', 'repartidor', id, `Dio de alta al repartidor ${usuario.nombre}`)
   return conNombre(repartidor)
+})
+
+export const editarRepartidor = (repartidor_id: string, datos: EdicionRepartidor) => llamar<RepartidorDetalle>(() => {
+  const repartidor = db.repartidores.find((r) => r.id === repartidor_id)
+  if (!repartidor) throw new Error('El repartidor no existe.')
+  if (!datos.nombre.trim()) throw new Error('Escribe el nombre del repartidor.')
+  if (datos.tipo_vehiculo !== 'bicicleta' && !datos.placas.trim()) throw new Error('Las placas son obligatorias para moto y carro.')
+  const usuario = buscarUsuario(repartidor.usuario_id)
+  if (usuario) Object.assign(usuario, { nombre: datos.nombre.trim(), telefono: datos.telefono.trim() || null })
+  Object.assign(repartidor, { numero_empleado: datos.numero_empleado.trim() || repartidor.numero_empleado, tipo_vehiculo: datos.tipo_vehiculo, placas: datos.tipo_vehiculo === 'bicicleta' ? null : datos.placas.trim(), zona_base: datos.zona_base.trim() || repartidor.zona_base })
+  auditar('actualizar', 'repartidor', repartidor_id, `Editó al repartidor ${datos.nombre.trim()}`)
+  return conNombre(repartidor)
+})
+
+export const cambiarEstadoRepartidor = (repartidor_id: string, activo: boolean) => llamar<RepartidorDetalle>(() => {
+  const repartidor = db.repartidores.find((r) => r.id === repartidor_id)
+  if (!repartidor) throw new Error('El repartidor no existe.')
+  repartidor.activo = activo
+  if (!activo) repartidor.estado = 'no_disponible'
+  else if (repartidor.estado === 'no_disponible') repartidor.estado = 'libre'
+  auditar(activo ? 'activar' : 'desactivar', 'repartidor', repartidor_id, `${activo ? 'Reactivó' : 'Desactivó'} al repartidor ${nombreDe(repartidor.usuario_id)}`)
+  return conNombre(repartidor)
+})
+
+/** Cuántas entregas cabe en cada tipo de vehículo; las rutas nuevas usan estos límites. */
+export const guardarCapacidadesVehiculo = (capacidades: Record<TipoVehiculo, number>) => llamar<Record<TipoVehiculo, number>>(() => {
+  for (const tipo of Object.keys(capacidades) as TipoVehiculo[]) {
+    if (!Number.isInteger(capacidades[tipo]) || capacidades[tipo] < 1) throw new Error('Cada límite debe ser un número entero mayor a cero.')
+  }
+  Object.assign(db.capacidades_vehiculo, capacidades)
+  auditar('actualizar', 'repartidor', 'capacidades', 'Cambió los límites de entregas por vehículo')
+  return db.capacidades_vehiculo
 })
 
 const conParadas = (ruta: Ruta): RutaDetalle => ({

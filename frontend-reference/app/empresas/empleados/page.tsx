@@ -3,7 +3,10 @@
 import { PageTitle } from '@/components/panel'
 import { FormEvent, useRef, useState } from 'react'
 import { toast } from 'sonner'
-import { Search, Upload, UserPlus, X } from 'lucide-react'
+import { Eye, Pencil, Search, Upload, UserPlus, X } from 'lucide-react'
+import { CampoTexto, GrillaDatos, PanelDetalle, VentanaFormulario } from '@/components/ventanas'
+import { editarEmpleado } from '@/lib/api'
+import { etiquetaMes } from '@/lib/format'
 import { BotonReenviar, detalleInvitacion, PillInvitacion } from '@/components/usuarios-acceso'
 import { ExternalLink } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -27,6 +30,10 @@ export default function EmpresaEmpleados() {
   const { empleados: employees, agregarEmpleados, cambiarEstadoEmpleado, recargar } = useEmpresa()
   const [porDesactivar, setPorDesactivar] = useState<(typeof employees)[number] | null>(null)
   const [desactivando, setDesactivando] = useState(false)
+  const [viendoId, setViendoId] = useState<string | null>(null)
+  const [editandoId, setEditandoId] = useState<string | null>(null)
+  const viendo = employees.find((e) => e.id === viendoId) ?? null
+  const editando = employees.find((e) => e.id === editandoId) ?? null
   const [query, setQuery] = useState('')
   const [adding, setAdding] = useState(false)
   const [name, setName] = useState('')
@@ -135,7 +142,11 @@ export default function EmpresaEmpleados() {
                   </td>
                   <td className="px-3 py-3 text-right tabular-nums">{e.platillos_por_mes[MES_ACTUAL] ?? 0}</td>
                   <td className="px-4 py-3 text-right sm:px-5">
-                    <Button variant={e.activo ? 'destructive' : 'outline'} size="sm" onClick={() => (e.activo ? setPorDesactivar(e) : toggle(e.id, true))}>{e.activo ? 'Desactivar' : 'Activar'}</Button>
+                    <div className="flex items-center justify-end gap-1">
+                      <Button variant="ghost" size="sm" onClick={() => setViendoId(e.id)} aria-label={`Ver detalle de ${e.nombre}`} title="Ver detalle"><Eye /></Button>
+                      <Button variant="ghost" size="sm" onClick={() => setEditandoId(e.id)} aria-label={`Editar a ${e.nombre}`} title="Editar"><Pencil /></Button>
+                      <Button variant={e.activo ? 'destructive' : 'outline'} size="sm" onClick={() => (e.activo ? setPorDesactivar(e) : toggle(e.id, true))}>{e.activo ? 'Desactivar' : 'Activar'}</Button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -177,6 +188,48 @@ export default function EmpresaEmpleados() {
           </form>
         </div>
       )}
+
+      {viendo && (
+        <PanelDetalle etiqueta={viendo.activo ? 'Empleado activo' : 'Empleado inactivo'} titulo={viendo.nombre} onCerrar={() => setViendoId(null)} acciones={<><Button variant="outline" onClick={() => { setEditandoId(viendo.id); setViendoId(null) }}><Pencil /> Editar empleado</Button><Button variant={viendo.activo ? 'destructive' : 'outline'} onClick={() => { if (viendo.activo) { setPorDesactivar(viendo); setViendoId(null) } else toggle(viendo.id, true) }}>{viendo.activo ? 'Desactivar' : 'Activar'}</Button></>}>
+          <GrillaDatos datos={[
+            { etiqueta: 'Correo', valor: <span className="break-all">{viendo.correo}</span> },
+            { etiqueta: 'Departamento', valor: viendo.departamento },
+            { etiqueta: 'Estado', valor: viendo.activo ? 'Activo' : 'Inactivo' },
+            { etiqueta: 'Platillos este mes', valor: viendo.platillos_por_mes[MES_ACTUAL] ?? 0 },
+          ]} />
+          <div className="mt-5 rounded-lg border p-4"><p className="text-xs uppercase text-muted-foreground">Elección de mañana</p><p className="mt-2 text-sm font-semibold">{viendo.eleccion_manana ? viendo.eleccion_manana.platillo_nombre : 'Todavía no elige'}</p>{viendo.eleccion_manana && <p className="text-xs text-muted-foreground">{viendo.eleccion_manana.origen === 'manual' ? 'La eligió la persona.' : 'Se asignó por defecto.'}</p>}</div>
+          <div className="mt-5 rounded-lg border p-4"><p className="text-xs uppercase text-muted-foreground">Invitación</p>{viendo.invitacion ? <div className="mt-2 flex flex-col items-start gap-1.5"><PillInvitacion estado={viendo.invitacion.estado} /><span className="text-xs text-muted-foreground">{detalleInvitacion(viendo.invitacion)}</span><BotonReenviar invitacion={viendo.invitacion} compacto onReenviada={recargar} /></div> : <p className="mt-2 text-sm text-muted-foreground">Sin invitación pendiente.</p>}</div>
+          <div className="mt-5 rounded-lg border p-4"><p className="text-xs uppercase text-muted-foreground">Platillos por mes</p><ul className="mt-2 divide-y text-sm">{Object.entries(viendo.platillos_por_mes).sort(([a], [b]) => b.localeCompare(a)).map(([mes, n]) => <li key={mes} className="flex justify-between py-1.5"><span>{etiquetaMes(mes)}</span><strong className="tabular-nums">{n}</strong></li>)}{!Object.keys(viendo.platillos_por_mes).length && <li className="py-1.5 text-muted-foreground">Sin consumo todavía.</li>}</ul></div>
+        </PanelDetalle>
+      )}
+
+      {editando && <EditarEmpleado empleado={editando} onCerrar={() => setEditandoId(null)} onGuardado={() => { setEditandoId(null); recargar() }} />}
     </div>
+  )
+}
+
+/** Editar el nombre y el departamento de un empleado (el correo es su acceso y no se cambia aquí). */
+function EditarEmpleado({ empleado, onCerrar, onGuardado }: { empleado: { id: string; nombre: string; correo: string; departamento: string | null }; onCerrar: () => void; onGuardado: () => void }) {
+  const [nombre, setNombre] = useState(empleado.nombre)
+  const [departamento, setDepartamento] = useState(empleado.departamento ?? '')
+  const [guardando, setGuardando] = useState(false)
+  async function guardar() {
+    setGuardando(true)
+    try {
+      await editarEmpleado(empleado.id, { nombre, departamento })
+      toast.success('Cambios guardados')
+      onGuardado()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'No se pudo guardar al empleado')
+    } finally {
+      setGuardando(false)
+    }
+  }
+  return (
+    <VentanaFormulario titulo={`Editar a ${empleado.nombre}`} textoEnviar="Guardar cambios" trabajando={guardando} deshabilitarEnvio={!nombre.trim()} onCerrar={onCerrar} onEnviar={guardar}>
+      <CampoTexto etiqueta="Nombre completo" required autoFocus value={nombre} onChange={(e) => setNombre(e.target.value)} />
+      <CampoTexto etiqueta="Departamento" value={departamento} onChange={(e) => setDepartamento(e.target.value)} placeholder="Opcional" />
+      <CampoTexto etiqueta="Correo" value={empleado.correo} disabled ayuda="Es su acceso a EasyLunch; no se cambia aquí." readOnly />
+    </VentanaFormulario>
   )
 }
