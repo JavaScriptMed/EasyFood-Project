@@ -28,3 +28,8 @@ Laravel (última versión estable) + Sanctum + PostgreSQL con PostGIS. API JSON 
 - Cada regla importante lleva prueba automatizada.
 - Los montos y reglas de dinero nunca se calculan en el front.
 - No pongas claves ni contraseñas en el repositorio; usa .env.
+
+## API
+- Rutas en `routes/v1.php`, JSON en español; errores `{ mensaje, codigo?, errores? }`. Los campos salen con los nombres de `/lib/types.ts` (se traducen en `App\Http\Resources\V1\Vistas`).
+- Los controladores son delgados: la regla de negocio vive en `app/Services` y la API solo valida, autoriza y presenta. Los montos nunca se calculan en el controlador.
+- Los endpoints complejos, el dashboard y las imágenes están declarados pero apuntan a `NoImplementadoController` (501) hasta construirse.

@@ -1,0 +1,37 @@
+meta {
+  name: Listar comedores
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/api/v1/admin/comedores
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+script:post-response {
+  const norte = res.body.find(c => c.nombre === "Cocina Norte");
+  const sur = res.body.find(c => c.nombre === "Sabor Casero Centro");
+  if (norte) bru.setVar("comedorId", norte.id);
+  if (sur) bru.setVar("comedorSurId", sur.id);
+}
+
+tests {
+  test("responde 200", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("trae contrato y avance del mínimo", function () {
+    expect(res.body[0].contrato.compra_minima_mensual).to.equal(200);
+    expect(res.body[0]).to.have.property("avance_minimo_porcentaje");
+  });
+}
+
+docs {
+  Comedores (la tabla `providers`) con su contrato, platillos publicados y avance de su compra mínima del mes.
+}

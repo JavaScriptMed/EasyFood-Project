@@ -1,0 +1,25 @@
+meta {
+  name: Solo lo que hizo el sistema
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/api/v1/admin/bitacora?usuario_id=sistema
+  body: none
+  auth: bearer
+}
+
+params:query {
+  usuario_id: sistema
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+tests {
+  test("responde 200", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+}

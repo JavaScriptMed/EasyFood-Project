@@ -176,6 +176,16 @@ return [
     ],
 
     'attributes' => [
+        // Campos de la API v1 (nombres en snake_case que el front manda tal cual)
+        'hora_corte' => 'hora de corte', 'dias_entrega' => 'días de entrega', 'regla_sin_eleccion' => 'regla para quien no eligió',
+        'capacidad_auto_entregas' => 'capacidad del auto (entregas)', 'capacidad_auto_platillos' => 'capacidad del auto (platillos)',
+        'precio_venta' => 'precio de venta', 'tiempo_comida' => 'tiempo de comida', 'comedor_id' => 'comedor', 'platillo_id' => 'platillo',
+        'platillos' => 'platillos', 'paquete_id' => 'paquete', 'direccion_id' => 'dirección', 'direccion' => 'dirección',
+        'latitud' => 'latitud', 'longitud' => 'longitud', 'numero_interior' => 'número interior', 'codigo_postal' => 'código postal',
+        'metodo_pago' => 'método de pago', 'ultimos_digitos' => 'últimos 4 dígitos', 'fecha_entrega' => 'fecha de entrega',
+        'porciones_maximas' => 'porciones máximas', 'empresa_id' => 'empresa', 'correo' => 'correo', 'mensaje' => 'mensaje',
+        'estado_revision' => 'estado de revisión', 'motivo' => 'motivo', 'decision' => 'decisión', 'cambios' => 'cambios',
+        'usuario_id' => 'usuario', 'desde' => 'fecha inicial', 'hasta' => 'fecha final',
         'email' => 'correo electrónico',
         'name' => 'nombre',
         'password' => 'contraseña',

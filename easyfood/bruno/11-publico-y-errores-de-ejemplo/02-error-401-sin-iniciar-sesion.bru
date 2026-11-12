@@ -1,0 +1,21 @@
+meta {
+  name: Error 401: sin iniciar sesión
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/api/v1/admin/configuracion
+  body: none
+  auth: none
+}
+
+tests {
+  test("responde 401", function () {
+    expect(res.getStatus()).to.equal(401);
+  });
+
+  test("mensaje en español", function () {
+    expect(res.body.codigo).to.equal("no_autenticado");
+  });
+}

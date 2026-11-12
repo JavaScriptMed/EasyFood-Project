@@ -1,0 +1,35 @@
+meta {
+  name: Pedir con una dirección sin cobertura (rechazado)
+  type: http
+  seq: 8
+}
+
+post {
+  url: {{baseUrl}}/api/v1/cliente/pedidos
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenCliente}}
+}
+
+body:json {
+  {
+    "paquete_id": "{{paqueteUnDiaId}}",
+    "direccion_id": "{{direccionLejosId}}",
+    "platillos": [
+      "{{platilloComidaId}}"
+    ]
+  }
+}
+
+tests {
+  test("responde 422", function () {
+    expect(res.getStatus()).to.equal(422);
+  });
+
+  test("código sin_cobertura", function () {
+    expect(res.body.codigo).to.equal("sin_cobertura");
+  });
+}

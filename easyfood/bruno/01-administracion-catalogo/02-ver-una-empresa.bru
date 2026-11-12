@@ -1,0 +1,25 @@
+meta {
+  name: Ver una empresa
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/api/v1/admin/empresas/{{empresaId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+tests {
+  test("responde 200", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("trae su contrato", function () {
+    expect(res.body.contrato.porcentaje_subsidio).to.equal(60);
+  });
+}

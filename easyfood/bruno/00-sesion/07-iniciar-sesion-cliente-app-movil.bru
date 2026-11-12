@@ -1,0 +1,36 @@
+meta {
+  name: Iniciar sesión · cliente (app móvil)
+  type: http
+  seq: 7
+}
+
+post {
+  url: {{baseUrl}}/api/auth/login
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "email": "{{correoCliente}}",
+    "password": "{{contrasena}}"
+  }
+}
+
+script:post-response {
+  bru.setVar("tokenCliente", res.body.token);
+}
+
+tests {
+  test("responde 200", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("trae el token", function () {
+    expect(res.body.token).to.be.a("string");
+  });
+}
+
+docs {
+  Inicia sesión y guarda el token en `tokenCliente`. Usa la contraseña definida en el entorno (la misma de SEED_PASSWORD).
+}

@@ -1,0 +1,25 @@
+meta {
+  name: Tickets de soporte
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{baseUrl}}/api/v1/admin/tickets
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenSoporte}}
+}
+
+script:post-response {
+  if (res.status === 200 && res.body.length) bru.setVar("ticketId", res.body[0].id);
+}
+
+tests {
+  test("responde 200", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+}

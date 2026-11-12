@@ -1,0 +1,21 @@
+meta {
+  name: Quitar el día sin servicio
+  type: http
+  seq: 7
+}
+
+delete {
+  url: {{baseUrl}}/api/v1/admin/calendario/dias-sin-servicio/{{diaSinServicioId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+tests {
+  test("responde 200 o 404", function () {
+    expect([200, 404]).to.include(res.getStatus());
+  });
+}

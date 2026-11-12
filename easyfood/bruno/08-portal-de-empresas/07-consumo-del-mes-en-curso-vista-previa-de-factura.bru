@@ -1,0 +1,34 @@
+meta {
+  name: Consumo del mes en curso (vista previa de factura)
+  type: http
+  seq: 7
+}
+
+get {
+  url: {{baseUrl}}/api/v1/empresa/facturas/vista-previa?mes={{mesActual}}
+  body: none
+  auth: bearer
+}
+
+params:query {
+  mes: {{mesActual}}
+}
+
+auth:bearer {
+  token: {{tokenEmpresa}}
+}
+
+tests {
+  test("responde 200", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("calcula hasta hoy sin guardar nada", function () {
+    expect(res.body.estado).to.equal("borrador");
+    expect(res.body.lineas).to.be.an("array");
+  });
+}
+
+docs {
+  Muestra el consumo y los montos del mes en curso «hasta hoy». Si ya existe la factura emitida de ese mes, devuelve esa.
+}

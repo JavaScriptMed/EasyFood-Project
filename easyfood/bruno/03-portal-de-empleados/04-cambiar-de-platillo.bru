@@ -1,0 +1,33 @@
+meta {
+  name: Cambiar de platillo
+  type: http
+  seq: 4
+}
+
+put {
+  url: {{baseUrl}}/api/v1/empleado/elecciones
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenEmpleado}}
+}
+
+body:json {
+  {
+    "fecha": "{{fechaMenu}}",
+    "tiempo_comida": "comida",
+    "platillo_id": "{{opcionB}}"
+  }
+}
+
+tests {
+  test("responde 200", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+}
+
+docs {
+  Antes del corte se puede cambiar; se vuelve a congelar lo vigente y se libera la porción del platillo anterior.
+}

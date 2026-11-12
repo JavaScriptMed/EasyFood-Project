@@ -1,0 +1,25 @@
+meta {
+  name: Solo lo que hicieron administradores
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/api/v1/admin/bitacora?rol=administrador
+  body: none
+  auth: bearer
+}
+
+params:query {
+  rol: administrador
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+tests {
+  test("responde 200", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+}

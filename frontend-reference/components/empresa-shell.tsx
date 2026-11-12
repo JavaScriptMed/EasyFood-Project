@@ -111,7 +111,7 @@ export function EmpresaShell({ children }: { children: React.ReactNode }) {
           <header className="sticky top-0 z-10 flex h-16 items-center gap-3 border-b bg-background/90 px-4 backdrop-blur sm:px-5 lg:px-8">
             <button className="lg:hidden" onClick={() => setOpen(true)} aria-label="Abrir menú"><Menu /></button>
             <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-semibold">{empresa ? empresa.nombre : <Skeleton className="h-4 w-40" />}</p>
+              <div className="truncate text-sm font-semibold">{empresa ? empresa.nombre : <Skeleton className="h-4 w-40" />}</div>
               <p className="truncate text-xs text-muted-foreground">Contacto de RR. HH.</p>
             </div>
             <SelectorTema /><span className="hidden text-sm font-semibold sm:block">{empresa?.contacto.nombre}</span>

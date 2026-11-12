@@ -1,0 +1,32 @@
+meta {
+  name: Ejecutar el mismo corte otra vez (sin cambios)
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{baseUrl}}/api/v1/admin/cortes/ejecutar
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+body:json {
+  {
+    "fecha_entrega": "{{fechaCortada}}"
+  }
+}
+
+tests {
+  test("responde 200", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("no cambia nada", function () {
+    expect(res.body.sin_cambios).to.equal(true);
+    expect(res.body.elecciones_cerradas).to.equal(0);
+  });
+}

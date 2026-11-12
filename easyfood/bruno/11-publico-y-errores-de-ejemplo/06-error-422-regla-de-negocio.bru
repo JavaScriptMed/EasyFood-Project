@@ -1,0 +1,31 @@
+meta {
+  name: Error 422: regla de negocio
+  type: http
+  seq: 6
+}
+
+post {
+  url: {{baseUrl}}/api/v1/admin/cortes/ejecutar
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+body:json {
+  {
+    "fecha_entrega": "2020-01-01"
+  }
+}
+
+tests {
+  test("responde 422", function () {
+    expect(res.getStatus()).to.equal(422);
+  });
+
+  test("trae el código de la regla", function () {
+    expect(res.body.codigo).to.equal("fecha_pasada");
+  });
+}

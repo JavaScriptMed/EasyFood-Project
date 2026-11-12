@@ -1,0 +1,25 @@
+meta {
+  name: Historial de una entidad
+  type: http
+  seq: 5
+}
+
+get {
+  url: {{baseUrl}}/api/v1/admin/auditoria/configuracion/operacion
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+tests {
+  test("responde 200", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("solo esa entidad", function () {
+    res.body.forEach(r => expect(r.entidad).to.equal("configuracion"));
+  });
+}

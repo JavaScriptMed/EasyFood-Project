@@ -1,0 +1,43 @@
+meta {
+  name: Generar las liquidaciones a comedores
+  type: http
+  seq: 6
+}
+
+post {
+  url: {{baseUrl}}/api/v1/admin/liquidaciones/generar
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+body:json {
+  {
+    "mes": "{{mesPasado}}"
+  }
+}
+
+script:post-response {
+  if (res.status === 200 && res.body.length) bru.setVar("liquidacionId", res.body[0].id);
+}
+
+tests {
+  test("responde 200", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("una por comedor con contrato", function () {
+    expect(res.body.length).to.equal(2);
+  });
+
+  test("monto = (entregados + faltantes) × precio", function () {
+    res.body.forEach(l => expect(Math.round(l.monto * 100)).to.equal(Math.round((l.platillos_entregados + l.platillos_faltantes) * l.precio_por_platillo * 100)));
+  });
+}
+
+docs {
+  Si EasyLunch compró menos del mínimo del comedor (200 platillos), se le paga la diferencia a su precio fijo ($49).
+}

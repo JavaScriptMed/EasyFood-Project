@@ -82,7 +82,7 @@ class EjecutorDelCorte
             return Corte::create([
                 'fecha_entrega' => $dia->toDateString(), 'ejecutado_en' => $ahora, 'ejecutado_por' => $usuarioId,
                 'estado' => 'fallido', 'sin_cambios' => false, 'mensaje' => mb_substr('El corte falló y no cambió nada: '.$error->getMessage(), 0, 1000),
-            ]);
+            ])->refresh();
         }
     }
 
@@ -97,7 +97,7 @@ class EjecutorDelCorte
             return Corte::create([
                 'fecha_entrega' => $fecha, 'ejecutado_en' => $ahora, 'ejecutado_por' => $usuarioId, 'estado' => 'correcto',
                 'sin_cambios' => true, 'mensaje' => "El corte del {$fecha} ya se había ejecutado: no hubo cambios.",
-            ]);
+            ])->refresh();
         }
 
         $this->paquetes->cancelarVencidos($ahora, $fecha);

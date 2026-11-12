@@ -1,0 +1,29 @@
+meta {
+  name: Menú semanal
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/api/v1/cliente/menu-semanal?fecha_inicio={{lunesProximo}}
+  body: none
+  auth: bearer
+}
+
+params:query {
+  fecha_inicio: {{lunesProximo}}
+}
+
+auth:bearer {
+  token: {{tokenCliente}}
+}
+
+tests {
+  test("responde 200", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("seis días", function () {
+    expect(res.body.length).to.equal(6);
+  });
+}

@@ -1,0 +1,33 @@
+meta {
+  name: Elegir otra vez (para el corte)
+  type: http
+  seq: 6
+}
+
+put {
+  url: {{baseUrl}}/api/v1/empleado/elecciones
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenEmpleado}}
+}
+
+body:json {
+  {
+    "fecha": "{{fechaMenu}}",
+    "tiempo_comida": "comida",
+    "platillo_id": "{{opcionA}}"
+  }
+}
+
+tests {
+  test("responde 200", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+}
+
+docs {
+  Deja a Ana con una elección manual para que el corte la tome en cuenta.
+}

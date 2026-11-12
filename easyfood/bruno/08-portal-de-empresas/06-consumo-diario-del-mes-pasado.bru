@@ -1,0 +1,29 @@
+meta {
+  name: Consumo diario del mes pasado
+  type: http
+  seq: 6
+}
+
+get {
+  url: {{baseUrl}}/api/v1/empresa/consumo?mes={{mesPasado}}
+  body: none
+  auth: bearer
+}
+
+params:query {
+  mes: {{mesPasado}}
+}
+
+auth:bearer {
+  token: {{tokenEmpresa}}
+}
+
+tests {
+  test("responde 200", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("platillos por día", function () {
+    expect(res.body.length).to.be.greaterThan(0);
+  });
+}
