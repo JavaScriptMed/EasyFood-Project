@@ -1,0 +1,31 @@
+meta {
+  name: Pedidos de mañana
+  type: http
+  seq: 5
+}
+
+get {
+  url: {{baseUrl}}/api/v1/empresa/pedidos-de-manana
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenEmpresa}}
+}
+
+tests {
+  test("responde 200", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("agrupados por platillo, con quienes faltan", function () {
+    expect(res.body).to.have.property("fecha");
+    expect(res.body.grupos).to.be.an("array");
+    expect(res.body.pendientes).to.be.an("array");
+  });
+}
+
+docs {
+  Lo que han elegido los empleados de la empresa para la próxima entrega, agrupado por platillo, y quiénes todavía no han elegido.
+}

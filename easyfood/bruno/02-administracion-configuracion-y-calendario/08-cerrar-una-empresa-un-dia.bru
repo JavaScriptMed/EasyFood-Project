@@ -1,0 +1,37 @@
+meta {
+  name: Cerrar una empresa un día
+  type: http
+  seq: 8
+}
+
+post {
+  url: {{baseUrl}}/api/v1/admin/calendario/cierres-empresa
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+body:json {
+  {
+    "fecha": "{{fechaCierrePrueba}}",
+    "empresa_id": "{{empresaId}}",
+    "motivo": "Inventario (Bruno)"
+  }
+}
+
+script:post-response {
+  if (res.status === 201) bru.setVar("cierreEmpresaId", res.body.id);
+}
+
+tests {
+  test("responde 201 o 422", function () {
+    expect([201, 422]).to.include(res.getStatus());
+  });
+}
+
+docs {
+  Ese día esa empresa no recibe servicio ni sus empleados pueden elegir; las demás empresas no se afectan.
+}

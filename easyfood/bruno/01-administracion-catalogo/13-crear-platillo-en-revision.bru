@@ -1,0 +1,51 @@
+meta {
+  name: Crear platillo (en revisión)
+  type: http
+  seq: 13
+}
+
+post {
+  url: {{baseUrl}}/api/v1/admin/platillos
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+body:json {
+  {
+    "comedor_id": "{{comedorId}}",
+    "nombre": "Platillo de prueba {{$timestamp}}",
+    "descripcion": "Creado desde Bruno",
+    "tiempo_comida": "comida",
+    "calorias": 600,
+    "alergenos": [
+      "gluten"
+    ],
+    "etiquetas": [
+      "prueba"
+    ],
+    "precio_venta": 49,
+    "estado_revision": "en_revision"
+  }
+}
+
+script:post-response {
+  if (res.status === 201) bru.setVar("platilloNuevoId", res.body.id);
+}
+
+tests {
+  test("responde 201", function () {
+    expect(res.getStatus()).to.equal(201);
+  });
+
+  test("queda en revisión", function () {
+    expect(res.body.estado_revision).to.equal("en_revision");
+  });
+}
+
+docs {
+  El `precio_venta` es obligatorio. Por aquí solo se puede mandar a `borrador` o `en_revision`: publicar es decisión del administrador (siguiente peticiones).
+}

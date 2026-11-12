@@ -1,0 +1,29 @@
+meta {
+  name: Configuración de operación (la ve cualquier rol)
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/api/v1/configuracion/operacion
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenEmpleado}}
+}
+
+tests {
+  test("responde 200", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("solo lectura para todos los portales", function () {
+    expect(res.body.hora_corte).to.equal("18:00");
+  });
+}
+
+docs {
+  Los portales de empresas, comedores y empleados muestran la hora de corte: esta ruta de solo lectura la puede leer cualquier persona con sesión.
+}

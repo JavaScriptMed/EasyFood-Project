@@ -19,6 +19,8 @@ script:pre-request {
   bru.setVar("enSieteDias", f(suma(hoy, 7)));
   bru.setVar("fechaEntrega", f(entrega));
   bru.setVar("mesActual", f(hoy).slice(0, 7));
+  const lunes = suma(hoy, ((8 - hoy.getDay()) % 7) || 7);
+  bru.setVar("lunesProximo", f(lunes));
   bru.setVar("mesPasado", f(mesPasado).slice(0, 7));
   bru.setVar("fechaFestivoPrueba", f(noDomingo(suma(hoy, 40))));
   bru.setVar("fechaCierrePrueba", f(noDomingo(suma(hoy, 45))));

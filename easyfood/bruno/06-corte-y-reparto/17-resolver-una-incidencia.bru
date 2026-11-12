@@ -1,0 +1,27 @@
+meta {
+  name: Resolver una incidencia
+  type: http
+  seq: 17
+}
+
+post {
+  url: {{baseUrl}}/api/v1/admin/incidencias/{{incidenciaId}}/resolver
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+body:json {
+  {
+    "nota": "Resuelta desde Bruno"
+  }
+}
+
+tests {
+  test("responde 200 o 404 o 422", function () {
+    expect([200, 404, 422]).to.include(res.getStatus());
+  });
+}

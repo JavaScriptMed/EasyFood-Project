@@ -1,0 +1,33 @@
+meta {
+  name: Rechazar platillo (con motivo)
+  type: http
+  seq: 17
+}
+
+post {
+  url: {{baseUrl}}/api/v1/admin/platillos/{{platilloNuevo2Id}}/revision
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+body:json {
+  {
+    "decision": "rechazar",
+    "motivo": "Falta la foto y los alérgenos"
+  }
+}
+
+tests {
+  test("responde 200", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("queda rechazado con su motivo", function () {
+    expect(res.body.estado_revision).to.equal("rechazado");
+    expect(res.body.motivo_rechazo).to.equal("Falta la foto y los alérgenos");
+  });
+}

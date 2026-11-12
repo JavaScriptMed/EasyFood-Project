@@ -1,6 +1,6 @@
 # Colección de Bruno · EasyLunch API v1
 
-Peticiones listas para probar el backend a mano y ver que funciona: **128 peticiones y 230 pruebas automáticas** (cada petición revisa su respuesta). Se hicieron con [Bruno](https://www.usebruno.com/) (gratis, guarda todo en archivos de texto, así que viaja con el repositorio).
+Peticiones listas para probar el backend a mano y ver que funciona: **134 peticiones y 242 pruebas automáticas** (cada petición revisa su respuesta). Se hicieron con [Bruno](https://www.usebruno.com/) (gratis, guarda todo en archivos de texto, así que viaja con el repositorio).
 
 ## 1. Prepara la base de datos con datos de ejemplo
 
@@ -56,7 +56,7 @@ Clic derecho en la colección → **Run**, o corre carpeta por carpeta. **Empiez
 | 09 | Administración · clientes y soporte | Clientes, pedidos, tickets |
 | 10 | Administración · bitácora | Todo lo que hicieron las carpetas anteriores |
 | 11 | Público y errores de ejemplo | Contacto y ejemplos de 401, 403, 404 y 422 |
-| 12 | Pendientes (501) | Endpoints configurados pero **todavía no construidos**: deben responder 501 |
+| 12 | Pendientes (501) | Los 18 endpoints configurados pero **todavía no construidos**: deben responder 501 |
 
 Cada petición tiene su descripción (pestaña **Docs**) y sus pruebas (pestaña **Tests**; ✓ verde = respondió como se espera). Las respuestas salen en español y con la forma `{ mensaje, codigo, errores }`.
 
