@@ -1,7 +1,10 @@
 'use client'
 
 import { PageTitle } from '@/components/panel'
-import { MapPin, Timer, UserX } from 'lucide-react'
+import { useState } from 'react'
+import { Eye, MapPin, Timer, UserX } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { GrillaDatos, PanelDetalle } from '@/components/ventanas'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { BloqueEstado } from '@/components/estados'
 import { useEmpresa } from '@/components/empresa-shell'
@@ -16,6 +19,8 @@ export default function EmpresaPedidos() {
   const pedidos = useAsync(() => listarPedidosManana(empresa.id), [empresa.id])
   const groups = pedidos.data?.grupos ?? []
   const pending = pedidos.data?.pendientes ?? []
+  const [verId, setVerId] = useState<string | null>(null)
+  const ver = groups.find((g) => g.platillo_id === verId) ?? null
 
   const tomorrow = now ? new Date(now.getTime() + 86_400_000) : null
   const dateLabel = tomorrow?.toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' })
@@ -51,6 +56,7 @@ export default function EmpresaPedidos() {
               <ul className="flex flex-wrap gap-2">
                 {people.map((p) => <li key={p.empleado_id} className="rounded-full bg-muted px-3 py-1 text-xs font-medium">{p.nombre}</li>)}
               </ul>
+              <Button variant="ghost" size="sm" className="mt-3" onClick={() => setVerId(platillo_id)}><Eye /> Ver detalle</Button>
             </CardContent>
           </Card>
         ))}
@@ -66,6 +72,19 @@ export default function EmpresaPedidos() {
             <p className="mt-3 text-xs text-muted-foreground">Pueden elegir hasta el corte de pedidos.</p>
           </CardContent>
         </Card>
+      )}
+
+      {ver && (
+        <PanelDetalle etiqueta={`Pedido de mañana${dateLabel ? ` · ${dateLabel}` : ''}`} titulo={ver.platillo_nombre} onCerrar={() => setVerId(null)}>
+          <GrillaDatos datos={[
+            { etiqueta: 'Porciones', valor: ver.personas.length },
+            { etiqueta: 'Del total de mañana', valor: pedidos.data?.total ? `${Math.round((ver.personas.length / pedidos.data.total) * 100)} %` : '—' },
+            { etiqueta: 'Entrega estimada', valor: `${contrato.hora_entrega} h` },
+            { etiqueta: 'Dirección', valor: empresa.direccion_entrega },
+          ]} />
+          <h3 className="mb-2 mt-6 font-display text-lg font-bold">Quién lo pidió</h3>
+          <ul className="divide-y rounded-lg border text-sm">{ver.personas.map((p) => <li key={p.empleado_id} className="px-3 py-2">{p.nombre}</li>)}</ul>
+        </PanelDetalle>
       )}
     </div>
   )

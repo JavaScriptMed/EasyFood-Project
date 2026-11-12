@@ -86,6 +86,8 @@ const real: typeof mock = {
   listarEmpresas: async () => leer<EmpresaDetalle[]>('/api/v1/admin/empresas'),
   obtenerEmpresa: async (id) => leer<EmpresaDetalle>(esRol('empresa') ? '/api/v1/empresa/perfil' : `/api/v1/admin/empresas/${id}`),
   crearEmpresa: async () => { throw pendiente('Dar de alta una empresa') },
+  editarEmpresa: async () => { throw pendiente('Editar una empresa') },
+  cambiarEstadoEmpresa: async () => { throw pendiente('Desactivar una empresa') },
   renovarContratoEmpresa: async (id) => ids(await post<EmpresaDetalle>(`/api/v1/admin/empresas/${id}/renovar-contrato`)),
   renovarContratoComedor: async (id) => ids(await post<ComedorDetalle>(`/api/v1/admin/comedores/${id}/renovar-contrato`)),
   listarContratosPorVencer: async (dias = 30) => leer<ContratoPorVencer[]>('/api/v1/admin/contratos/por-vencer', { dias }),
@@ -98,6 +100,8 @@ const real: typeof mock = {
   listarUsuariosAcceso: async () => [],
   invitarUsuario: async () => { throw pendiente('Invitar usuarios') },
   reenviarInvitacion: async () => { throw pendiente('Reenviar invitaciones') },
+  editarUsuarioAcceso: async () => { throw pendiente('Editar usuarios') },
+  cambiarEstadoUsuarioAcceso: async () => { throw pendiente('Desactivar usuarios') },
   solicitarRestablecimiento: async () => { throw pendiente('Restablecer la contraseña por correo') },
   validarTokenRestablecimiento: async () => ({ valido: false, motivo: 'invalido' as const }),
   restablecerContrasena: async () => { throw pendiente('Restablecer la contraseña') },
@@ -107,6 +111,8 @@ const real: typeof mock = {
   // ---- empleados de una empresa
   listarEmpleados: async () => leer<EmpleadoDetalle[]>('/api/v1/empresa/empleados'),
   agregarEmpleados: async () => { throw pendiente('Dar de alta empleados') },
+  editarEmpleado: async () => { throw pendiente('Editar un empleado') },
+  quitarMiEleccion: async (_empleado, fecha, tiempo_comida) => { await borrar('/api/v1/empleado/elecciones', { fecha, tiempo_comida }) },
   cambiarEstadoEmpleado: async (id, activo) => ids(await patch<Empleado>(`/api/v1/empresa/empleados/${id}/estado`, { activo })),
   elegirPlatillo: async (_empleado, fecha, tiempo_comida, platillo_id) => ids(await put<EleccionEmpleado>('/api/v1/empleado/elecciones', { fecha, tiempo_comida, platillo_id })),
 
@@ -155,6 +161,8 @@ const real: typeof mock = {
   // ---- comedores
   listarComedores: async () => leer<ComedorDetalle[]>('/api/v1/admin/comedores'),
   obtenerComedor: async (id) => leer<ComedorDetalle>(esRol('comedor') ? '/api/v1/comedor/perfil' : `/api/v1/admin/comedores/${id}`),
+  editarComedor: async () => { throw pendiente('Editar un comedor') },
+  cambiarEstadoComedor: async () => { throw pendiente('Desactivar un comedor') },
 
   // ---- platillos, menús y disponibilidad
   listarPlatillos: async (filtro = {}) =>
@@ -179,6 +187,9 @@ const real: typeof mock = {
   },
   revisarPlatillo: async (id, decision, motivo) => platillo(ids(await post<PlatilloDetalle>(`/api/v1/admin/platillos/${id}/revision`, { decision, motivo }))),
   listarHistorialPrecios: async () => [], // el backend todavía no guarda historial de precios
+  cambiarEstadoPlatillo: async () => { throw pendiente('Desactivar un platillo') },
+  editarPlan: async () => { throw pendiente('Editar un plan') },
+  programarPrecioPlatillo: async () => { throw pendiente('Programar un precio') },
   listarPlanes: async () => leer<Plan[]>('/api/v1/paquetes'),
   obtenerMenuSemanal: async (fecha_inicio) => leer<MenuSemanalDia[]>('/api/v1/admin/menu-semanal', { fecha_inicio }),
   listarDisponibilidad: async (_comedor, desde, hasta) => leer<DisponibilidadConPlatillo[]>('/api/v1/comedor/disponibilidad', { desde, hasta }),
@@ -194,6 +205,9 @@ const real: typeof mock = {
   obtenerCapacidadesVehiculo: async () => { const c = await get<{ automovil: number }>('/api/v1/admin/repartidores/capacidades'); return { bicicleta: 0, motocicleta: 0, automovil: c.automovil } as Record<TipoVehiculo, number> },
   cambiarDisponibilidadRepartidor: async (id) => repartidor(ids(await patch<any>(`/api/v1/admin/repartidores/${id}/disponibilidad`))),
   crearRepartidor: async () => { throw pendiente('Dar de alta repartidores') },
+  editarRepartidor: async () => { throw pendiente('Editar un repartidor') },
+  cambiarEstadoRepartidor: async () => { throw pendiente('Desactivar un repartidor') },
+  guardarCapacidadesVehiculo: async () => { throw pendiente('Cambiar los límites por vehículo') },
   listarRutas: async (fecha) => (await leer<any[]>('/api/v1/admin/rutas', { fecha })).map(ruta),
   generarRutas: async () => { throw pendiente('Regenerar las rutas (las crea el corte)') },
   aprobarRutas: async (fecha) => (await post<{ aprobadas: number }>('/api/v1/admin/rutas/aprobar', { fecha })).aprobadas,
@@ -305,3 +319,17 @@ export const consumoDiarioEmpresa = elegir('consumoDiarioEmpresa')
 export const listarClientes = elegir('listarClientes')
 export const obtenerCliente = elegir('obtenerCliente')
 export const enviarMensajeContacto = elegir('enviarMensajeContacto')
+export const editarEmpresa = elegir('editarEmpresa')
+export const cambiarEstadoEmpresa = elegir('cambiarEstadoEmpresa')
+export const editarComedor = elegir('editarComedor')
+export const cambiarEstadoComedor = elegir('cambiarEstadoComedor')
+export const editarEmpleado = elegir('editarEmpleado')
+export const quitarMiEleccion = elegir('quitarMiEleccion')
+export const cambiarEstadoPlatillo = elegir('cambiarEstadoPlatillo')
+export const editarPlan = elegir('editarPlan')
+export const programarPrecioPlatillo = elegir('programarPrecioPlatillo')
+export const editarRepartidor = elegir('editarRepartidor')
+export const cambiarEstadoRepartidor = elegir('cambiarEstadoRepartidor')
+export const guardarCapacidadesVehiculo = elegir('guardarCapacidadesVehiculo')
+export const editarUsuarioAcceso = elegir('editarUsuarioAcceso')
+export const cambiarEstadoUsuarioAcceso = elegir('cambiarEstadoUsuarioAcceso')

@@ -2,12 +2,13 @@
 
 import { useState } from 'react'
 import { toast } from 'sonner'
-import { Check, Clock3, Flame, MapPin, ShieldAlert, UtensilsCrossed } from 'lucide-react'
+import { Check, Clock3, Eye, Flame, MapPin, ShieldAlert, Trash2, UtensilsCrossed } from 'lucide-react'
+import { GrillaDatos, PanelDetalle, VentanaConfirmar } from '@/components/ventanas'
 import { BloqueEstado, ErrorEstado, FilasEstado } from '@/components/estados'
 import { PageTitle, Pill } from '@/components/panel'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
-import { elegirPlatillo, listarMisElecciones, obtenerMiMenu } from '@/lib/api'
+import { elegirPlatillo, listarMisElecciones, obtenerMiMenu, quitarMiEleccion } from '@/lib/api'
 import { EMPLEADO_PORTAL_ID } from '@/lib/config'
 import { etiquetasTiempoComida } from '@/lib/etiquetas'
 import { formatDate, formatFechaLarga, formatMXN } from '@/lib/format'
@@ -22,7 +23,28 @@ export default function MiComida() {
   const historial = useAsync(() => listarMisElecciones(EMPLEADO_PORTAL_ID))
   const now = useNow()
   const [eligiendo, setEligiendo] = useState<string | null>(null)
+  const [verPlatilloId, setVerPlatilloId] = useState<string | null>(null)
+  const [quitando, setQuitando] = useState(false)
+  const [quitandoEnCurso, setQuitandoEnCurso] = useState(false)
   const m = menu.data
+  const verOpcion = m?.opciones.find((o) => o.platillo.id === verPlatilloId) ?? null
+  const opcionElegida = m?.opciones.find((o) => o.platillo.id === m.eleccion?.platillo_id) ?? null
+
+  async function quitarEleccion() {
+    if (!m || !m.eleccion) return
+    setQuitandoEnCurso(true)
+    try {
+      await quitarMiEleccion(EMPLEADO_PORTAL_ID, m.fecha, opcionElegida?.platillo.tiempo_comida ?? 'comida')
+      toast.success('Quitaste tu elección', { description: 'Puedes elegir otro platillo antes del corte.' })
+      setQuitando(false)
+      menu.reload({ silent: true })
+      historial.reload({ silent: true })
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'No se pudo quitar tu elección')
+    } finally {
+      setQuitandoEnCurso(false)
+    }
+  }
 
   const [hora, minuto] = (m?.hora_corte ?? '18:00').split(':').map(Number)
   const segundos = now && m ? secondsUntilHour(now, hora, minuto) : null
@@ -61,7 +83,7 @@ export default function MiComida() {
                 </div>
                 <h2 className="mt-3 font-display text-2xl font-bold tracking-tight">{m.eleccion ? m.eleccion.platillo_nombre : 'Escoge lo que se te antoje'}</h2>
                 <p className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground"><span className="flex items-center gap-1.5"><MapPin className="size-4" /> Llega a tu empresa a las {m.hora_entrega} h</span><span className="flex items-center gap-1.5"><Clock3 className="size-4" /> {m.cerrado ? 'Corte ejecutado' : segundos === null ? 'Cierra a las ' + m.hora_corte + ' h' : <>Cierra en <strong className="font-mono tabular-nums text-foreground">{formatCountdown(segundos)}</strong></>}</span></p>
-                {m.eleccion && !m.cerrado && <p className="mt-3 text-sm text-muted-foreground">Puedes cambiarla cuantas veces quieras antes del corte.</p>}
+                {m.eleccion && !m.cerrado && <div className="mt-3 flex flex-wrap items-center gap-3"><p className="text-sm text-muted-foreground">Puedes cambiarla cuantas veces quieras antes del corte.</p>{m.empleado.activo && <Button variant="outline" size="sm" onClick={() => setQuitando(true)}><Trash2 /> Quitar mi elección</Button>}</div>}
               </div>
               <dl className="grid grid-cols-3 gap-3 text-sm">
                 {[['Precio', formatMXN(m.precio)], [`Empresa (${m.porcentaje_subsidio} %)`, formatMXN(m.empresa_cubre)], ['Tú pagas', formatMXN(m.empleado_paga)]].map(([k, v], i) => (
@@ -103,6 +125,7 @@ export default function MiComida() {
                           <div className="h-1.5 overflow-hidden rounded-full bg-muted" role="progressbar" aria-valuenow={uso} aria-valuemin={0} aria-valuemax={100} aria-label="Porciones tomadas"><div className={`h-full rounded-full ${uso >= 90 ? 'bg-amber-500' : 'bg-primary'}`} style={{ width: `${uso}%` }} /></div>
                         </div>
                         <div className="mt-5 flex-1" />
+                        <Button className="mb-2 h-9 w-full" variant="ghost" onClick={() => setVerPlatilloId(p.id)}><Eye /> Ver detalle</Button>
                         <Button className="h-10 w-full" variant={elegido ? 'outline' : 'default'} disabled={!puedeElegir || elegido || op.agotado || eligiendo !== null} onClick={() => elegir(op)}>
                           {elegido ? <><Check /> Tu elección</> : eligiendo === p.id ? 'Guardando…' : op.agotado ? 'Agotado' : m.eleccion ? 'Cambiar a este' : <><UtensilsCrossed /> Elegir este platillo</>}
                         </Button>
@@ -130,6 +153,22 @@ export default function MiComida() {
           </table>
         </div></div>
       </section>
+
+      {m && verOpcion && (
+        <PanelDetalle etiqueta={etiquetasTiempoComida[verOpcion.platillo.tiempo_comida]} titulo={verOpcion.platillo.nombre} onCerrar={() => setVerPlatilloId(null)} acciones={<Button disabled={!puedeElegir || m.eleccion?.platillo_id === verOpcion.platillo.id || verOpcion.agotado || eligiendo !== null} onClick={async () => { await elegir(verOpcion); setVerPlatilloId(null) }}>{m.eleccion?.platillo_id === verOpcion.platillo.id ? <><Check /> Tu elección</> : verOpcion.agotado ? 'Agotado' : m.eleccion ? 'Cambiar a este' : <><UtensilsCrossed /> Elegir este platillo</>}</Button>}>
+          {verOpcion.platillo.foto_url ? <img src={verOpcion.platillo.foto_url} alt="" className="mb-5 h-44 w-full rounded-xl object-cover" /> : <div className="mb-5 h-44 w-full rounded-xl bg-gradient-to-br from-primary/30 to-muted" />}
+          <p className="mb-5 text-sm text-muted-foreground">{verOpcion.platillo.descripcion || 'Sin descripción.'}</p>
+          <GrillaDatos datos={[
+            { etiqueta: 'Calorías', valor: `${verOpcion.platillo.calorias} kcal` },
+            { etiqueta: 'Disponibilidad', valor: verOpcion.agotado ? 'Agotado' : `Quedan ${verOpcion.porciones_restantes} de ${verOpcion.porciones_maximas}` },
+            { etiqueta: 'Precio', valor: formatMXN(m.precio) },
+            { etiqueta: `Tú pagas (empresa cubre ${m.porcentaje_subsidio} %)`, valor: formatMXN(m.empleado_paga) },
+          ]} />
+          <div className="mt-5 rounded-lg border p-4"><p className="text-xs uppercase text-muted-foreground">Alérgenos</p><div className="mt-2 flex flex-wrap gap-1.5">{verOpcion.platillo.alergenos.length ? verOpcion.platillo.alergenos.map((a) => <span key={a} className="rounded-full border px-2.5 py-1 text-xs text-muted-foreground">{a}</span>) : <span className="text-sm text-muted-foreground">Ninguno registrado</span>}</div></div>
+        </PanelDetalle>
+      )}
+
+      {quitando && m?.eleccion && <VentanaConfirmar titulo="¿Quitar tu elección?" descripcion={<>Ya no pedirás <strong className="text-foreground">{m.eleccion.platillo_nombre}</strong> para el {formatFechaLarga(m.fecha)}. Puedes elegir otro platillo hasta el corte.</>} textoConfirmar="Quitar elección" trabajando={quitandoEnCurso} onCerrar={() => setQuitando(false)} onConfirmar={quitarEleccion} />}
     </div>
   )
 }
