@@ -1,0 +1,31 @@
+meta {
+  name: Responder el ticket
+  type: http
+  seq: 6
+}
+
+post {
+  url: {{baseUrl}}/api/v1/admin/tickets/{{ticketId}}/mensajes
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenSoporte}}
+}
+
+body:json {
+  {
+    "texto": "Hola, claro: puedes cambiar tu platillo hasta las 6:00 p. m. del día anterior."
+  }
+}
+
+tests {
+  test("responde 201", function () {
+    expect(res.getStatus()).to.equal(201);
+  });
+
+  test("responde como agente", function () {
+    expect(res.body.autor).to.equal("agente");
+  });
+}

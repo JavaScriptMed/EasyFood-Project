@@ -1,0 +1,34 @@
+meta {
+  name: Contratos por vencer (30 días)
+  type: http
+  seq: 5
+}
+
+get {
+  url: {{baseUrl}}/api/v1/admin/contratos/por-vencer?dias=30
+  body: none
+  auth: bearer
+}
+
+params:query {
+  dias: 30
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+tests {
+  test("responde 200", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("Logística Pacífico y Sabor Casero vencen pronto", function () {
+    expect(res.body.length).to.be.greaterThan(0);
+    expect(res.body[0]).to.have.property("dias");
+  });
+}
+
+docs {
+  Contratos activos de empresas y comedores que vencen en `dias` días o ya vencieron, del más urgente al menos urgente.
+}

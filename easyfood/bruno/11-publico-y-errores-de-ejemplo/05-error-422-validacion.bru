@@ -1,0 +1,29 @@
+meta {
+  name: Error 422: validación
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{baseUrl}}/api/v1/contacto
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "correo": "no-es-un-correo"
+  }
+}
+
+tests {
+  test("responde 422", function () {
+    expect(res.getStatus()).to.equal(422);
+  });
+
+  test("errores por campo en español", function () {
+    expect(res.body.errores).to.have.property("nombre");
+    expect(res.body.errores).to.have.property("correo");
+    expect(res.body.mensaje).to.be.a("string");
+  });
+}

@@ -1,0 +1,26 @@
+meta {
+  name: Ver factura con el detalle por empleado
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/api/v1/admin/facturas/{{facturaId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+tests {
+  test("responde 200", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("trae las líneas por empleado", function () {
+    expect(res.body.lineas.length).to.be.greaterThan(0);
+    expect(res.body.importe_consumo).to.equal(res.body.parte_empresa + res.body.parte_empleados);
+  });
+}

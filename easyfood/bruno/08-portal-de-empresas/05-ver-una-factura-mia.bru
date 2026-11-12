@@ -1,0 +1,21 @@
+meta {
+  name: Ver una factura mía
+  type: http
+  seq: 5
+}
+
+get {
+  url: {{baseUrl}}/api/v1/empresa/facturas/{{facturaEmpresaId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenEmpresa}}
+}
+
+tests {
+  test("responde 200 o 404", function () {
+    expect([200, 404]).to.include(res.getStatus());
+  });
+}

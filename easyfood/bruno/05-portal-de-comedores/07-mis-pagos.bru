@@ -1,0 +1,21 @@
+meta {
+  name: Mis pagos
+  type: http
+  seq: 7
+}
+
+get {
+  url: {{baseUrl}}/api/v1/comedor/liquidaciones
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenComedor}}
+}
+
+tests {
+  test("responde 200", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+}

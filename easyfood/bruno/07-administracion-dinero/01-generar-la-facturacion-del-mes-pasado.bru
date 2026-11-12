@@ -1,0 +1,43 @@
+meta {
+  name: Generar la facturación del mes pasado
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/api/v1/admin/facturas/generar
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+body:json {
+  {
+    "mes": "{{mesPasado}}"
+  }
+}
+
+script:post-response {
+  if (res.status === 200 && res.body.length) { bru.setVar("facturaId", res.body[0].id); bru.setVar("facturaPacificoId", (res.body.find(f => f.empresa_id == bru.getVar("empresaPacificoId")) || res.body[0]).id); }
+}
+
+tests {
+  test("responde 200", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("una factura por empresa", function () {
+    expect(res.body.length).to.equal(2);
+  });
+
+  test("total = parte de la empresa + parte de los empleados + diferencia por mínimo", function () {
+    res.body.forEach(f => expect(Math.round((f.parte_empresa + f.parte_empleados + f.diferencia_minimo) * 100)).to.equal(Math.round(f.total * 100)));
+  });
+}
+
+docs {
+  Calcula con los platillos ENTREGADOS del mes: total, parte de la empresa (subsidio %), parte de los empleados y, si no se llegó al mínimo, la diferencia por mínimo ((mínimo − entregados) × precio del contrato). Repetirla recalcula mientras la factura sea borrador.
+}

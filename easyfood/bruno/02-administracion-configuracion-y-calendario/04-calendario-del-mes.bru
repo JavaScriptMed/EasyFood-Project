@@ -1,0 +1,30 @@
+meta {
+  name: Calendario del mes
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{baseUrl}}/api/v1/admin/calendario?mes={{mesActual}}
+  body: none
+  auth: bearer
+}
+
+params:query {
+  mes: {{mesActual}}
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+tests {
+  test("responde 200", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("trae el mes y las listas", function () {
+    expect(res.body.mes).to.equal(bru.getVar("mesActual"));
+    expect(res.body.dias).to.be.an("array");
+  });
+}

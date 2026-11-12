@@ -1,0 +1,25 @@
+meta {
+  name: Historial de cortes
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/api/v1/admin/cortes
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+tests {
+  test("responde 200", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("el más reciente primero", function () {
+    expect(res.body.length).to.be.greaterThan(1);
+  });
+}

@@ -1,0 +1,35 @@
+meta {
+  name: Aprobar platillo (publicar)
+  type: http
+  seq: 11
+}
+
+post {
+  url: {{baseUrl}}/api/v1/admin/platillos/{{platilloNuevoId}}/revision
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+body:json {
+  {
+    "decision": "aprobar"
+  }
+}
+
+tests {
+  test("responde 200", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("queda publicado", function () {
+    expect(res.body.estado_revision).to.equal("publicado");
+  });
+}
+
+docs {
+  Solo se puede aprobar o rechazar un platillo que está `en_revision`; de lo contrario responde 422 `platillo_no_en_revision`.
+}

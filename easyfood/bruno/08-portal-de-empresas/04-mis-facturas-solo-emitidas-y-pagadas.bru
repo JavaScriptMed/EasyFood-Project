@@ -1,0 +1,29 @@
+meta {
+  name: Mis facturas (solo emitidas y pagadas)
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{baseUrl}}/api/v1/empresa/facturas
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenEmpresa}}
+}
+
+script:post-response {
+  if (res.status === 200 && res.body.length) bru.setVar("facturaEmpresaId", res.body[0].id);
+}
+
+tests {
+  test("responde 200", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+}
+
+docs {
+  Los borradores son internos de EasyLunch: la empresa solo ve lo ya emitido. Si está vacío, emite la factura en la carpeta «Administración · dinero».
+}

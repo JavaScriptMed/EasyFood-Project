@@ -1,0 +1,37 @@
+meta {
+  name: Mis direcciones
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/api/v1/cliente/direcciones
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenCliente}}
+}
+
+script:post-response {
+  const casa = res.body.find(d => !d.sin_cobertura);
+  const lejos = res.body.find(d => d.sin_cobertura);
+  if (casa) bru.setVar("direccionCasaId", casa.id);
+  if (lejos) bru.setVar("direccionSinCoberturaId", lejos.id);
+}
+
+tests {
+  test("responde 200", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("trae su zona y si tiene cobertura", function () {
+    expect(res.body[0]).to.have.property("zona");
+    expect(res.body[0]).to.have.property("sin_cobertura");
+  });
+}
+
+docs {
+  La zona la calcula la base de datos a partir de la latitud y la longitud (polígonos PostGIS). Una dirección fuera de toda zona queda `sin_cobertura: true`.
+}

@@ -1,0 +1,33 @@
+meta {
+  name: Listar clientes
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/api/v1/admin/clientes
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenSoporte}}
+}
+
+script:post-response {
+  if (res.status === 200 && res.body.length) bru.setVar("clienteId", res.body[0].usuario_id);
+}
+
+tests {
+  test("responde 200", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("con gasto total", function () {
+    expect(res.body[0]).to.have.property("gasto_total");
+  });
+}
+
+docs {
+  Disponible para administrador y soporte.
+}

@@ -1,0 +1,21 @@
+meta {
+  name: Eliminar la otra dirección de prueba
+  type: http
+  seq: 8
+}
+
+delete {
+  url: {{baseUrl}}/api/v1/cliente/direcciones/{{direccionNuevaId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenCliente}}
+}
+
+tests {
+  test("responde 200 o 404", function () {
+    expect([200, 404]).to.include(res.getStatus());
+  });
+}

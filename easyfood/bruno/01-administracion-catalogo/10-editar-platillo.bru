@@ -1,0 +1,32 @@
+meta {
+  name: Editar platillo
+  type: http
+  seq: 10
+}
+
+put {
+  url: {{baseUrl}}/api/v1/admin/platillos/{{platilloNuevoId}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+body:json {
+  {
+    "nombre": "Platillo de prueba (editado)",
+    "calorias": 550
+  }
+}
+
+tests {
+  test("responde 200", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("guardó el cambio", function () {
+    expect(res.body.nombre).to.equal("Platillo de prueba (editado)");
+  });
+}

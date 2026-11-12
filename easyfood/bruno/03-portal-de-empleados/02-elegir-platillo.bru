@@ -1,0 +1,39 @@
+meta {
+  name: Elegir platillo
+  type: http
+  seq: 2
+}
+
+put {
+  url: {{baseUrl}}/api/v1/empleado/elecciones
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenEmpleado}}
+}
+
+body:json {
+  {
+    "fecha": "{{fechaMenu}}",
+    "tiempo_comida": "comida",
+    "platillo_id": "{{opcionA}}"
+  }
+}
+
+tests {
+  test("responde 200", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("congeló el precio y el subsidio del contrato", function () {
+    expect(res.body.precio_congelado).to.equal(130);
+    expect(res.body.porcentaje_subsidio_congelado).to.equal(60);
+    expect(res.body.origen).to.equal("manual");
+  });
+}
+
+docs {
+  Al elegir se congelan el precio y el porcentaje de subsidio del contrato de la empresa. Después del corte responde 422 `corte_cerrado`.
+}

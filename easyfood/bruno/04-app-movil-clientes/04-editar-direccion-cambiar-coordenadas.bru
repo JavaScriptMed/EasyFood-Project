@@ -1,0 +1,32 @@
+meta {
+  name: Editar dirección (cambiar coordenadas)
+  type: http
+  seq: 4
+}
+
+put {
+  url: {{baseUrl}}/api/v1/cliente/direcciones/{{direccionNuevaId}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenCliente}}
+}
+
+body:json {
+  {
+    "latitud": 20.72,
+    "longitud": -103.42
+  }
+}
+
+tests {
+  test("responde 200", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("la zona se recalcula sola", function () {
+    expect(res.body.zona).to.equal("Zapopan");
+  });
+}

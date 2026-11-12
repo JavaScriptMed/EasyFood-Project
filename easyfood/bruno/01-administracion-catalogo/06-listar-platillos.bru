@@ -1,0 +1,30 @@
+meta {
+  name: Listar platillos
+  type: http
+  seq: 6
+}
+
+get {
+  url: {{baseUrl}}/api/v1/admin/platillos
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+script:post-response {
+  const pub = res.body.filter(p => p.estado_revision === "publicado" && p.tiempo_comida === "comida");
+  if (pub.length) { bru.setVar("platilloComidaId", pub[0].id); bru.setVar("platilloComidaId2", (pub[1] || pub[0]).id); bru.setVar("platilloComidaId3", (pub[2] || pub[0]).id); }
+}
+
+tests {
+  test("responde 200", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("hay platillos publicados", function () {
+    expect(res.body.filter(p => p.estado_revision === "publicado").length).to.be.greaterThan(0);
+  });
+}

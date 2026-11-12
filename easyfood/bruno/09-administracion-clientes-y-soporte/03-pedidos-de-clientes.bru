@@ -1,0 +1,25 @@
+meta {
+  name: Pedidos de clientes
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/api/v1/admin/pedidos
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenSoporte}}
+}
+
+tests {
+  test("responde 200", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("con su zona", function () {
+    expect(res.body[0]).to.have.property("zona");
+  });
+}

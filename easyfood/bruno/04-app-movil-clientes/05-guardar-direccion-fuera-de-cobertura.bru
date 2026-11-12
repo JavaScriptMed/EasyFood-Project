@@ -1,0 +1,39 @@
+meta {
+  name: Guardar dirección fuera de cobertura
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{baseUrl}}/api/v1/cliente/direcciones
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenCliente}}
+}
+
+body:json {
+  {
+    "etiqueta": "Lejos",
+    "direccion": "Calle sin cobertura 1",
+    "latitud": 19.4326,
+    "longitud": -99.1332
+  }
+}
+
+script:post-response {
+  if (res.status === 201) bru.setVar("direccionLejosId", res.body.id);
+}
+
+tests {
+  test("responde 201", function () {
+    expect(res.getStatus()).to.equal(201);
+  });
+
+  test("queda sin cobertura", function () {
+    expect(res.body.sin_cobertura).to.equal(true);
+    expect(res.body.zona).to.equal(null);
+  });
+}

@@ -1,0 +1,39 @@
+meta {
+  name: Guardar configuración
+  type: http
+  seq: 2
+}
+
+put {
+  url: {{baseUrl}}/api/v1/admin/configuracion
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+body:json {
+  {
+    "hora_corte": "18:00",
+    "dias_entrega": "lunes_sabado",
+    "regla_sin_eleccion": "ultimo_platillo",
+    "capacidad_auto_entregas": 30,
+    "capacidad_auto_platillos": 120
+  }
+}
+
+tests {
+  test("responde 200", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("guardó", function () {
+    expect(res.body.capacidad_auto_entregas).to.equal(30);
+  });
+}
+
+docs {
+  Manda los 5 campos. Cambia `regla_sin_eleccion` a `platillo_del_dia` o `no_entregar` para ver cómo cambia el corte. Cada cambio queda en la bitácora.
+}

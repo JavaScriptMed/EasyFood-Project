@@ -1,0 +1,30 @@
+meta {
+  name: Facturas del mes
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/api/v1/admin/facturas?mes={{mesPasado}}
+  body: none
+  auth: bearer
+}
+
+params:query {
+  mes: {{mesPasado}}
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+tests {
+  test("responde 200", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("con su empresa", function () {
+    expect(res.body[0].empresa).to.be.an("object");
+    expect(res.body[0].folio).to.match(/^EL-\d{6}-\d{3}$/);
+  });
+}

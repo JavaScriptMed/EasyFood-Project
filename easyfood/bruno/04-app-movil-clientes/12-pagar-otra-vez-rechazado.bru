@@ -1,0 +1,27 @@
+meta {
+  name: Pagar otra vez (rechazado)
+  type: http
+  seq: 12
+}
+
+post {
+  url: {{baseUrl}}/api/v1/cliente/pedidos/{{pedidoId}}/pagar
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenCliente}}
+}
+
+body:json {
+  {
+    "metodo_pago": "tarjeta"
+  }
+}
+
+tests {
+  test("responde 422", function () {
+    expect(res.getStatus()).to.equal(422);
+  });
+}

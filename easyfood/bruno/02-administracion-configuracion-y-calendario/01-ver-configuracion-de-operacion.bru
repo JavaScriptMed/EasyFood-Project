@@ -1,0 +1,30 @@
+meta {
+  name: Ver configuración de operación
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/api/v1/admin/configuracion
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+tests {
+  test("responde 200", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("valores iniciales", function () {
+    expect(res.body.hora_corte).to.equal("18:00");
+    expect(res.body.dias_entrega).to.equal("lunes_sabado");
+  });
+}
+
+docs {
+  Hora de corte (hora de Guadalajara), días de entrega, regla para quien no eligió y capacidad del auto.
+}

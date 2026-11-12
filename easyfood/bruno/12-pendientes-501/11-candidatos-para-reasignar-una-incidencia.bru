@@ -1,0 +1,29 @@
+meta {
+  name: Candidatos para reasignar una incidencia
+  type: http
+  seq: 11
+}
+
+get {
+  url: {{baseUrl}}/api/v1/admin/incidencias/1/candidatos
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+tests {
+  test("responde 501", function () {
+    expect(res.getStatus()).to.equal(501);
+  });
+
+  test("código no_implementado", function () {
+    expect(res.body.codigo).to.equal("no_implementado");
+  });
+}
+
+docs {
+  PENDIENTE: ya tiene su ruta, su rol y su nombre, pero todavía no se construye. Responde 501.
+}

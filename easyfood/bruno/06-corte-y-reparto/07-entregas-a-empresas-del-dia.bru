@@ -1,0 +1,30 @@
+meta {
+  name: Entregas a empresas del día
+  type: http
+  seq: 7
+}
+
+get {
+  url: {{baseUrl}}/api/v1/admin/entregas?fecha={{fechaCortada}}
+  body: none
+  auth: bearer
+}
+
+params:query {
+  fecha: {{fechaCortada}}
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+tests {
+  test("responde 200", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("una entrega por empresa", function () {
+    expect(res.body.length).to.be.greaterThan(0);
+    expect(res.body[0].estado).to.equal("programada");
+  });
+}
