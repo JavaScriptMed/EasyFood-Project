@@ -2,7 +2,7 @@
 
 import { FormEvent, useState } from 'react'
 import Link from 'next/link'
-import { iniciarSesion } from '@/lib/sesion'
+import { iniciarSesionEnPortal } from '@/lib/auth'
 import { ArrowRight, Eye, EyeOff, LockKeyhole, Mail, ShieldCheck, Truck } from 'lucide-react'
 
 export default function LoginPage() {
@@ -11,16 +11,15 @@ export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [status, setStatus] = useState<'idle' | 'loading' | 'error' | 'locked'>('idle')
+  const [mensaje, setMensaje] = useState('')
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setStatus('loading')
-    window.setTimeout(() => {
-      const normalizedEmail = email.toLowerCase()
-      if (normalizedEmail.includes('bloqueado')) setStatus('locked')
-      else if (normalizedEmail.includes('admin') || normalizedEmail.includes('soporte')) { iniciarSesion(normalizedEmail.includes('admin') ? 'administrador' : 'soporte'); window.location.href = '/admin' }
-      else setStatus('error')
-    }, 700)
+    const resultado = await iniciarSesionEnPortal('admin', email, password)
+    if (resultado.estado === 'ok') { window.location.href = resultado.destino; return }
+    setMensaje(resultado.mensaje)
+    setStatus(resultado.estado === 'bloqueada' ? 'locked' : 'error')
   }
 
   return (
@@ -79,7 +78,7 @@ export default function LoginPage() {
               <label className="flex cursor-pointer items-center gap-2 text-slate-400"><input type="checkbox" checked={remember} onChange={(event) => setRemember(event.target.checked)} className="size-4 accent-[#e7b31c]" /> Recordarme</label>
               <Link href="/admin/olvide-contrasena" className="font-semibold text-[#e7b31c] hover:text-[#f4ca4d]">¿Olvidaste tu contraseña?</Link>
             </div>
-            {status === 'error' && <p role="alert" className="rounded-xl border border-red-400/30 bg-red-400/10 px-4 py-3 text-sm text-red-200">No pudimos validar tus datos. Revisa tu correo y contraseña.</p>}
+            {status === 'error' && <p role="alert" className="rounded-xl border border-red-400/30 bg-red-400/10 px-4 py-3 text-sm text-red-200">{mensaje}</p>}
             {status === 'locked' && <p role="alert" className="rounded-xl border border-orange-300/30 bg-orange-300/10 px-4 py-3 text-sm text-orange-100">Esta cuenta está bloqueada temporalmente. Contacta a soporte.</p>}
             <button type="submit" disabled={status === 'loading'} className="flex h-13 items-center justify-center gap-2 rounded-xl bg-[#e7b31c] px-5 font-bold text-[#111c25] transition hover:bg-[#f4ca4d] disabled:cursor-wait disabled:opacity-70">{status === 'loading' ? 'Validando acceso...' : 'Entrar al panel'} {!status && <ArrowRight />}</button>
           </form>
