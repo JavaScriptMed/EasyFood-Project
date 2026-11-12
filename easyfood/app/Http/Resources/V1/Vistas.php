@@ -169,7 +169,7 @@ final class Vistas
     public static function disponibilidad(DisponibilidadDia $d): array
     {
         return [
-            'id' => $d->id, 'platillo_id' => $d->menu_id, 'fecha' => $d->fecha->toDateString(), 'porciones_maximas' => $d->porciones_maximas,
+            'id' => $d->id, 'platillo_id' => $d->menu_id, 'platillo_nombre' => $d->relationLoaded('menu') ? $d->menu?->name : null, 'fecha' => $d->fecha->toDateString(), 'porciones_maximas' => $d->porciones_maximas,
             'porciones_tomadas' => $d->porciones_tomadas, 'porciones_restantes' => max(0, $d->porciones_maximas - $d->porciones_tomadas),
             'es_platillo_del_dia' => $d->es_platillo_del_dia,
         ];

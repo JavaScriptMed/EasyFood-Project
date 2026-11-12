@@ -44,31 +44,7 @@ class GeneradorDeFacturas
                 return $existente;
             }
 
-            $contrato = $this->contratoDelMes($empresaId, $inicio, $siguiente->subDay());
-            $consumo = DB::selectOne(<<<'SQL'
-                select count(*) as platillos,
-                       coalesce(sum(round(e.precio_congelado * e.porcentaje_subsidio_congelado / 100, 2)), 0) as parte_empresa,
-                       coalesce(sum(e.precio_congelado), 0) as consumo
-                from elecciones_empleado e
-                join empleados emp on emp.id = e.empleado_id
-                join entregas_empresa en on en.empresa_id = emp.empresa_id and en.fecha = e.fecha and en.estado = 'entregada'
-                where emp.empresa_id = ? and e.fecha >= ? and e.fecha < ?
-            SQL, [$empresaId, $inicio->toDateString(), $siguiente->toDateString()]);
-
-            $platillos = (int) $consumo->platillos;
-            $parteEmpresa = Dinero::centavos($consumo->parte_empresa);
-            $parteEmpleados = Dinero::centavos($consumo->consumo) - $parteEmpresa;
-            $faltantes = max(0, $contrato->compra_minima_mensual - $platillos);
-            $diferencia = $faltantes * Dinero::centavos($contrato->precio_por_platillo);
-
-            $datos = [
-                'platillos' => $platillos,
-                'parte_empresa' => Dinero::formato($parteEmpresa),
-                'parte_empleados' => Dinero::formato($parteEmpleados),
-                'platillos_faltantes' => $faltantes,
-                'diferencia_minimo' => Dinero::formato($diferencia),
-                'total' => Dinero::formato($parteEmpresa + $parteEmpleados + $diferencia),
-            ];
+            $datos = $this->calcular($empresaId, $inicio);
 
             if ($existente) {
                 $existente->update($datos);
@@ -81,6 +57,43 @@ class GeneradorDeFacturas
                 'empresa_id' => $empresaId, 'mes' => $inicio->toDateString(), 'estado' => 'borrador',
             ])->refresh();
         });
+    }
+
+    /**
+     * Los montos del mes de una empresa, sin guardar nada y sin exigir que el mes haya terminado
+     * (sirve para la vista previa del consumo del mes en curso).
+     *
+     * @return array{platillos:int, parte_empresa:string, parte_empleados:string, platillos_faltantes:int, diferencia_minimo:string, total:string}
+     */
+    public function calcular(int $empresaId, CarbonImmutable $inicio): array
+    {
+        $inicio = $inicio->startOfMonth();
+        $siguiente = $inicio->addMonth();
+        $contrato = $this->contratoDelMes($empresaId, $inicio, $siguiente->subDay());
+        $consumo = DB::selectOne(<<<'SQL'
+            select count(*) as platillos,
+                   coalesce(sum(round(e.precio_congelado * e.porcentaje_subsidio_congelado / 100, 2)), 0) as parte_empresa,
+                   coalesce(sum(e.precio_congelado), 0) as consumo
+            from elecciones_empleado e
+            join empleados emp on emp.id = e.empleado_id
+            join entregas_empresa en on en.empresa_id = emp.empresa_id and en.fecha = e.fecha and en.estado = 'entregada'
+            where emp.empresa_id = ? and e.fecha >= ? and e.fecha < ?
+        SQL, [$empresaId, $inicio->toDateString(), $siguiente->toDateString()]);
+
+        $platillos = (int) $consumo->platillos;
+        $parteEmpresa = Dinero::centavos($consumo->parte_empresa);
+        $parteEmpleados = Dinero::centavos($consumo->consumo) - $parteEmpresa;
+        $faltantes = max(0, $contrato->compra_minima_mensual - $platillos);
+        $diferencia = $faltantes * Dinero::centavos($contrato->precio_por_platillo);
+
+        return [
+            'platillos' => $platillos,
+            'parte_empresa' => Dinero::formato($parteEmpresa),
+            'parte_empleados' => Dinero::formato($parteEmpleados),
+            'platillos_faltantes' => $faltantes,
+            'diferencia_minimo' => Dinero::formato($diferencia),
+            'total' => Dinero::formato($parteEmpresa + $parteEmpleados + $diferencia),
+        ];
     }
 
     public function emitir(FacturaMensual $factura, ?CarbonInterface $ahora = null): FacturaMensual

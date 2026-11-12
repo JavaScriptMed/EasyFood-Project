@@ -76,7 +76,15 @@ class FacturaController extends Controller
     /** La factura con el consumo de cada empleado (platillos entregados, importe y partes). Lo usan también las empresas. */
     public static function detalle(FacturaMensual $factura): array
     {
-        $inicio = $factura->mes->toDateString();
+        return Vistas::factura($factura) + [
+            'importe_consumo' => Vistas::dinero($factura->parte_empresa + $factura->parte_empleados),
+            'lineas' => self::lineas($factura->empresa_id, $factura->mes->toDateString()),
+        ];
+    }
+
+    /** Consumo de cada empleado de la empresa en el mes (solo platillos de entregas «entregada»). */
+    public static function lineas(int $empresaId, string $inicioDeMes): array
+    {
         $lineas = DB::select(<<<'SQL'
             select emp.id as empleado_id, u.name as nombre, u.email as correo, count(*) as platillos,
                    sum(e.precio_congelado) as importe, sum(round(e.precio_congelado * e.porcentaje_subsidio_congelado / 100, 2)) as parte_empresa
@@ -86,15 +94,12 @@ class FacturaController extends Controller
             join entregas_empresa en on en.empresa_id = emp.empresa_id and en.fecha = e.fecha and en.estado = 'entregada'
             where emp.empresa_id = ? and e.fecha >= ? and e.fecha < (?::date + interval '1 month')
             group by emp.id, u.name, u.email order by u.name
-        SQL, [$factura->empresa_id, $inicio, $inicio]);
+        SQL, [$empresaId, $inicioDeMes, $inicioDeMes]);
 
-        return Vistas::factura($factura) + [
-            'importe_consumo' => Vistas::dinero($factura->parte_empresa + $factura->parte_empleados),
-            'lineas' => array_map(fn ($l) => [
-                'empleado_id' => $l->empleado_id, 'nombre' => $l->nombre, 'correo' => $l->correo, 'platillos' => (int) $l->platillos,
-                'importe' => Vistas::dinero($l->importe), 'parte_empresa' => Vistas::dinero($l->parte_empresa),
-                'parte_empleado' => Vistas::dinero($l->importe - $l->parte_empresa),
-            ], $lineas),
-        ];
+        return array_map(fn ($l) => [
+            'empleado_id' => $l->empleado_id, 'nombre' => $l->nombre, 'correo' => $l->correo, 'platillos' => (int) $l->platillos,
+            'importe' => Vistas::dinero($l->importe), 'parte_empresa' => Vistas::dinero($l->parte_empresa),
+            'parte_empleado' => Vistas::dinero($l->importe - $l->parte_empresa),
+        ], $lineas);
     }
 }

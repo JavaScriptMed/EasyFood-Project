@@ -18,6 +18,7 @@ use App\Http\Controllers\Api\V1\Comedor;
 use App\Http\Controllers\Api\V1\ContactoController;
 use App\Http\Controllers\Api\V1\Empleado;
 use App\Http\Controllers\Api\V1\Empresa;
+use App\Http\Controllers\Api\V1\MenuSemanalController;
 use App\Http\Controllers\Api\V1\NoImplementadoController as Pendiente;
 use Illuminate\Support\Facades\Route;
 
@@ -38,6 +39,10 @@ Route::prefix('cuentas')->middleware('throttle:10,1')->name('v1.cuentas.')->grou
 
 Route::middleware('auth:sanctum')->group(function () {
 
+    // De solo lectura y para cualquier persona con sesión: lo que el front necesita mostrar en todos los portales.
+    Route::get('configuracion/operacion', [Admin\ConfiguracionController::class, 'show'])->name('v1.configuracion.operacion'); // hora de corte, días de entrega…
+    Route::get('paquetes', [Cliente\PaqueteController::class, 'index'])->name('v1.paquetes.index');
+
     // Invitar y reenviar (PENDIENTE): los usa el administrador, la empresa y el comedor con su propio alcance.
     Route::middleware('role:admin,company,provider')->group(function () {
         Route::get('cuentas/usuarios-acceso', Pendiente::class)->name('v1.cuentas.usuarios-acceso');      // listarUsuariosAcceso
@@ -54,10 +59,11 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('empresas', [Admin\EmpresaController::class, 'index'])->name('empresas.index');
             Route::get('empresas/{id}', [Admin\EmpresaController::class, 'show'])->name('empresas.show');
             Route::post('empresas', Pendiente::class)->name('empresas.store');                             // PENDIENTE · crearEmpresa (usuario + contrato + invitación)
-            Route::post('empresas/{id}/renovar-contrato', Pendiente::class)->name('empresas.renovar');     // PENDIENTE · renovarContratoEmpresa
+            Route::get('empresas/{id}/consumo', [Admin\EmpresaController::class, 'consumo'])->name('empresas.consumo');
+            Route::post('empresas/{id}/renovar-contrato', [Admin\ContratoController::class, 'renovarEmpresa'])->name('empresas.renovar');
             Route::get('comedores', [Admin\ComedorController::class, 'index'])->name('comedores.index');
             Route::get('comedores/{id}', [Admin\ComedorController::class, 'show'])->name('comedores.show');
-            Route::post('comedores/{id}/renovar-contrato', Pendiente::class)->name('comedores.renovar');   // PENDIENTE · renovarContratoComedor
+            Route::post('comedores/{id}/renovar-contrato', [Admin\ContratoController::class, 'renovarComedor'])->name('comedores.renovar');
             Route::get('contratos/por-vencer', [Admin\ContratoController::class, 'porVencer'])->name('contratos.por-vencer');
 
             Route::get('platillos', [Admin\PlatilloController::class, 'index'])->name('platillos.index');
@@ -76,7 +82,7 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::delete('calendario/dias-sin-servicio/{id}', [Admin\CalendarioController::class, 'quitarDia'])->name('calendario.quitar-dia');
 
             Route::get('cortes', [Admin\CorteController::class, 'index'])->name('cortes.index');
-            Route::get('cortes/vista-previa', Pendiente::class)->name('cortes.vista-previa');              // PENDIENTE · obtenerVistaPreviaCorte
+            Route::get('cortes/vista-previa', [Admin\CorteController::class, 'vistaPrevia'])->name('cortes.vista-previa');
             Route::post('cortes/ejecutar', [Admin\CorteController::class, 'ejecutar'])->name('cortes.ejecutar');
 
             Route::get('repartidores', [Admin\RepartidorController::class, 'index'])->name('repartidores.index');
@@ -88,7 +94,8 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::post('rutas/generar', Pendiente::class)->name('rutas.generar');                         // PENDIENTE · generarRutas
             Route::post('rutas/aprobar', [Admin\RutaController::class, 'aprobar'])->name('rutas.aprobar');
             Route::get('entregas', [Admin\EntregaController::class, 'index'])->name('entregas.index');
-            Route::get('reportes/proveedor', Pendiente::class)->name('reportes.proveedor');                // PENDIENTE · reporteProveedor
+            Route::get('reportes/proveedor', [Admin\ReporteController::class, 'proveedor'])->name('reportes.proveedor');
+            Route::get('menu-semanal', MenuSemanalController::class)->name('menu-semanal');
 
             Route::get('facturas', [Admin\FacturaController::class, 'index'])->name('facturas.index');
             Route::post('facturas/generar', [Admin\FacturaController::class, 'generar'])->name('facturas.generar');
@@ -122,12 +129,14 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // ------------------------------------------------------------------------------------------ portal de empresas
     Route::prefix('empresa')->name('v1.empresa.')->middleware('role:company')->group(function () {
+        Route::get('perfil', [Empresa\PerfilController::class, 'show'])->name('perfil');
         Route::get('empleados', [Empresa\EmpleadoController::class, 'index'])->name('empleados.index');
         Route::post('empleados', Pendiente::class)->name('empleados.store');                               // PENDIENTE · agregarEmpleados (usuarios + invitaciones)
         Route::patch('empleados/{id}/estado', [Empresa\EmpleadoController::class, 'estado'])->name('empleados.estado');
-        Route::get('pedidos-de-manana', Pendiente::class)->name('pedidos-de-manana');                      // PENDIENTE · listarPedidosManana
-        Route::get('consumo', Pendiente::class)->name('consumo');                                          // PENDIENTE · consumoDiarioEmpresa
+        Route::get('pedidos-de-manana', [Empresa\PedidosMananaController::class, 'index'])->name('pedidos-de-manana');
+        Route::get('consumo', [Empresa\ConsumoController::class, 'index'])->name('consumo');
         Route::get('facturas', [Empresa\FacturaController::class, 'index'])->name('facturas.index');
+        Route::get('facturas/vista-previa', [Empresa\FacturaController::class, 'vistaPrevia'])->name('facturas.vista-previa');
         Route::get('facturas/{id}', [Empresa\FacturaController::class, 'show'])->name('facturas.show');
     });
 
@@ -156,7 +165,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // ------------------------------------------------------------------------------------------ app móvil (clientes)
     Route::prefix('cliente')->name('v1.cliente.')->middleware('role:customer')->group(function () {
         Route::get('paquetes', [Cliente\PaqueteController::class, 'index'])->name('paquetes.index');
-        Route::get('menu-semanal', Pendiente::class)->name('menu-semanal');                                // PENDIENTE · obtenerMenuSemanal
+        Route::get('menu-semanal', MenuSemanalController::class)->name('menu-semanal');
         Route::get('direcciones', [Cliente\DireccionController::class, 'index'])->name('direcciones.index');
         Route::post('direcciones', [Cliente\DireccionController::class, 'store'])->name('direcciones.store');
         Route::put('direcciones/{id}', [Cliente\DireccionController::class, 'update'])->name('direcciones.update');

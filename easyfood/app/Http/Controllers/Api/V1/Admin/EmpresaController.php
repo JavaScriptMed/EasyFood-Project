@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\V1\Vistas;
 use App\Models\Empresa;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class EmpresaController extends Controller
@@ -20,10 +21,25 @@ class EmpresaController extends Controller
 
     public function show(int $id): JsonResponse
     {
-        $empresa = $this->consulta()->findOrFail($id);
-        $this->conPlatillosDelMes(collect([$empresa]));
+        return response()->json(self::detallePorId($id));
+    }
 
-        return response()->json(Vistas::empresaDetalle($empresa));
+    /** Platillos elegidos por día de una empresa en un mes (AAAA-MM; por defecto el actual). */
+    public function consumo(Request $request, int $id): JsonResponse
+    {
+        $mes = $request->validate(['mes' => 'nullable|date_format:Y-m'])['mes'] ?? now()->format('Y-m');
+        Empresa::query()->findOrFail($id);
+
+        return response()->json(\App\Http\Controllers\Api\V1\Empresa\ConsumoController::porDia($id, $mes));
+    }
+
+    public static function detallePorId(int $id): array
+    {
+        $controlador = new self;
+        $empresa = $controlador->consulta()->findOrFail($id);
+        $controlador->conPlatillosDelMes(collect([$empresa]));
+
+        return Vistas::empresaDetalle($empresa);
     }
 
     private function consulta()

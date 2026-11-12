@@ -22,7 +22,7 @@ class DisponibilidadController extends Controller
         $comedor = ContextoDelUsuario::comedor($request);
 
         return response()->json(
-            DisponibilidadDia::query()->whereHas('menu', fn ($q) => $q->where('provider_id', $comedor->id))
+            DisponibilidadDia::query()->with('menu')->whereHas('menu', fn ($q) => $q->where('provider_id', $comedor->id))
                 ->whereBetween('fecha', [$f['desde'], $f['hasta']])->orderBy('fecha')->orderBy('menu_id')->get()->map(fn ($d) => Vistas::disponibilidad($d))->values()
         );
     }

@@ -100,7 +100,8 @@ class DatosDeEjemploTest extends TestCase
         $corte = $con()->postJson('/api/v1/admin/cortes/ejecutar')->assertOk()->json();
         $this->assertSame('2026-11-12', $corte['fecha_entrega']);
         $this->assertGreaterThan(0, $corte['elecciones_cerradas']);
-        $this->assertGreaterThan(0, $corte['empleados_por_defecto'], 'los que no eligieron reciben la regla sin elección');
+        $this->assertGreaterThan(0, count($corte['empleados_por_defecto']), 'los que no eligieron reciben la regla sin elección');
+        $this->assertSame($corte['corte']['empleados_por_defecto'], count($corte['empleados_por_defecto']));
         $this->assertGreaterThan(0, $corte['entregas_consolidadas']);
     }
 
