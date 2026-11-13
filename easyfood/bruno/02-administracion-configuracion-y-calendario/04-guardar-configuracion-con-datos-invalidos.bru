@@ -1,0 +1,32 @@
+meta {
+  name: Guardar configuración con datos inválidos
+  type: http
+  seq: 4
+}
+
+put {
+  url: {{baseUrl}}/api/v1/admin/configuracion
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+body:json {
+  {
+    "hora_corte": "25:00",
+    "capacidad_auto_entregas": 0
+  }
+}
+
+tests {
+  test("responde 422", function () {
+    expect(res.getStatus()).to.equal(422);
+  });
+
+  test("lista los errores por campo, en español", function () {
+    expect(res.body.errores.hora_corte[0]).to.include("hora de corte");
+  });
+}

@@ -1,0 +1,25 @@
+meta {
+  name: Emitir factura
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{baseUrl}}/api/v1/admin/facturas/{{facturaId}}/emitir
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+tests {
+  test("responde 200 o 422", function () {
+    expect([200, 422]).to.include(res.getStatus());
+  });
+}
+
+docs {
+  200 la primera vez; si ya estaba emitida responde 422 `factura_ya_emitida` (es lo correcto: una factura emitida ya no cambia).
+}

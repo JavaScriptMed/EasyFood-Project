@@ -1,0 +1,29 @@
+meta {
+  name: Paquetes (ruta general)
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/api/v1/paquetes
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenCliente}}
+}
+
+tests {
+  test("responde 200", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("los mismos paquetes", function () {
+    expect(res.body.length).to.equal(3);
+  });
+}
+
+docs {
+  Los paquetes también los lee el panel de administración desde esta ruta.
+}

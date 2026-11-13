@@ -1,0 +1,29 @@
+meta {
+  name: Mi perfil
+  type: http
+  seq: 8
+}
+
+get {
+  url: {{baseUrl}}/api/auth/profile
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+tests {
+  test("responde 200", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("es administrador", function () {
+    expect(res.body.user ? res.body.user.role : res.body.role).to.equal("admin");
+  });
+}
+
+docs {
+  Perfil del usuario con sesión (ruta del equipo, sin /v1).
+}

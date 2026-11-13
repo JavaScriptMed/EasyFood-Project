@@ -1,0 +1,29 @@
+meta {
+  name: Mi menú con mi elección
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/api/v1/empleado/menu?fecha={{fechaMenu}}
+  body: none
+  auth: bearer
+}
+
+params:query {
+  fecha: {{fechaMenu}}
+}
+
+auth:bearer {
+  token: {{tokenEmpleado}}
+}
+
+tests {
+  test("responde 200", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("muestra mi elección", function () {
+    expect(res.body.eleccion.origen).to.equal("manual");
+  });
+}

@@ -1,0 +1,27 @@
+meta {
+  name: Mi empresa (perfil)
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/api/v1/empresa/perfil
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenEmpresa}}
+}
+
+tests {
+  test("responde 200", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("es Nexo, con su contrato", function () {
+    expect(res.body.nombre).to.equal("Grupo Industrial Nexo");
+    expect(res.body.contrato.porcentaje_subsidio).to.equal(60);
+    expect(res.body.total_empleados).to.equal(4);
+  });
+}

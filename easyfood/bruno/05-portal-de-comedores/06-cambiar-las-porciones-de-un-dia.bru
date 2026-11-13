@@ -1,0 +1,41 @@
+meta {
+  name: Cambiar las porciones de un día
+  type: http
+  seq: 6
+}
+
+put {
+  url: {{baseUrl}}/api/v1/comedor/disponibilidad
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenComedor}}
+}
+
+body:json {
+  {
+    "cambios": [
+      {
+        "platillo_id": "{{platilloDelComedorId}}",
+        "fecha": "{{fechaMenu}}",
+        "porciones_maximas": 40
+      }
+    ]
+  }
+}
+
+tests {
+  test("responde 200", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("guardó", function () {
+    expect(res.body.guardados).to.equal(1);
+  });
+}
+
+docs {
+  Crea o actualiza en una sola operación (todo o nada). Solo platillos publicados de tu comedor y fechas cuyo corte aún no pasa.
+}

@@ -1,0 +1,30 @@
+meta {
+  name: Renovar contrato de una empresa (6 meses)
+  type: http
+  seq: 7
+}
+
+post {
+  url: {{baseUrl}}/api/v1/admin/empresas/{{empresaPacificoId}}/renovar-contrato
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+tests {
+  test("responde 200", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("el contrato sigue activo", function () {
+    expect(res.body.estado_contrato).to.equal("activo");
+    expect(res.body.dias_para_vencer).to.be.greaterThan(100);
+  });
+}
+
+docs {
+  Extiende 6 meses la vigencia del contrato activo (desde su fin, o desde hoy si ya había vencido). Cada vez que lo repitas suma otros 6 meses. Queda en la bitácora.
+}

@@ -1,0 +1,21 @@
+meta {
+  name: Marcar factura como pagada
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{baseUrl}}/api/v1/admin/facturas/{{facturaId}}/pagar
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+tests {
+  test("responde 200 o 422", function () {
+    expect([200, 422]).to.include(res.getStatus());
+  });
+}

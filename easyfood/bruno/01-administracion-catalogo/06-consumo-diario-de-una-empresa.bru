@@ -1,0 +1,34 @@
+meta {
+  name: Consumo diario de una empresa
+  type: http
+  seq: 6
+}
+
+get {
+  url: {{baseUrl}}/api/v1/admin/empresas/{{empresaId}}/consumo?mes={{mesPasado}}
+  body: none
+  auth: bearer
+}
+
+params:query {
+  mes: {{mesPasado}}
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+tests {
+  test("responde 200", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("platillos por día", function () {
+    expect(res.body.length).to.be.greaterThan(0);
+    expect(res.body[0]).to.have.property("platillos");
+  });
+}
+
+docs {
+  Platillos elegidos por día en el mes. Alimenta la gráfica del detalle de la empresa.
+}

@@ -30,7 +30,85 @@ docker compose exec app php artisan migrate
 docker compose exec app php artisan test
 ```
 
-Corren contra la base `easylunch_pruebas` (nunca contra la de desarrollo: se borra y se recrea en cada corrida). Fuera de Docker, apunta `DB_HOST` a tu PostgreSQL.
+Corren contra la base `easylunch_pruebas` (nunca contra la de desarrollo: se borra y se recrea en cada corrida). `ConcurrenciaTest` lanza procesos de PHP en paralelo y rehace esa base con `migrate:fresh` al terminar (tarda unos 15 s). Fuera de Docker, apunta `DB_HOST` a tu PostgreSQL.
+
+## Mapa de tablas
+
+| Área | Tablas |
+|---|---|
+| Cuentas | `users`, `roles`, `user_profiles`, `addresses` (del equipo), `invitaciones` |
+| Comedores | `providers` (= comedores), `contratos_comedor`, `menus` (= platillos: estado de revisión, alérgenos, tiempo de comida) |
+| Empresas | `empresas`, `contratos_empresa`, `empleados` (los de las empresas cliente), `dias_sin_servicio` |
+| Operación diaria | `disponibilidad_dia`, `elecciones_empleado`, `cortes`, `ordenes_produccion`, `entregas_empresa` |
+| Reparto | `repartidores` (nuestro personal), `rutas`, `paradas`, `incidencias` |
+| Clientes individuales | `paquetes`, `pedidos`, `pedido_dias`, `tickets`, `mensajes_ticket` |
+| Dinero | `facturas_mensuales`, `liquidaciones_comedor` |
+| Sistema | `configuracion`, `registros_auditoria` (bitácora, solo se agrega), `mensajes_contacto`, `zonas`, `avisos`, `contadores_folio` |
+
+Las reglas de negocio importantes están como restricciones de PostgreSQL (CHECK, índices parciales y triggers) y cada una tiene su prueba en `tests/Feature/Esquema`.
+## API v1
+
+Rutas en `routes/v1.php` (prefijo `/api/v1`), JSON en español y token Bearer de Sanctum (`POST /api/auth/login`). Los errores de `/api/v1/*` tienen siempre la forma `{ "mensaje": "…", "codigo": "…", "errores": { campo: […] } }` (`codigo` en reglas de negocio, `errores` al validar). Los campos coinciden con `/lib/types.ts` del front.
+
+| Grupo (rol) | Prefijo | Construido | Solo ruta (501) |
+|---|---|---|---|
+| Panel de administración (`admin`; `support` en clientes, pedidos, tickets e incidencias) | `/admin` | empresas y comedores (lectura), renovar contratos, contratos por vencer, platillos (crear, editar, revisar), configuración, calendario, corte (y su vista previa), repartidores, rutas, entregas, incidencias, facturas, liquidaciones, reporte de proveedor, menú semanal, consumo de una empresa, clientes, pedidos, tickets, bitácora | dashboard, crear empresa, historial de precios, imágenes, crear repartidor, generar rutas, reasignar incidencias |
+| Portal de empresas (`company`) | `/empresa` | perfil, empleados (ver, activar/desactivar), pedidos de mañana, consumo, vista previa del mes en curso, facturas | agregar empleados |
+| Portal de comedores (`provider`) | `/comedor` | perfil, platillos, disponibilidad, producción, pagos | imágenes |
+| Portal de empleados (`employee`) | `/empleado` | menú, elegir/quitar platillo, historial | |
+| App móvil (`customer`) | `/cliente` | paquetes, menú semanal, direcciones, pedidos (pedir y pagar) | |
+| Cualquier rol con sesión | `/configuracion/operacion`, `/paquetes` | lectura de la configuración de operación y de los paquetes | |
+| Público | `/contacto`, `/cuentas` | formulario de contacto | invitaciones y restablecer contraseña (necesitan correo) |
+
+Un endpoint «solo ruta» ya tiene su URL, su rol y su nombre, pero responde `501 { "codigo": "no_implementado" }` desde `NoImplementadoController` hasta que se construya; entonces solo se cambia su línea en `routes/v1.php`. `php artisan route:list --path=api/v1` muestra el mapa completo.
+
+Cada portal solo ve lo suyo: la empresa, el comedor o el empleado se resuelven del usuario autenticado (`ContextoDelUsuario`).
+
+## Probar la API a mano (Bruno) y datos de ejemplo
+
+La carpeta [`bruno/`](bruno/README.md) es una colección de [Bruno](https://www.usebruno.com/) con 134 peticiones y 242 pruebas automáticas que cubren toda la API v1 (incluidos los pendientes, que deben responder 501). `DatosDeEjemploSeeder` carga empresas, comedores, empleados, platillos, historial, clientes y pedidos de ejemplo (solo desarrollo; la contraseña de las cuentas sale de `SEED_PASSWORD` en tu `.env`):
+
+```bash
+docker compose exec app php artisan db:seed --class=DatosDeEjemploSeeder
+```
+
+## Tareas automáticas
+
+El servicio `scheduler` de docker-compose ejecuta `php artisan schedule:work` (con la base ya migrada). En producción basta un cron: `* * * * * php artisan schedule:run`.
+
+| Comando | Cuándo | Qué hace |
+|---|---|---|
+| `easylunch:corte-automatico` | cada minuto | Ejecuta el corte de la siguiente fecha de entrega en cuanto llega su hora (18:00 por defecto). Solo corta días de servicio; no repite si ya hay corte (automático o manual). Si falla, reintenta cada 5 min hasta 12 veces. |
+| `easylunch:cancelar-pedidos-vencidos` | cada minuto | Cancela los pedidos individuales que no se pagaron antes del corte de su primer día. |
+| `easylunch:avisos-de-contratos` | diario 08:00 | Avisos de contratos que vencen este mes o en los 7 días siguientes. |
+
+Cada comando decide por sí mismo si le toca, así que llamarlos de más no cambia nada. Un corte fallido queda registrado en `cortes` con su mensaje y en el log (`storage/logs`).
+
+## Modelos Eloquent
+
+Hay un modelo por tabla en `app/Models`. Los de tablas en español extienden `ModeloEasyLunch` (marcas `creado_en` / `actualizado_en`) y los que tienen `activo` usan el trait `Desactivable` (`activos()`, `desactivar()`, `reactivar()`; el DELETE lo impide la base). Los de las tablas del equipo conservan su nombre en inglés (`Provider` = comedor, `Menu` = platillo, `Address`, `CatalogItem`).
+Montos y porcentajes salen como texto con 2 decimales (`decimal:2`), las fechas como `YYYY-MM-DD`, y `alergenos` / `etiquetas` (text[]) como arreglos de PHP con `App\Casts\ArregloPostgres`. Las ubicaciones PostGIS (`paradas.ubicacion`, `repartidores.ultima_ubicacion`) no se leen como atributo: se escriben y consultan con SQL de PostGIS.
+
+## Reglas de negocio
+
+Viven en `app/Services` y cada una tiene su prueba en `tests/Feature/Negocio`. Las infracciones lanzan `ReglaDeNegocioException` con un `codigo` estable (`corte_cerrado`, `sin_porciones`, `mes_sin_terminar`…).
+
+| Servicio | Regla |
+|---|---|
+| `CalendarioDeServicio` | Se entrega de lunes a sábado (`dias_entrega`), domingo nunca. El corte es a `hora_corte` (18:00, hora de Guadalajara) del día calendario anterior. Un pedido nuevo va a la primera fecha de servicio con el corte abierto: viernes 17:00 → sábado, viernes 19:00 → lunes, domingo 19:00 → martes. |
+| `EleccionDePlatillos` | Elegir, cambiar o quitar solo antes del corte (a las 18:00:00 ya está cerrado). Al elegir se congelan el precio y el subsidio del contrato de la empresa. Respeta porciones, publicación y tiempo de comida. |
+| `EjecutorDelCorte` | Aplica la regla de quien no eligió, cierra elecciones, genera una orden por comedor y platillo, consolida una entrega por empresa y crea rutas por zona sin pasar la capacidad del auto. Idempotente: repetirlo deja un registro «sin_cambios». Si falla, no guarda nada. |
+| `GeneradorDeFacturas` | Total = parte empresa + parte empleados + diferencia por mínimo. Solo cuentan entregas «entregada»; el mes debe haber terminado. |
+| `GeneradorDeLiquidaciones` | Al comedor se le paga lo entregado más lo que faltó para su mínimo, a su precio fijo. |
+| `ContratacionDePaquetes` | Paquetes de 1, 2 o 6 días de servicio; precio congelado por día, descuento del paquete, pago simulado. La dirección debe tener cobertura. Un pedido por pagar vence en el corte de su primer día (`vence_pago_en`, `segundos_para_pagar`) y se cancela. |
+| `AvisosDeVencimiento` | Avisa a la empresa y a los administradores de los contratos que vencen en el mes en curso o en los 7 días siguientes (tabla `avisos`). |
+| `Folios` | Consecutivos `EL-AAAAMM-NNN` y `GDL-AAAAMMDD-NNNN` sin repetirse aunque dos procesos pidan folio a la vez (tabla `contadores_folio`). |
+
+**Zonas.** `zonas` guarda un polígono PostGIS por zona (lo carga el administrador; sin zonas cargadas ninguna dirección tiene cobertura). Al guardar una dirección la base calcula su punto (`ubicacion`) y su `zona`; si ninguna zona activa la cubre, `sin_cobertura` es verdadera. El nombre de la zona debe coincidir con `empresas.zona` y `repartidores.zona_base` para que compartan ruta (se comparan sin mayúsculas ni espacios sobrantes).
+
+Los montos se calculan en centavos enteros (`Dinero`) o con `numeric` de PostgreSQL, nunca con decimales de punto flotante.
+
+Al sembrar datos hay que ejecutar `php artisan db:seed --class=InitialDataSeeder` para crear los siete roles.
 
 ## Convenciones
 

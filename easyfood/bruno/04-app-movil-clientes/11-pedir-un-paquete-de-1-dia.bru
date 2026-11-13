@@ -1,0 +1,45 @@
+meta {
+  name: Pedir un paquete de 1 día
+  type: http
+  seq: 11
+}
+
+post {
+  url: {{baseUrl}}/api/v1/cliente/pedidos
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenCliente}}
+}
+
+body:json {
+  {
+    "paquete_id": "{{paqueteUnDiaId}}",
+    "direccion_id": "{{direccionCasaId}}",
+    "platillos": [
+      "{{platilloComidaId2}}"
+    ]
+  }
+}
+
+script:post-response {
+  if (res.status === 201) bru.setVar("pedidoId", res.body.id);
+}
+
+tests {
+  test("responde 201", function () {
+    expect(res.getStatus()).to.equal(201);
+  });
+
+  test("nace pendiente de pago con el tiempo para pagar", function () {
+    expect(res.body.estado).to.equal("pendiente_pago");
+    expect(res.body.segundos_para_pagar).to.be.greaterThan(0);
+    expect(res.body.folio).to.match(/^GDL-\d{8}-\d{4}$/);
+  });
+}
+
+docs {
+  Las fechas son los siguientes días de servicio con el corte abierto. El pedido vence (se cancela) en el corte de su primer día si no se paga: `vence_pago_en` y `segundos_para_pagar` lo muestran.
+}

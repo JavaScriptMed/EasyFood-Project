@@ -1,0 +1,26 @@
+meta {
+  name: Ver un ticket con su conversación
+  type: http
+  seq: 5
+}
+
+get {
+  url: {{baseUrl}}/api/v1/admin/tickets/{{ticketId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenSoporte}}
+}
+
+tests {
+  test("responde 200", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("mensajes y resumen del pedido", function () {
+    expect(res.body.mensajes.length).to.be.greaterThan(0);
+    expect(res.body.resumen_pedido).to.be.an("object");
+  });
+}

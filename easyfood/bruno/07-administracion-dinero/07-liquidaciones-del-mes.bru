@@ -1,0 +1,29 @@
+meta {
+  name: Liquidaciones del mes
+  type: http
+  seq: 7
+}
+
+get {
+  url: {{baseUrl}}/api/v1/admin/liquidaciones?mes={{mesPasado}}
+  body: none
+  auth: bearer
+}
+
+params:query {
+  mes: {{mesPasado}}
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+tests {
+  test("responde 200", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("con su comedor", function () {
+    expect(res.body[0].comedor).to.be.an("object");
+  });
+}

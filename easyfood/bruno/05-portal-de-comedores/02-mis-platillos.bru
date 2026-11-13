@@ -1,0 +1,30 @@
+meta {
+  name: Mis platillos
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/api/v1/comedor/platillos
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenComedor}}
+}
+
+script:post-response {
+  const pub = res.body.find(p => p.estado_revision === "publicado" && p.tiempo_comida === "comida");
+  if (pub) bru.setVar("platilloDelComedorId", pub.id);
+}
+
+tests {
+  test("responde 200", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("solo los de mi comedor", function () {
+    res.body.forEach(p => expect(p.comedor_nombre).to.equal("Cocina Norte"));
+  });
+}

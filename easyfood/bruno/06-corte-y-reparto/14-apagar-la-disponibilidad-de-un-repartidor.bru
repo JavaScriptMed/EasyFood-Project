@@ -1,0 +1,21 @@
+meta {
+  name: Apagar la disponibilidad de un repartidor
+  type: http
+  seq: 14
+}
+
+patch {
+  url: {{baseUrl}}/api/v1/admin/repartidores/{{repartidorId}}/disponibilidad
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+tests {
+  test("responde 200 o 422", function () {
+    expect([200, 422]).to.include(res.getStatus());
+  });
+}

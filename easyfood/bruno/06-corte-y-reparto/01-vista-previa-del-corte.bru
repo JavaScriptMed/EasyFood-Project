@@ -1,0 +1,31 @@
+meta {
+  name: Vista previa del corte
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/api/v1/admin/cortes/vista-previa
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+tests {
+  test("responde 200", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("cuántos empleados activos y cuántos no han elegido", function () {
+    expect(res.body.empleados_activos).to.equal(6);
+    expect(res.body.sin_elegir).to.be.greaterThan(0);
+    expect(res.body.ya_cerrado).to.equal(false);
+  });
+}
+
+docs {
+  Antes de ejecutar: qué fecha se cortaría, la regla para quien no eligió y cuántos empleados todavía no han elegido.
+}

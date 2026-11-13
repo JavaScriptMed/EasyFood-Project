@@ -3,29 +3,23 @@
 import { FormEvent, useState } from 'react'
 import { ArrowRight, Building2, Eye, EyeOff, LockKeyhole, Mail, ShieldCheck } from 'lucide-react'
 import Link from 'next/link'
-import { iniciarSesion } from '@/lib/sesion'
+import { iniciarSesionEnPortal } from '@/lib/auth'
 
 export default function EmpresaLogin() {
   const [showPassword, setShowPassword] = useState(false)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState(false)
+  const [error, setError] = useState('')
 
-  // Maqueta: solo entran correos de empresa. El backend validará el rol real.
-  function submit(e: FormEvent) {
+  async function submit(e: FormEvent) {
     e.preventDefault()
-    setError(false)
+    setError('')
     setLoading(true)
-    window.setTimeout(() => {
-      if (/empresa|rrhh/i.test(email)) {
-        iniciarSesion('empresa')
-        window.location.href = '/empresas'
-      } else {
-        setLoading(false)
-        setError(true)
-      }
-    }, 450)
+    const resultado = await iniciarSesionEnPortal('empresas', email, password)
+    if (resultado.estado === 'ok') { window.location.href = resultado.destino; return }
+    setLoading(false)
+    setError(resultado.mensaje)
   }
 
   return (
@@ -71,7 +65,7 @@ export default function EmpresaLogin() {
               </span>
             </label>
             <div className="-mt-2 text-right text-sm"><Link href="/empresas/olvide-contrasena" className="font-semibold text-[#e7b31c] hover:text-[#f4ca4d]">¿Olvidaste tu contraseña?</Link></div>
-            {error && <p role="alert" className="rounded-xl border border-red-400/30 bg-red-400/10 px-4 py-3 text-sm text-red-200">Este acceso es solo para cuentas de empresa.</p>}
+            {error && <p role="alert" className="rounded-xl border border-red-400/30 bg-red-400/10 px-4 py-3 text-sm text-red-200">{error}</p>}
             <button disabled={loading} className="flex h-13 items-center justify-center gap-2 rounded-xl bg-[#e7b31c] font-bold text-[#111c25] transition hover:bg-[#f4ca4d] disabled:cursor-wait disabled:opacity-70">{loading ? 'Validando acceso...' : <>Entrar al portal <ArrowRight /></>}</button>
           </form>
           <div className="mt-10 flex gap-3 border-t border-white/10 pt-6 text-sm leading-6 text-slate-500"><ShieldCheck className="mt-1 size-4 shrink-0 text-[#e7b31c]" /><p>Acceso restringido al contacto de RR. HH. de empresas con contrato vigente.</p></div>

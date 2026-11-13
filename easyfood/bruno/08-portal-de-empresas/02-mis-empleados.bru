@@ -1,0 +1,34 @@
+meta {
+  name: Mis empleados
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/api/v1/empresa/empleados
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenEmpresa}}
+}
+
+script:post-response {
+  if (res.status === 200 && res.body.length) bru.setVar("empleadoNexoId", res.body[0].id);
+}
+
+tests {
+  test("responde 200", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("solo los de mi empresa", function () {
+    expect(res.body.length).to.equal(4);
+  });
+
+  test("trae consumo por mes y elección de la próxima entrega", function () {
+    expect(res.body[0]).to.have.property("platillos_por_mes");
+    expect(res.body[0]).to.have.property("eleccion_manana");
+  });
+}

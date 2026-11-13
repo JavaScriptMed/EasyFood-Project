@@ -2,14 +2,13 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
+/** Domicilio de un usuario (tabla `addresses` del equipo). Los pedidos de clientes individuales entregan aquí. */
 class Address extends Model
 {
-    use HasFactory;
-
     protected $fillable = [
         'user_id',
         'label',
@@ -22,9 +21,13 @@ class Address extends Model
         'is_default',
     ];
 
+    // `ubicacion` (geography), `zona` y `sin_cobertura` los calcula la base al guardar latitude/longitude: son de solo lectura.
+    protected $hidden = ['ubicacion'];
+
     protected function casts(): array
     {
         return [
+            'sin_cobertura' => 'boolean',
             'latitude' => 'float',
             'longitude' => 'float',
             'is_default' => 'boolean',
@@ -34,5 +37,10 @@ class Address extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function pedidos(): HasMany
+    {
+        return $this->hasMany(Pedido::class, 'direccion_id');
     }
 }

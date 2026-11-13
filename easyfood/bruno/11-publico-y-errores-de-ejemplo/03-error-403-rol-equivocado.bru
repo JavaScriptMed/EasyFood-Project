@@ -1,0 +1,25 @@
+meta {
+  name: Error 403: rol equivocado
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/api/v1/admin/configuracion
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenCliente}}
+}
+
+tests {
+  test("responde 403", function () {
+    expect(res.getStatus()).to.equal(403);
+  });
+}
+
+docs {
+  Un cliente no puede entrar al panel de administración.
+}

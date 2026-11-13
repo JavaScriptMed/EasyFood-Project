@@ -1,0 +1,21 @@
+meta {
+  name: Marcar liquidación como pagada
+  type: http
+  seq: 8
+}
+
+post {
+  url: {{baseUrl}}/api/v1/admin/liquidaciones/{{liquidacionId}}/pagar
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+tests {
+  test("responde 200 o 422", function () {
+    expect([200, 422]).to.include(res.getStatus());
+  });
+}

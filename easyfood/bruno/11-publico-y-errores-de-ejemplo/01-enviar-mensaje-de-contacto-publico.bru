@@ -1,0 +1,34 @@
+meta {
+  name: Enviar mensaje de contacto (público)
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/api/v1/contacto
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "nombre": "Patricia Méndez",
+    "correo": "patricia@ejemplo.mx",
+    "empresa": "Autopartes del Bajío",
+    "mensaje": "Quisiéramos una cotización para 80 empleados."
+  }
+}
+
+tests {
+  test("responde 201", function () {
+    expect(res.getStatus()).to.equal(201);
+  });
+
+  test("agradece el mensaje", function () {
+    expect(res.body.mensaje).to.include("Gracias");
+  });
+}
+
+docs {
+  No necesita sesión. Limitado a 10 envíos por minuto (429 `demasiados_intentos`). El mensaje debe tener al menos 10 caracteres.
+}

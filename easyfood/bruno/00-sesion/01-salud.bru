@@ -1,0 +1,25 @@
+meta {
+  name: Salud
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/api/v1/salud
+  body: none
+  auth: none
+}
+
+tests {
+  test("responde 200", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("la base de datos responde", function () {
+    expect(res.body.base_de_datos.estado).to.equal("ok");
+  });
+}
+
+docs {
+  Estado del API y de PostgreSQL/PostGIS. No necesita sesión.
+}

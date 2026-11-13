@@ -1,0 +1,31 @@
+meta {
+  name: Mi historial
+  type: http
+  seq: 8
+}
+
+get {
+  url: {{baseUrl}}/api/v1/empleado/elecciones?limite=8
+  body: none
+  auth: bearer
+}
+
+params:query {
+  limite: 8
+}
+
+auth:bearer {
+  token: {{tokenEmpleado}}
+}
+
+tests {
+  test("responde 200", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("trae lo que cubre la empresa", function () {
+    expect(res.body.length).to.be.greaterThan(0);
+    expect(res.body[0]).to.have.property("empresa_cubre");
+    expect(res.body[0]).to.have.property("empleado_paga");
+  });
+}

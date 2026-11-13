@@ -1,0 +1,32 @@
+meta {
+  name: Elegir con datos inválidos
+  type: http
+  seq: 7
+}
+
+put {
+  url: {{baseUrl}}/api/v1/empleado/elecciones
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenEmpleado}}
+}
+
+body:json {
+  {
+    "tiempo_comida": "merienda"
+  }
+}
+
+tests {
+  test("responde 422", function () {
+    expect(res.getStatus()).to.equal(422);
+  });
+
+  test("lista los campos con error", function () {
+    expect(res.body.errores).to.have.property("fecha");
+    expect(res.body.errores).to.have.property("platillo_id");
+  });
+}

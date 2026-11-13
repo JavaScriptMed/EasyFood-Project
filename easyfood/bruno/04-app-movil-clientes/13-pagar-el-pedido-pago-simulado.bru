@@ -1,0 +1,37 @@
+meta {
+  name: Pagar el pedido (pago simulado)
+  type: http
+  seq: 13
+}
+
+post {
+  url: {{baseUrl}}/api/v1/cliente/pedidos/{{pedidoId}}/pagar
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenCliente}}
+}
+
+body:json {
+  {
+    "metodo_pago": "tarjeta",
+    "ultimos_digitos": "4821"
+  }
+}
+
+tests {
+  test("responde 200", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("queda recibido", function () {
+    expect(res.body.estado).to.equal("recibido");
+    expect(res.body.segundos_para_pagar).to.equal(null);
+  });
+}
+
+docs {
+  No hay cobro real: solo se guarda el método y los últimos 4 dígitos. Pagar después del corte cancela el pedido (422 `pedido_vencido`).
+}

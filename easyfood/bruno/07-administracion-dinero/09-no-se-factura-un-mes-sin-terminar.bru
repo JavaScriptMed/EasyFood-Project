@@ -1,0 +1,31 @@
+meta {
+  name: No se factura un mes sin terminar
+  type: http
+  seq: 9
+}
+
+post {
+  url: {{baseUrl}}/api/v1/admin/facturas/generar
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+body:json {
+  {
+    "mes": "{{mesActual}}"
+  }
+}
+
+tests {
+  test("responde 422", function () {
+    expect(res.getStatus()).to.equal(422);
+  });
+
+  test("mes_sin_terminar", function () {
+    expect(res.body.codigo).to.equal("mes_sin_terminar");
+  });
+}

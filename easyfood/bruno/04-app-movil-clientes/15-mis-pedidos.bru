@@ -1,0 +1,25 @@
+meta {
+  name: Mis pedidos
+  type: http
+  seq: 15
+}
+
+get {
+  url: {{baseUrl}}/api/v1/cliente/pedidos
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenCliente}}
+}
+
+tests {
+  test("responde 200", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("solo los míos", function () {
+    expect(res.body.length).to.be.greaterThan(1);
+  });
+}

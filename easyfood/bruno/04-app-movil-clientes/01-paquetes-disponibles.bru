@@ -1,0 +1,31 @@
+meta {
+  name: Paquetes disponibles
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/api/v1/cliente/paquetes
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenCliente}}
+}
+
+script:post-response {
+  const p = (d) => res.body.find(x => x.dias === d);
+  if (p(1)) bru.setVar("paqueteUnDiaId", p(1).id);
+  if (p(2)) bru.setVar("paqueteDosDiasId", p(2).id);
+}
+
+tests {
+  test("responde 200", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("hay paquetes de 1, 2 y 6 días", function () {
+    expect(res.body.map(p => p.dias)).to.deep.equal([1, 2, 6]);
+  });
+}

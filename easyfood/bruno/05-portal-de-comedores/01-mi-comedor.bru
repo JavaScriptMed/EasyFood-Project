@@ -1,0 +1,25 @@
+meta {
+  name: Mi comedor
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/api/v1/comedor/perfil
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenComedor}}
+}
+
+tests {
+  test("responde 200", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("es Cocina Norte", function () {
+    expect(res.body.nombre).to.equal("Cocina Norte");
+  });
+}

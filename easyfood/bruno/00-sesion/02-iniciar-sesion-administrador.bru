@@ -1,0 +1,36 @@
+meta {
+  name: Iniciar sesión · administrador
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/api/auth/login
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "email": "{{correoAdmin}}",
+    "password": "{{contrasena}}"
+  }
+}
+
+script:post-response {
+  bru.setVar("tokenAdmin", res.body.token);
+}
+
+tests {
+  test("responde 200", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("trae el token", function () {
+    expect(res.body.token).to.be.a("string");
+  });
+}
+
+docs {
+  Inicia sesión y guarda el token en `tokenAdmin`. Usa la contraseña definida en el entorno (la misma de SEED_PASSWORD).
+}

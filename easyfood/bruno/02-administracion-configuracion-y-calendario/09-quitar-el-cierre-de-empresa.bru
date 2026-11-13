@@ -1,0 +1,21 @@
+meta {
+  name: Quitar el cierre de empresa
+  type: http
+  seq: 9
+}
+
+delete {
+  url: {{baseUrl}}/api/v1/admin/calendario/dias-sin-servicio/{{cierreEmpresaId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+tests {
+  test("responde 200 o 404", function () {
+    expect([200, 404]).to.include(res.getStatus());
+  });
+}

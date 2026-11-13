@@ -1,0 +1,21 @@
+meta {
+  name: Quiénes aparecen en la bitácora
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{baseUrl}}/api/v1/admin/bitacora/actores
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+tests {
+  test("responde 200", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+}

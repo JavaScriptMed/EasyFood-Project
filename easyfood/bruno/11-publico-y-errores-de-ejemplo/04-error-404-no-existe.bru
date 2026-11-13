@@ -1,0 +1,25 @@
+meta {
+  name: Error 404: no existe
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{baseUrl}}/api/v1/admin/empresas/999999
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+tests {
+  test("responde 404", function () {
+    expect(res.getStatus()).to.equal(404);
+  });
+
+  test("código no_encontrado", function () {
+    expect(res.body.codigo).to.equal("no_encontrado");
+  });
+}

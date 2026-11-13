@@ -2,15 +2,16 @@
 
 import { useState, type FormEvent } from 'react'
 import { toast } from 'sonner'
-import { ExternalLink, RotateCw, UserPlus, X } from 'lucide-react'
+import { ExternalLink, Pencil, Power, RotateCw, UserPlus, X } from 'lucide-react'
+import { CampoLista, CampoTexto, VentanaConfirmar, VentanaFormulario } from '@/components/ventanas'
 import { FilasEstado } from '@/components/estados'
 import { Pill } from '@/components/panel'
 import { Button } from '@/components/ui/button'
-import { invitarUsuario, listarUsuariosAcceso, reenviarInvitacion } from '@/lib/api'
+import { cambiarEstadoUsuarioAcceso, editarUsuarioAcceso, invitarUsuario, listarUsuariosAcceso, reenviarInvitacion } from '@/lib/api'
 import { etiquetasRol } from '@/lib/etiquetas'
 import { formatDate } from '@/lib/format'
 import { PORTALES } from '@/lib/portales'
-import type { EstadoInvitacion, InvitacionDetalle, Rol, TipoOrganizacion } from '@/lib/types'
+import type { EstadoInvitacion, InvitacionDetalle, Rol, TipoOrganizacion, UsuarioAcceso } from '@/lib/types'
 import { useAsync } from '@/lib/use-async'
 
 const portalDe = { comedor: 'comedores', empresa: 'empresas', plataforma: 'admin' } as const
@@ -48,7 +49,24 @@ export const enlaceInvitacion = (tipo: TipoOrganizacion, token: string) => `${PO
 export function UsuariosAcceso({ organizacion, roles, vacioPlural = 'usuarios' }: { organizacion: { tipo: TipoOrganizacion; id: string | null }; roles: Rol[]; vacioPlural?: string }) {
   const usuarios = useAsync(() => listarUsuariosAcceso(organizacion), [organizacion.tipo, organizacion.id])
   const [invitando, setInvitando] = useState(false)
+  const [editando, setEditando] = useState<UsuarioAcceso | null>(null)
+  const [desactivando, setDesactivando] = useState<UsuarioAcceso | null>(null)
+  const [cambiando, setCambiando] = useState(false)
   const lista = usuarios.data ?? []
+
+  async function cambiarEstado(u: UsuarioAcceso, activo: boolean) {
+    setCambiando(true)
+    try {
+      await cambiarEstadoUsuarioAcceso(u.usuario_id, activo)
+      toast.success(activo ? `${u.nombre} quedó activo` : `${u.nombre} quedó inactivo`, { description: activo ? undefined : 'Ya no puede entrar, pero conserva su historial.' })
+      setDesactivando(null)
+      usuarios.reload({ silent: true })
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'No se pudo cambiar el estado del usuario')
+    } finally {
+      setCambiando(false)
+    }
+  }
 
   return (
     <div>
@@ -70,8 +88,14 @@ export function UsuariosAcceso({ organizacion, roles, vacioPlural = 'usuarios' }
                     {u.invitacion ? <><PillInvitacion estado={u.invitacion.estado} /><p className="mt-1 text-xs text-muted-foreground">{detalleInvitacion(u.invitacion)}</p></> : <Pill tono="brand">Titular</Pill>}
                   </td>
                   <td className="px-5 py-4">
+                    <div className="flex items-center justify-end gap-1">
+                      <button type="button" onClick={() => setEditando(u)} title="Editar" aria-label={`Editar a ${u.nombre}`} className="rounded-lg p-2 text-muted-foreground transition hover:bg-muted hover:text-foreground"><Pencil className="size-4" /></button>
+                      {!u.es_principal && u.invitacion?.estado === 'aceptada' && (u.activo
+                        ? <button type="button" onClick={() => setDesactivando(u)} title="Desactivar" aria-label={`Desactivar a ${u.nombre}`} className="rounded-lg p-2 text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive"><Power className="size-4" /></button>
+                        : <button type="button" onClick={() => cambiarEstado(u, true)} disabled={cambiando} title="Reactivar" aria-label={`Reactivar a ${u.nombre}`} className="rounded-lg p-2 text-muted-foreground transition hover:bg-muted hover:text-foreground"><Power className="size-4" /></button>)}
+                    </div>
                     {u.invitacion && u.invitacion.estado !== 'aceptada' && (
-                      <div className="flex items-center justify-end gap-1">
+                      <div className="mt-1 flex items-center justify-end gap-1">
                         <a href={enlaceInvitacion(organizacion.tipo, u.invitacion.token)} target="_blank" rel="noreferrer" title="Abrir el enlace de la invitación (solo maqueta)" aria-label={`Abrir el enlace de la invitación de ${u.nombre} (solo maqueta)`} className="rounded-lg p-2 text-muted-foreground transition hover:bg-muted hover:text-foreground"><ExternalLink className="size-4" /></a>
                         <BotonReenviar invitacion={u.invitacion} compacto onReenviada={() => usuarios.reload({ silent: true })} />
                       </div>
@@ -84,7 +108,36 @@ export function UsuariosAcceso({ organizacion, roles, vacioPlural = 'usuarios' }
         </div>
       </div>
       {invitando && <InvitarModal organizacion={organizacion} roles={roles} onCerrar={() => setInvitando(false)} onInvitado={() => { setInvitando(false); usuarios.reload({ silent: true }) }} />}
+      {editando && <EditarUsuarioModal usuario={editando} roles={roles} onCerrar={() => setEditando(null)} onGuardado={() => { setEditando(null); usuarios.reload({ silent: true }) }} />}
+      {desactivando && <VentanaConfirmar titulo={`¿Desactivar a ${desactivando.nombre}?`} descripcion="Ya no podrá entrar a EasyLunch. No se borra: conserva su historial y puedes reactivarlo cuando quieras." textoConfirmar="Desactivar" trabajando={cambiando} onCerrar={() => setDesactivando(null)} onConfirmar={() => cambiarEstado(desactivando, false)} />}
     </div>
+  )
+}
+
+/** Editar el nombre y el rol de una persona con acceso (el correo es su acceso y no se cambia aquí). */
+function EditarUsuarioModal({ usuario, roles, onCerrar, onGuardado }: { usuario: UsuarioAcceso; roles: Rol[]; onCerrar: () => void; onGuardado: () => void }) {
+  const [nombre, setNombre] = useState(usuario.nombre)
+  const [rol, setRol] = useState<Rol>(usuario.rol)
+  const [guardando, setGuardando] = useState(false)
+  const opciones = roles.includes(usuario.rol) ? roles : [usuario.rol, ...roles]
+  async function guardar() {
+    setGuardando(true)
+    try {
+      await editarUsuarioAcceso(usuario.usuario_id, { nombre, rol })
+      toast.success('Cambios guardados')
+      onGuardado()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'No se pudo guardar al usuario')
+    } finally {
+      setGuardando(false)
+    }
+  }
+  return (
+    <VentanaFormulario titulo={`Editar a ${usuario.nombre}`} textoEnviar="Guardar cambios" trabajando={guardando} deshabilitarEnvio={!nombre.trim()} onCerrar={onCerrar} onEnviar={guardar}>
+      <CampoTexto etiqueta="Nombre completo" required autoFocus value={nombre} onChange={(e) => setNombre(e.target.value)} />
+      <CampoTexto etiqueta="Correo" value={usuario.correo} disabled readOnly ayuda="Es su acceso a EasyLunch; no se cambia aquí." />
+      {opciones.length > 1 && !usuario.es_principal && <CampoLista etiqueta="Rol" value={rol} onChange={(e) => setRol(e.target.value as Rol)} opciones={opciones.map((r) => ({ valor: r, texto: etiquetasRol[r] }))} />}
+    </VentanaFormulario>
   )
 }
 

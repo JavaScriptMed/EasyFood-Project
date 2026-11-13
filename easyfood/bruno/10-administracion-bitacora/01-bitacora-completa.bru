@@ -1,0 +1,30 @@
+meta {
+  name: Bitácora completa
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/api/v1/admin/bitacora
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+tests {
+  test("responde 200", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("hay registros con su autor", function () {
+    expect(res.body.length).to.be.greaterThan(0);
+    expect(res.body[0]).to.have.property("usuario_nombre");
+  });
+}
+
+docs {
+  Todo lo que se hizo en las carpetas anteriores (configuración, platillos, corte, facturas…) quedó aquí.
+}

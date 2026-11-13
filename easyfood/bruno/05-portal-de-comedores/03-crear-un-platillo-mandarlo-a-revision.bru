@@ -1,0 +1,41 @@
+meta {
+  name: Crear un platillo (mandarlo a revisión)
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{baseUrl}}/api/v1/comedor/platillos
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenComedor}}
+}
+
+body:json {
+  {
+    "nombre": "Caldo tlalpeño {{$timestamp}}",
+    "descripcion": "Con pollo, verduras y aguacate",
+    "tiempo_comida": "comida",
+    "calorias": 480,
+    "alergenos": [],
+    "precio_venta": 49,
+    "estado_revision": "en_revision"
+  }
+}
+
+script:post-response {
+  if (res.status === 201) bru.setVar("platilloComedorNuevoId", res.body.id);
+}
+
+tests {
+  test("responde 201", function () {
+    expect(res.getStatus()).to.equal(201);
+  });
+}
+
+docs {
+  El comedor solo puede dejar un platillo en `borrador` o `en_revision`. Un platillo publicado que se edita vuelve a revisión.
+}

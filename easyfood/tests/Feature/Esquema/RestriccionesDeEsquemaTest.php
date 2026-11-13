@@ -5,6 +5,7 @@ namespace Tests\Feature\Esquema;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 /**
@@ -55,12 +56,13 @@ class RestriccionesDeEsquemaTest extends TestCase
         ]);
     }
 
+    /** Un comedor es un registro de `providers` (tabla del equipo). */
     private function comedor(): int
     {
-        return DB::table('comedores')->insertGetId([
-            'usuario_id' => $this->usuario(),
-            'nombre' => 'Comedor '.uniqid(),
-            'zona' => 'Zapopan Norte',
+        return DB::table('providers')->insertGetId([
+            'business_name' => 'Comedor '.uniqid(),
+            'phone' => '33 1458 2201',
+            'address' => 'Av. Industria 1450, Zapopan',
         ]);
     }
 
@@ -182,7 +184,7 @@ class RestriccionesDeEsquemaTest extends TestCase
         $this->assertEquals([
             'hora_corte' => '18:00',
             'regla_sin_eleccion' => 'ultimo_platillo',
-            'dias_entrega' => 'lunes_viernes',
+            'dias_entrega' => 'lunes_sabado',
             'capacidad_auto_entregas' => '30',
             'capacidad_auto_platillos' => '120',
         ], DB::table('configuracion')->pluck('valor', 'clave')->all());
@@ -193,7 +195,7 @@ class RestriccionesDeEsquemaTest extends TestCase
         // Valores válidos distintos a los iniciales.
         DB::table('configuracion')->where('clave', 'hora_corte')->update(['valor' => '17:30']);
         DB::table('configuracion')->where('clave', 'regla_sin_eleccion')->update(['valor' => 'no_entregar']);
-        DB::table('configuracion')->where('clave', 'dias_entrega')->update(['valor' => 'lunes_sabado']);
+        DB::table('configuracion')->where('clave', 'dias_entrega')->update(['valor' => 'lunes_viernes']);
         $this->assertDatabaseHas('configuracion', ['clave' => 'hora_corte', 'valor' => '17:30']);
 
         $this->rechaza('configuracion_pkey', fn () => DB::table('configuracion')->insert(['clave' => 'hora_corte', 'valor' => '19:00']));
@@ -229,5 +231,50 @@ class RestriccionesDeEsquemaTest extends TestCase
     {
         $lat = DB::selectOne("select numeric_precision, numeric_scale from information_schema.columns where table_name = 'providers' and column_name = 'latitude'");
         $this->assertSame([10, 8], [(int) $lat->numeric_precision, (int) $lat->numeric_scale]);
+    }
+
+    // ---------------------------------------------------------------- comedores = providers
+
+    public function test_el_comedor_guarda_su_zona_y_es_opcional(): void
+    {
+        $sinZona = $this->comedor();
+        $this->assertNull(DB::table('providers')->where('id', $sinZona)->value('zona'));
+
+        DB::table('providers')->where('id', $sinZona)->update(['zona' => 'Zapopan Norte']);
+        $this->assertSame('Zapopan Norte', DB::table('providers')->where('id', $sinZona)->value('zona'));
+    }
+
+    public function test_cada_empresa_fija_su_propio_subsidio_y_puede_cambiarlo(): void
+    {
+        $a = $this->empresa();
+        $b = $this->empresa();
+        $contratoA = DB::table('contratos_empresa')->insertGetId($this->datosContratoEmpresa($a, ['porcentaje_subsidio' => 40]));
+        DB::table('contratos_empresa')->insert($this->datosContratoEmpresa($b, ['porcentaje_subsidio' => 80]));
+
+        DB::table('contratos_empresa')->where('id', $contratoA)->update(['porcentaje_subsidio' => 55]);
+
+        $this->assertSame(55.0, (float) DB::table('contratos_empresa')->where('id', $contratoA)->value('porcentaje_subsidio'));
+        $this->assertSame(80.0, (float) DB::table('contratos_empresa')->where('empresa_id', $b)->value('porcentaje_subsidio'));
+    }
+
+    public function test_los_paquetes_no_traen_descuentos_sembrados(): void
+    {
+        $this->assertSame(0, DB::table('paquetes')->count());
+    }
+
+    public function test_los_contratos_de_comedor_apuntan_a_providers_y_ya_no_existe_comedores(): void
+    {
+        $this->assertFalse(Schema::hasTable('comedores'));
+
+        $destino = DB::selectOne("select ccu.table_name from information_schema.referential_constraints rc join information_schema.constraint_column_usage ccu on ccu.constraint_name = rc.unique_constraint_name where rc.constraint_name = 'contratos_comedor_comedor_id_foreign'");
+        $this->assertSame('providers', $destino->table_name);
+    }
+
+    public function test_no_se_puede_borrar_fisicamente_un_comedor_con_contrato(): void
+    {
+        $comedor = $this->comedor();
+        DB::table('contratos_comedor')->insert(['comedor_id' => $comedor, 'vigencia_inicio' => '2026-07-01', 'vigencia_fin' => '2026-12-31']);
+
+        $this->rechaza('contratos_comedor_comedor_id_foreign', fn () => DB::table('providers')->where('id', $comedor)->delete());
     }
 }

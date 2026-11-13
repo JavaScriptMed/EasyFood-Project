@@ -1,0 +1,31 @@
+meta {
+  name: Ver la disponibilidad de la semana
+  type: http
+  seq: 5
+}
+
+get {
+  url: {{baseUrl}}/api/v1/comedor/disponibilidad?desde={{hoy}}&hasta={{enSieteDias}}
+  body: none
+  auth: bearer
+}
+
+params:query {
+  desde: {{hoy}}
+  hasta: {{enSieteDias}}
+}
+
+auth:bearer {
+  token: {{tokenComedor}}
+}
+
+tests {
+  test("responde 200", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("hay porciones por día", function () {
+    expect(res.body.length).to.be.greaterThan(0);
+    expect(res.body[0]).to.have.property("porciones_restantes");
+  });
+}

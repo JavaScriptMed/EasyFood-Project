@@ -1,0 +1,42 @@
+meta {
+  name: Listar empresas
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/api/v1/admin/empresas
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+script:post-response {
+  const nexo = res.body.find(e => e.nombre === "Grupo Industrial Nexo");
+  const pac = res.body.find(e => e.nombre === "Logística Pacífico");
+  if (nexo) bru.setVar("empresaId", nexo.id);
+  if (pac) bru.setVar("empresaPacificoId", pac.id);
+}
+
+tests {
+  test("responde 200", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("hay empresas con contrato", function () {
+    expect(res.body.length).to.be.greaterThan(0);
+    expect(res.body[0].contrato).to.be.an("object");
+  });
+
+  test("trae estado y días para vencer", function () {
+    expect(res.body[0]).to.have.property("estado_contrato");
+    expect(res.body[0]).to.have.property("dias_para_vencer");
+  });
+}
+
+docs {
+  Empresas con contacto de RR. HH., contrato vigente, empleados activos y estado del contrato (`activo`, `por_vencer`, `vencido`).
+}
