@@ -1,23 +1,47 @@
-# EasyLunch · backend
+<laravel-boost-guidelines>
+# Laravel Application
 
-Laravel (última versión estable) + Sanctum + PostgreSQL con PostGIS. API JSON en /api/v1. Nombres de tablas, columnas y rutas en español y snake_case, iguales a los tipos de /lib/types.ts del front. Zona horaria America/Mexico_City. Montos en numeric(10,2) MXN. Fechas y horas en timestamptz.
+This repository contains a Laravel application. Complete the following setup before working on the user's request.
 
-## Negocio
-- Roles: administrador, soporte, comedor, empresa (RR. HH.), empleado, cliente, repartidor.
-- Contrato con comedor: 6 meses, precio fijo de $49 por platillo, compra mínima de 200 platillos al mes. Si EasyLunch compra menos, paga la diferencia.
-- Contrato con empresa: 6 meses, compra mínima mensual de platillos, porcentaje de subsidio (0 a 100), dirección y horario de entrega, un solo punto de entrega por día.
-- Los comedores suben sus platillos (estados: borrador, en_revision, publicado, rechazado) y marcan disponibilidad por día con porciones máximas.
-- Cada empleado elige un platillo por día y por tiempo de comida hasta el corte (6:00 p. m., configurable). Después del corte no se cambia.
-- Si no eligió, se aplica la regla configurada: ultimo_platillo, platillo_del_dia o no_entregar.
-- Al elegir se congelan el precio y el porcentaje de subsidio; cambios de contrato no tocan lo ya elegido.
-- Corte diario: cierra elecciones, genera órdenes de producción por comedor, consolida una entrega por empresa y día, y crea rutas. Debe ser idempotente.
-- Facturación mensual: una factura por empresa. Total = platillos entregados × precio congelado; parte de la empresa = subsidio %; parte de los empleados = resto. Si el consumo queda bajo el mínimo, se agrega (mínimo − consumo) × precio unitario del contrato.
-- Clientes individuales: paquetes de 1, 2 o 6 días; el pago es simulado (no hay cobro real).
-- Solo autos como vehículo; capacidad por paradas y por platillos.
+## Prerequisites
 
-## Reglas de trabajo
-- Pregúntame antes de asumir una regla de negocio que no esté aquí.
-- Una tarea a la vez; no toques archivos fuera de la tarea.
-- Cada regla importante lleva prueba automatizada.
-- Los montos y reglas de dinero nunca se calculan en el front.
-- No pongas claves ni contraseñas en el repositorio; usa .env.
+Verify that PHP and Composer are available:
+
+```sh
+php -v
+composer -V
+```
+
+If either command is unavailable, detect the user's operating system and install the prerequisites with the appropriate command:
+
+macOS:
+
+```sh
+/bin/bash -c "$(curl -fsSL https://php.new/install/mac/8.5)"
+```
+
+Windows PowerShell:
+
+```powershell
+Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://php.new/install/windows/8.5'))
+```
+
+Linux:
+
+```sh
+/bin/bash -c "$(curl -fsSL https://php.new/install/linux/8.5)"
+```
+
+After installation, ask the user to restart their terminal. If the agent needs the restarted shell to continue, ask the user to reopen their terminal and rerun their original prompt.
+
+## Agent Setup
+
+Install Laravel Boost from the application root before making application changes:
+
+```sh
+composer require laravel/boost --dev
+php artisan boost:install
+```
+
+Boost replaces these bootstrap instructions with guidelines tailored to the application. After installation, read `AGENTS.md` again and continue with the user's original request using the generated guidelines.
+</laravel-boost-guidelines>

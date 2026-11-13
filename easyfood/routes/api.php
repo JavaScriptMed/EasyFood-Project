@@ -7,6 +7,8 @@ use App\Http\Controllers\Api\ProviderController;
 use App\Http\Controllers\Api\Admin\UserController as AdminUserController;
 use App\Http\Controllers\Api\MenuController;
 use App\Http\Controllers\Api\CatalogCategoryController;
+use App\Http\Controllers\Api\OrderController;
+use App\Http\Controllers\Api\AddressController;
 
 // -----------------------------------------------------------------
 // API v1 (nombres de rutas en español, ver CLAUDE.md)
@@ -15,7 +17,7 @@ Route::prefix('v1')->group(function () {
     Route::get('/salud', SaludController::class)->name('v1.salud');
 });
 
-Route::middleware('auth:api')->group(function () {
+Route::middleware('auth:sanctum')->group(function () {
 
     // Rutas de consulta (Clientes, Repartidores, Proveedores y Admin)
     Route::get('/catalog-categories', [CatalogCategoryController::class, 'index']);
@@ -29,7 +31,7 @@ Route::middleware('auth:api')->group(function () {
     });
 });
 
-Route::middleware('auth:api')->group(function () {
+Route::middleware('auth:sanctum')->group(function () {
 
     // Rutas públicas/clientes para explorar comida
     Route::get('/menus', [MenuController::class, 'index']);
@@ -41,6 +43,17 @@ Route::middleware('auth:api')->group(function () {
         Route::put('/menus/{id}', [MenuController::class, 'update']);
         Route::delete('/menus/{id}', [MenuController::class, 'destroy']);
     });
+
+    // Rutas de Órdenes y Paquetes Programados para el Cliente
+    Route::get('/orders', [OrderController::class, 'index']);
+    Route::post('/orders', [OrderController::class, 'store']);
+    Route::get('/orders/{id}', [OrderController::class, 'show']);
+
+    // Gestión de Direcciones del Cliente
+    Route::get('/addresses', [AddressController::class, 'index']);
+    Route::post('/addresses', [AddressController::class, 'store']);
+    Route::put('/addresses/{id}', [AddressController::class, 'update']);
+    Route::delete('/addresses/{id}', [AddressController::class, 'destroy']);
 });
 
 Route::middleware(['auth:api', 'role:admin'])->prefix('admin')->group(function () {
@@ -64,6 +77,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // Gestión de sesión propia
     Route::get('/auth/profile', [AuthController::class, 'profile']);
     Route::post('/auth/logout', [AuthController::class, 'logout']);
+    Route::put('/auth/profile', [AuthController::class, 'updateProfile']);
 
     // -------------------------------------------------------------
     // Rutas protegidas por Rol (Middleware: role:nombre_del_rol)

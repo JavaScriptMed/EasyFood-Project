@@ -8,6 +8,7 @@ use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use App\Models\Address;
 
 class User extends Authenticatable
 {
@@ -54,4 +55,10 @@ class User extends Authenticatable
 
         return $this->role->name === $roles;
     }
+
+    // ... dentro de la clase User extiende Authenticatable
+public function addresses()
+{
+    return $this->hasMany(Address::class);
+}
 }

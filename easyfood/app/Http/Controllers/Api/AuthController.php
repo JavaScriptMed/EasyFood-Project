@@ -120,4 +120,58 @@ class AuthController extends Controller
             'message' => 'Sesión cerrada exitosamente.',
         ], 200);
     }
+
+    /**
+     * Actualiza los datos del usuario y su perfil asociado.
+     */
+    public function updateProfile(Request $request)
+    {
+        $user = $request->user();
+
+        // Validar datos recibidos
+        $validated = $request->validate([
+            'name'       => 'sometimes|required|string|max:120',
+            'first_name' => 'sometimes|required|string|max:100',
+            'last_name'  => 'sometimes|required|string|max:100',
+            'phone'      => 'nullable|string|max:20',
+            'avatar_url' => 'nullable|url|max:255',
+            'bio'        => 'nullable|string',
+            'birth_date' => 'nullable|date',
+        ]);
+
+        // Si se envía el campo 'name', se actualiza en la tabla 'users'
+        if (isset($validated['name'])) {
+            $user->update(['name' => $validated['name']]);
+        }
+
+        // Extraer campos pertenecientes a la tabla 'user_profiles'
+        $profileData = collect($validated)->only([
+            'first_name',
+            'last_name',
+            'phone',
+            'avatar_url',
+            'bio',
+            'birth_date',
+        ])->toArray();
+
+        // Actualizar o crear la información extendida en 'user_profiles'
+        if (!empty($profileData)) {
+            UserProfile::updateOrCreate(
+                ['user_id' => $user->id],
+                $profileData
+            );
+        }
+
+        return response()->json([
+            'message' => 'Perfil actualizado exitosamente.',
+            'user'    => [
+                'id'      => $user->id,
+                'name'    => $user->name,
+                'email'   => $user->email,
+                'role'    => $user->role->name,
+                'status'  => $user->status,
+                'profile' => $user->fresh()->profile,
+            ],
+        ], 200);
+    }
 }
