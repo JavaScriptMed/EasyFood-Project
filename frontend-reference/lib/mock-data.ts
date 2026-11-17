@@ -381,6 +381,8 @@ export const configuracion_operacion: ConfiguracionOperacion = {
   regla_sin_eleccion: 'ultimo_platillo',
   capacidad_auto_entregas: capacidades_vehiculo.automovil,
   capacidad_auto_platillos: 120,
+  ahorro_apps_porcentaje: 30,
+  costo_maquila_limite: 49,
 }
 
 export const dias_sin_servicio: DiaSinServicio[] = [

@@ -65,11 +65,35 @@ class LiquidacionComedorTest extends TestCase
                 'folio' => 'PED-'.uniqid(), 'cliente_id' => $cliente->id, 'paquete_id' => $paquete->id, 'direccion_id' => $direccion->id,
                 'fecha_inicio' => '2026-10-12', 'fecha_fin' => '2026-10-12', 'total' => 49, 'estado' => 'cancelado',
             ]);
-            DB::table('pedido_dias')->insert([
-                'pedido_id' => $pedido->id, 'fecha' => '2026-10-12', 'menu_id' => $menu->id, 'precio_congelado' => 49, 'estado' => $estado,
+            $dia = DB::table('pedido_dias')->insertGetId([
+                'pedido_id' => $pedido->id, 'fecha' => '2026-10-12', 'estado' => $estado,
                 'entregada_en' => $estado === 'entregada' ? '2026-10-12 13:00:00' : null,
             ]);
+            DB::table('pedido_dia_platillos')->insert(['pedido_dia_id' => $dia, 'tiempo_comida' => $menu->tiempo_comida, 'menu_id' => $menu->id, 'precio_congelado' => 49]);
         }
+    }
+
+    public function test_un_dia_con_varias_comidas_entregado_cuenta_cada_platillo_para_el_comedor(): void
+    {
+        $comedor = $this->comedorConContrato(5, 49);
+        $desayuno = $this->platillo($comedor, 'desayuno');
+        $comida = $this->platillo($comedor, 'comida');
+        $cliente = DB::table('users')->where('id', $this->usuario())->first();
+        $this->zonaDePruebas();
+        $direccion = Address::create(['user_id' => $cliente->id, 'street_address' => 'Av. 1', 'latitude' => 20.67, 'longitude' => -103.35]);
+        $paquete = \App\Models\Paquete::firstOrCreate(['nombre' => 'Un día'], ['dias' => 1, 'descuento_porcentaje' => 0]);
+        $pedido = \App\Models\Pedido::create([
+            'folio' => 'PED-'.uniqid(), 'cliente_id' => $cliente->id, 'paquete_id' => $paquete->id, 'direccion_id' => $direccion->id,
+            'comidas_por_dia' => 2, 'fecha_inicio' => '2026-10-12', 'fecha_fin' => '2026-10-12', 'total' => 98, 'estado' => 'cancelado',
+        ]);
+        $dia = DB::table('pedido_dias')->insertGetId(['pedido_id' => $pedido->id, 'fecha' => '2026-10-12', 'estado' => 'entregada', 'entregada_en' => '2026-10-12 13:00:00']);
+        foreach ([$desayuno, $comida] as $menu) {
+            DB::table('pedido_dia_platillos')->insert(['pedido_dia_id' => $dia, 'tiempo_comida' => $menu->tiempo_comida, 'menu_id' => $menu->id, 'precio_congelado' => 49]);
+        }
+
+        $l = $this->liquidaciones()->generar($comedor, '2026-10-20');
+
+        $this->assertSame(2, $l->platillos_entregados, 'dos comidas, dos platillos entregados');
     }
 
     public function test_si_se_compro_menos_del_minimo_se_paga_la_diferencia(): void

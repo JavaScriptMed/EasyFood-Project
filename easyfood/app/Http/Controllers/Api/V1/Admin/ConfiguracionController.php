@@ -24,6 +24,9 @@ class ConfiguracionController extends Controller
             'regla_sin_eleccion' => 'required|in:ultimo_platillo,platillo_del_dia,no_entregar',
             'capacidad_auto_entregas' => 'required|integer|min:1|max:100000',
             'capacidad_auto_platillos' => 'required|integer|min:1|max:100000',
+            // Los de los indicadores del dashboard son opcionales: quien no los manda los deja como están.
+            'ahorro_apps_porcentaje' => ['sometimes', 'regex:/^(100|[0-9]{1,2})(\.[0-9]{1,2})?$/'],
+            'costo_maquila_limite' => ['sometimes', 'regex:/^[1-9][0-9]{0,5}(\.[0-9]{1,2})?$/'],
         ]);
 
         $antes = self::actual();
@@ -49,6 +52,7 @@ class ConfiguracionController extends Controller
             'hora_corte' => $v['hora_corte'] ?? '18:00', 'zona_horaria' => config('app.timezone'), 'dias_entrega' => $v['dias_entrega'] ?? 'lunes_sabado',
             'regla_sin_eleccion' => $v['regla_sin_eleccion'] ?? 'ultimo_platillo',
             'capacidad_auto_entregas' => (int) ($v['capacidad_auto_entregas'] ?? 30), 'capacidad_auto_platillos' => (int) ($v['capacidad_auto_platillos'] ?? 120),
+            'ahorro_apps_porcentaje' => (float) ($v['ahorro_apps_porcentaje'] ?? 30), 'costo_maquila_limite' => (float) ($v['costo_maquila_limite'] ?? 49),
         ];
     }
 }

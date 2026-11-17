@@ -1,0 +1,32 @@
+meta {
+  name: Costo con datos inválidos (rechazado)
+  type: http
+  seq: 7
+}
+
+post {
+  url: {{baseUrl}}/api/v1/admin/costos-operativos
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+body:json {
+  {
+    "fecha": "{{hoy}}",
+    "categoria": "viajes",
+    "descripcion": "Sin categoría válida",
+    "monto": 0
+  }
+}
+
+tests {
+  test("responde 422 con los errores", function () {
+    expect(res.getStatus()).to.equal(422);
+    expect(res.body.errores).to.have.property("monto");
+    expect(res.body.errores).to.have.property("categoria");
+  });
+}

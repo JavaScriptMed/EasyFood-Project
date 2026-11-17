@@ -11,7 +11,7 @@ import { borrar, ErrorApi, get, patch, post, put } from './http'
 import { leerSesion } from './sesion'
 import * as mock from './api-mock'
 import type {
-  BloqueHorario, CalendarioServicio, ClienteDetalle, ClienteResumen, ComedorDetalle, ConfiguracionOperacion, ConsumoDiario, ContratoPorVencer, Corte,
+  BloqueHorario, CalificacionPendiente, CostoOperativo, IndicadoresEmpresa, CalendarioServicio, ClienteDetalle, ClienteResumen, ComedorDetalle, ConfiguracionOperacion, ConsumoDiario, ContratoPorVencer, Corte,
   DashboardAdmin, DiaSinServicio, DisponibilidadConPlatillo, EleccionEmpleado, Empleado, EmpleadoDetalle, EmpresaDetalle, EntregaDetalle, FacturaConEmpresa,
   FacturaDetalle, FacturaMensual, FilaReporteProveedor, IncidenciaDetalle, LiquidacionComedor, LiquidacionConComedor, MensajeContacto, MensajeTicket,
   MenuSemanalDia, MiEleccion, MiMenu, OrdenProduccionDetalle, PedidoDetalle, PedidosMananaEmpresa, Plan, PlatilloDetalle, RegistroAuditoriaDetalle,
@@ -69,12 +69,15 @@ const ticket = (t: any): TicketResumen => ({ ...t, pedido_folio: t.pedido_folio 
 
 const real: typeof mock = {
   // ---- panel de administración
-  // El dashboard todavía no tiene endpoint: las cifras de resumen son de ejemplo y las alertas son las incidencias reales abiertas.
-  obtenerDashboard: async () => {
-    const alertas = await real.listarIncidencias({ abiertas: true })
-    const { resumen } = await mock.obtenerDashboard()
-    return { resumen, alertas, incidencias_del_dia: alertas.length, requieren_atencion: alertas.filter((i) => i.prioridad === 'inmediata').length } satisfies DashboardAdmin
-  },
+  // El dashboard (resumen del día, alertas y los 10 indicadores) se calcula en el backend en tiempo real.
+  obtenerDashboard: async () => leer<DashboardAdmin>('/api/v1/admin/dashboard'),
+  obtenerIndicadoresEmpresa: async () => leer<IndicadoresEmpresa>('/api/v1/empresa/indicadores'),
+  listarCostosOperativos: async (filtro = {}) => leer<CostoOperativo[]>('/api/v1/admin/costos-operativos', { desde: filtro.desde, hasta: filtro.hasta }),
+  registrarCostoOperativo: async (datos) => ids(await post<CostoOperativo>('/api/v1/admin/costos-operativos', datos)),
+  anularCostoOperativo: async (id) => ids(await post<CostoOperativo>(`/api/v1/admin/costos-operativos/${id}/anular`)),
+  listarCalificacionesPendientes: async () => leer<CalificacionPendiente[]>('/api/v1/empleado/calificaciones/pendientes'),
+  calificarEntrega: async (_empleado, datos) => { await post('/api/v1/empleado/calificaciones/entrega', datos) },
+  calificarPlatillo: async (_empleado, datos) => { await post('/api/v1/empleado/calificaciones/platillo', datos) },
   listarEntregas: async () => (await leer<any[]>('/api/v1/admin/entregas', { fecha: FECHA_OPERACION })) as EntregaDetalle[],
   listarIncidencias: async (filtro = {}) => (await leer<IncidenciaDetalle[]>('/api/v1/admin/incidencias', { abiertas: filtro.abiertas, fecha: filtro.fecha, tipos: filtro.tipos })),
   resolverIncidencia: async (id, nota) => ids(await post<IncidenciaDetalle>(`/api/v1/admin/incidencias/${id}/resolver`, { nota })),
@@ -333,3 +336,10 @@ export const cambiarEstadoRepartidor = elegir('cambiarEstadoRepartidor')
 export const guardarCapacidadesVehiculo = elegir('guardarCapacidadesVehiculo')
 export const editarUsuarioAcceso = elegir('editarUsuarioAcceso')
 export const cambiarEstadoUsuarioAcceso = elegir('cambiarEstadoUsuarioAcceso')
+export const obtenerIndicadoresEmpresa = elegir('obtenerIndicadoresEmpresa')
+export const listarCostosOperativos = elegir('listarCostosOperativos')
+export const registrarCostoOperativo = elegir('registrarCostoOperativo')
+export const anularCostoOperativo = elegir('anularCostoOperativo')
+export const listarCalificacionesPendientes = elegir('listarCalificacionesPendientes')
+export const calificarEntrega = elegir('calificarEntrega')
+export const calificarPlatillo = elegir('calificarPlatillo')

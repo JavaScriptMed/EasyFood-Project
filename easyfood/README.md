@@ -41,7 +41,7 @@ Corren contra la base `easylunch_pruebas` (nunca contra la de desarrollo: se bor
 | Empresas | `empresas`, `contratos_empresa`, `empleados` (los de las empresas cliente), `dias_sin_servicio` |
 | Operación diaria | `disponibilidad_dia`, `elecciones_empleado`, `cortes`, `ordenes_produccion`, `entregas_empresa` |
 | Reparto | `repartidores` (nuestro personal), `rutas`, `paradas`, `incidencias` |
-| Clientes individuales | `paquetes`, `pedidos`, `pedido_dias`, `tickets`, `mensajes_ticket` |
+| Clientes individuales | `paquetes`, `pedidos` (`comidas_por_dia`: 1 a 3; `con_extra`), `pedido_dias` (la entrega de un día), `pedido_dia_platillos` (un platillo por tiempo de comida, con su precio congelado), `tickets`, `mensajes_ticket` |
 | Dinero | `facturas_mensuales`, `liquidaciones_comedor` |
 | Sistema | `configuracion`, `registros_auditoria` (bitácora, solo se agrega), `mensajes_contacto`, `zonas`, `avisos`, `contadores_folio` |
 
@@ -52,13 +52,14 @@ Rutas en `routes/v1.php` (prefijo `/api/v1`), JSON en español y token Bearer de
 
 | Grupo (rol) | Prefijo | Construido | Solo ruta (501) |
 |---|---|---|---|
-| Panel de administración (`admin`; `support` en clientes, pedidos, tickets e incidencias) | `/admin` | empresas y comedores (lectura), renovar contratos, contratos por vencer, platillos (crear, editar, revisar), configuración, calendario, corte (y su vista previa), repartidores, rutas, entregas, incidencias, facturas, liquidaciones, reporte de proveedor, menú semanal, consumo de una empresa, clientes, pedidos, tickets, bitácora | dashboard, crear empresa, historial de precios, imágenes, crear repartidor, generar rutas, reasignar incidencias |
-| Portal de empresas (`company`) | `/empresa` | perfil, empleados (ver, activar/desactivar), pedidos de mañana, consumo, vista previa del mes en curso, facturas | agregar empleados |
+| Panel de administración (`admin`; `support` en clientes, pedidos, tickets e incidencias) | `/admin` | empresas y comedores (lectura), renovar contratos, contratos por vencer, platillos (crear, editar, revisar), configuración, calendario, corte (y su vista previa), repartidores, rutas, entregas, incidencias, facturas, liquidaciones, reporte de proveedor, menú semanal, consumo de una empresa, clientes, pedidos, tickets, bitácora, **dashboard con 10 indicadores en tiempo real** (`GET /admin/dashboard`, solo `admin`) y costos operativos (listar, registrar, anular) | crear empresa, historial de precios, imágenes, crear repartidor, generar rutas, reasignar incidencias |
+| Portal de empresas (`company`) | `/empresa` | perfil, empleados (ver, activar/desactivar), pedidos de mañana, consumo, vista previa del mes en curso, facturas, indicadores de RR. HH. (`GET /empresa/indicadores`) | agregar empleados |
 | Portal de comedores (`provider`) | `/comedor` | perfil, platillos, disponibilidad, producción, pagos | imágenes |
-| Portal de empleados (`employee`) | `/empleado` | menú, elegir/quitar platillo, historial | |
-| App móvil (`customer`) | `/cliente` | paquetes, menú semanal, direcciones, pedidos (pedir y pagar) | |
-| Cualquier rol con sesión | `/configuracion/operacion`, `/paquetes` | lectura de la configuración de operación y de los paquetes | |
-| Público | `/contacto`, `/cuentas` | formulario de contacto | invitaciones y restablecer contraseña (necesitan correo) |
+| Portal de empleados (`employee`) | `/empleado` | menú, elegir/quitar platillo, historial, calificar la entrega y el platillo que recibió | |
+| App móvil (`customer`) | `/cliente` | paquetes, menú semanal, direcciones, pedidos (pedir), pago con tarjeta (`POST /cliente/pedidos/{id}/pago`) | |
+| Administración y soporte | `/admin/pedidos/{id}/reembolso` | reembolso total de un pedido pagado con Stripe | |
+| Cualquier rol con sesión | `/configuracion/operacion`, `/paquetes`, `/calificaciones/menu-semanal` | lectura de la configuración de operación, de los paquetes y de la calificación semanal del menú | |
+| Público | `/contacto`, `/cuentas`, `/webhooks/stripe` | formulario de contacto, aviso de cobro de Stripe (se confía en su firma) | invitaciones y restablecer contraseña (necesitan correo) |
 
 Un endpoint «solo ruta» ya tiene su URL, su rol y su nombre, pero responde `501 { "codigo": "no_implementado" }` desde `NoImplementadoController` hasta que se construya; entonces solo se cambia su línea en `routes/v1.php`. `php artisan route:list --path=api/v1` muestra el mapa completo.
 
@@ -71,6 +72,68 @@ La carpeta [`bruno/`](bruno/README.md) es una colección de [Bruno](https://www.
 ```bash
 docker compose exec app php artisan db:seed --class=DatosDeEjemploSeeder
 ```
+
+## Pagos con Stripe (modo de prueba)
+
+El pedido de un cliente individual se paga con tarjeta. La app móvil llama a `POST /api/v1/cliente/pedidos/{id}/pago`, recibe el `client_secret` y cobra con el SDK de Stripe; cuando Stripe confirma, avisa a `POST /api/v1/webhooks/stripe`, que pasa el pedido a `recibido`. El pago simulado ya no existe como ruta.
+
+**Claves.** Solo en tu `.env` (nunca en el código ni en el repositorio; `.env` está en `.gitignore`):
+
+```
+STRIPE_SECRET=sk_test_...        # Dashboard de Stripe → Developers → API keys (modo de prueba)
+STRIPE_WEBHOOK_SECRET=whsec_...  # el que imprime `stripe listen` (abajo) o el del endpoint que crees en el Dashboard
+```
+
+Sin ellas, el pago y el webhook responden `503 pagos_no_configurados`. Después de cambiar el `.env`: `docker compose exec app php artisan config:clear`.
+
+**Probar el webhook en local con Stripe CLI.**
+
+1. Instala [Stripe CLI](https://docs.stripe.com/stripe-cli) y entra a tu cuenta de prueba: `stripe login`.
+2. Con el backend encendido (`docker compose up -d`, puerto 8000), reenvía los eventos a tu máquina:
+   ```bash
+   stripe listen --forward-to http://localhost:8000/api/v1/webhooks/stripe --events payment_intent.succeeded,payment_intent.payment_failed,charge.refunded
+   ```
+   Imprime `Your webhook signing secret is whsec_...`: cópialo a `STRIPE_WEBHOOK_SECRET` y limpia la configuración (paso anterior). Deja esa terminal abierta.
+3. Crea un pedido con Bruno (carpeta *04 · App móvil · clientes*, peticiones 11 y 13) o con la app. La respuesta de «Iniciar el pago» trae `payment_intent_id` y `client_secret`.
+4. Cobra ese intento con una tarjeta de prueba (sin la app):
+   ```bash
+   stripe payment_intents confirm pi_XXXX --payment-method pm_card_visa --return-url https://example.com
+   ```
+   (`pm_card_chargeDeclined` simula un pago rechazado.) En la terminal de `stripe listen` verás `payment_intent.succeeded → 200`, y el pedido pasa a `recibido` con `ultimos_digitos` `4242`.
+5. Reenvía el mismo evento con `stripe events resend evt_XXXX`: responde 200 con `resultado: repetido` y no cambia nada.
+
+`stripe trigger payment_intent.succeeded` también funciona, pero crea un cobro que no es de ningún pedido: queda como `ignorado`. Para ver lo que pasó, mira la tabla `stripe_eventos` y la bitácora (`pedido.pagado`, `pago.reembolso_manual`).
+
+**Atajo para probar a mano (solo desarrollo local).** `docker compose exec app php artisan pagos:preparar-prueba` crea un cliente de prueba con un pedido en `pendiente_pago` y te imprime el id del pedido, un token del cliente, el `curl` de `POST /api/v1/cliente/pedidos/{id}/pago` ya armado y el comando `stripe payment_intents confirm … --payment-method pm_card_visa`. Con `--con-intento` también crea el PaymentIntent en Stripe (usa tu `STRIPE_SECRET`) y el comando de confirmación sale con el `pi_…` real; `--url=` cambia la dirección del backend. Necesita las zonas y los datos de ejemplo cargados, no escribe nada en el repo (el token solo se imprime en la terminal) y se niega a correr fuera de `APP_ENV=local`.
+
+**Reembolsos.** Siempre son totales y no hay estado nuevo: un pedido reembolsado queda `cancelado` con `reembolsado_en`, `monto_reembolsado` (todo lo devuelto del cobro) y `stripe_refund_id`.
+
+- **Cobro que no se puede aplicar (automático).** Si llega `payment_intent.succeeded` sobre un pedido cancelado o vencido, el sistema reembolsa el cobro completo en Stripe (llave de idempotencia por intento), anota `pago.reembolsado_automatico` en la bitácora y el pedido no cambia. Si Stripe falla, anota `pago.reembolso_manual` (con el error) para hacerlo a mano. Un monto distinto al del pedido, o un segundo cobro sobre un pedido ya pagado, no se reembolsan solos: quedan como `pago.reembolso_manual`, porque no se sabe cuál es el cobro bueno.
+- **Por administración o soporte.** `POST /api/v1/admin/pedidos/{id}/reembolso` (solo `admin` y `support`): reembolsa lo que falta del cobro (nunca más de lo cobrado), cancela el pedido al momento y anota en la bitácora quién lo hizo (`pedido.reembolsado`). Una segunda llamada responde `422 pedido_ya_reembolsado`; un pedido sin pagar, `422 pedido_no_reembolsable`; si Stripe falla, `502 pasarela_con_error` y el pedido no cambia.
+- **Webhook `charge.refunded`.** Cubre los reembolsos hechos desde el Dashboard de Stripe: si el pedido está pagado, pasa a `cancelado` con los datos del reembolso; si el endpoint ya lo hizo, no repite nada. Un reembolso parcial no cancela: queda `pago.reembolso_parcial` en la bitácora. Agrega `charge.refunded` a `--events` en `stripe listen` (arriba) y para probarlo: `stripe refunds create --payment-intent=pi_XXXX`.
+
+**Reglas.** Se compara contra la hora del cargo, no la del webhook. Un pedido vencido no se puede empezar a pagar (`422 pedido_vencido`), pero el pago no lo cancela: lo cancela el corte. Si Stripe cobra algo que ya no se puede aplicar, el pedido no cambia y el cobro se reembolsa (ver Reembolsos). Las pruebas usan una pasarela falsa (`tests/Support/PasarelaFalsa.php`): ninguna llama a la red.
+
+## Dashboard e indicadores
+
+`GET /api/v1/admin/dashboard` (solo `admin`) devuelve el resumen del día, las alertas abiertas y los 10 indicadores, calculados al pedirlos (sin cachés ni tablas de resumen) en `App\Services\IndicadoresDelDashboard`. Las empresas ven los suyos en `GET /api/v1/empresa/indicadores` y cualquier rol con sesión, la calificación del menú en `GET /api/v1/calificaciones/menu-semanal`.
+
+**Periodos.** «Semana» = de lunes a domingo de la semana en curso; «mes» = el mes calendario en curso. Las series son de 6 semanas.
+
+| # | Indicador | Cómo se calcula |
+|---|---|---|
+| 1 | Platillos entregados por semana | Platillos de las entregas a empresas en estado `entregada` (lo mismo que cuenta la factura), por empresa y por día. |
+| 2 | Calificación de la entrega | Promedio simple de puntualidad, trato del chofer y empaque (1 a 5) de lo calificado esa semana por empleados y clientes. |
+| 3 | Calificación semanal del menú | Promedio simple de estrellas (1 a 5) al sabor y la calidad, también por cocina. |
+| 4 | Paquete más popular | Pedidos individuales pagados del mes por paquete (1, 2 o 6 días); si empatan, gana el de menos días. |
+| 5 | Ahorro estimado por empleado | Lo gastado en platillos entregados en el mes × el sobreprecio estimado de las apps de entrega (`ahorro_apps_porcentaje`, editable en Configuración; arranca en 30 %). |
+| 6 | Incidencias o quejas | Incidencias de la semana de tipo `comida_fria`, `platillo_danado` (empaque dañado) y `entrega_tardia`. |
+| 7 | Nuevos contratos B2B | Empresas cuyo **primer** contrato empezó este mes (las renovaciones no cuentan), con su mínimo mensual. |
+| 8 | Balance semanal de utilidad | Por entrega: ingresos (precio de cada platillo entregado; a clientes, con el descuento de su paquete) − pago a cocinas (su precio de contrato) − costos operativos registrados. |
+| 9 | Costo directo de maquila | Precio por platillo de cada cocina contra el tope `costo_maquila_limite` (arranca en $49); avisa si alguna lo excede. |
+| 10 | Estatus de facturación B2B | Semáforo del mes más reciente con facturas: verde pagada, rojo emitida y pendiente, gris sin emitir. |
+
+**Datos nuevos.** Calificaciones de la entrega y del platillo (1 a 5; solo de lo ya entregado, una vez por persona y dentro de 14 días, lo exige la base), costos operativos (se anulan, no se borran) y dos tipos nuevos de incidencia. Los empleados califican con `GET /empleado/calificaciones/pendientes`, `POST /empleado/calificaciones/entrega` y `/platillo`; los clientes, con `POST /cliente/pedidos/{id}/calificaciones/entrega` y `/platillo`. El administrador maneja los costos en `GET/POST /admin/costos-operativos` y `POST /admin/costos-operativos/{id}/anular`.
 
 ## Tareas automáticas
 
@@ -100,7 +163,9 @@ Viven en `app/Services` y cada una tiene su prueba en `tests/Feature/Negocio`. L
 | `EjecutorDelCorte` | Aplica la regla de quien no eligió, cierra elecciones, genera una orden por comedor y platillo, consolida una entrega por empresa y crea rutas por zona sin pasar la capacidad del auto. Idempotente: repetirlo deja un registro «sin_cambios». Si falla, no guarda nada. |
 | `GeneradorDeFacturas` | Total = parte empresa + parte empleados + diferencia por mínimo. Solo cuentan entregas «entregada»; el mes debe haber terminado. |
 | `GeneradorDeLiquidaciones` | Al comedor se le paga lo entregado más lo que faltó para su mínimo, a su precio fijo. |
-| `ContratacionDePaquetes` | Paquetes de 1, 2 o 6 días de servicio; precio congelado por día, descuento del paquete, pago simulado. La dirección debe tener cobertura. Un pedido por pagar vence en el corte de su primer día (`vence_pago_en`, `segundos_para_pagar`) y se cancela. |
+| `ContratacionDePaquetes` | Paquetes de 1, 2 o 6 días de servicio con 1, 2 o 3 comidas por día (un platillo por tiempo de comida, los mismos tiempos todos los días, más un extra opcional por día); precio congelado por platillo, descuento del paquete. El pago de verdad lo confirma Stripe (`PagosDePedidos`); `pagar()` es un pago simulado interno, sin ruta, para el seeder y las pruebas. La dirección debe tener cobertura. Un pedido por pagar vence en el corte de su primer día (`vence_pago_en`, `segundos_para_pagar`) y se cancela. |
+| `PagosDePedidos` | Pago con tarjeta con Stripe (modo de prueba). `iniciar()` crea un PaymentIntent por el total en MXN (solo pedido propio, por pagar y sin vencer) y no cambia el pedido; `procesarEvento()` atiende el webhook: idempotente (`stripe_eventos`), pasa el pedido a «recibido» con la hora del cargo y los últimos 4 dígitos, y procesa `charge.refunded`. Un pago fallido no cambia nada; un cobro sobre un pedido cancelado o vencido se reembolsa solo (el pedido no cambia); un monto distinto o un segundo cobro de un pedido ya pagado quedan en la bitácora (`pago.reembolso_manual`) para hacerlo a mano. Nunca se guardan datos de tarjeta. |
+| `ReembolsosDePedidos` | Reembolso total de pedidos pagados con Stripe: por administración o soporte, automático para cobros que no se pueden aplicar, o hecho desde Stripe (`charge.refunded`). Sin estado nuevo (el pedido queda «cancelado» con `reembolsado_en`, `monto_reembolsado`, `stripe_refund_id`), sin doble reembolso y nunca más de lo cobrado. |
 | `AvisosDeVencimiento` | Avisa a la empresa y a los administradores de los contratos que vencen en el mes en curso o en los 7 días siguientes (tabla `avisos`). |
 | `Folios` | Consecutivos `EL-AAAAMM-NNN` y `GDL-AAAAMMDD-NNNN` sin repetirse aunque dos procesos pidan folio a la vez (tabla `contadores_folio`). |
 

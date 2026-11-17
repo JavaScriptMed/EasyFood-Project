@@ -187,6 +187,8 @@ class RestriccionesDeEsquemaTest extends TestCase
             'dias_entrega' => 'lunes_sabado',
             'capacidad_auto_entregas' => '30',
             'capacidad_auto_platillos' => '120',
+            'ahorro_apps_porcentaje' => '30',
+            'costo_maquila_limite' => '49',
         ], DB::table('configuracion')->pluck('valor', 'clave')->all());
     }
 

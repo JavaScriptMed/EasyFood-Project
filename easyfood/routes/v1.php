@@ -15,11 +15,13 @@
 use App\Http\Controllers\Api\V1\Admin;
 use App\Http\Controllers\Api\V1\Cliente;
 use App\Http\Controllers\Api\V1\Comedor;
+use App\Http\Controllers\Api\V1\CalificacionMenuController;
 use App\Http\Controllers\Api\V1\ContactoController;
 use App\Http\Controllers\Api\V1\Empleado;
 use App\Http\Controllers\Api\V1\Empresa;
 use App\Http\Controllers\Api\V1\MenuSemanalController;
 use App\Http\Controllers\Api\V1\NoImplementadoController as Pendiente;
+use App\Http\Controllers\Api\V1\Webhooks;
 use Illuminate\Support\Facades\Route;
 
 // Los ids de la API son numéricos.
@@ -27,6 +29,9 @@ Route::pattern('id', '[0-9]+');
 
 // ---------------------------------------------------------------------------------------------- público
 Route::post('contacto', [ContactoController::class, 'store'])->middleware('throttle:10,1')->name('v1.contacto.store');
+
+// Stripe avisa aquí cuando se cobra un pedido. Público: se confía en la firma del webhook, no en un token.
+Route::post('webhooks/stripe', [Webhooks\StripeController::class, 'recibir'])->middleware('throttle:300,1')->name('v1.webhooks.stripe');
 
 // Cuentas: invitaciones y restablecer contraseña (PENDIENTE: requieren correo y tokens).
 Route::prefix('cuentas')->middleware('throttle:10,1')->name('v1.cuentas.')->group(function () {
@@ -42,6 +47,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // De solo lectura y para cualquier persona con sesión: lo que el front necesita mostrar en todos los portales.
     Route::get('configuracion/operacion', [Admin\ConfiguracionController::class, 'show'])->name('v1.configuracion.operacion'); // hora de corte, días de entrega…
     Route::get('paquetes', [Cliente\PaqueteController::class, 'index'])->name('v1.paquetes.index');
+    Route::get('calificaciones/menu-semanal', [CalificacionMenuController::class, 'show'])->name('v1.calificaciones.menu-semanal'); // promedio de estrellas del menú, en tiempo real
 
     // Invitar y reenviar (PENDIENTE): los usa el administrador, la empresa y el comedor con su propio alcance.
     Route::middleware('role:admin,company,provider')->group(function () {
@@ -54,7 +60,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::prefix('admin')->name('v1.admin.')->group(function () {
 
         Route::middleware('role:admin')->group(function () {
-            Route::get('dashboard', Pendiente::class)->name('dashboard');                                  // PENDIENTE · obtenerDashboard
+            Route::get('dashboard', [Admin\DashboardController::class, 'show'])->name('dashboard');
+            Route::get('costos-operativos', [Admin\CostoOperativoController::class, 'index'])->name('costos-operativos.index');
+            Route::post('costos-operativos', [Admin\CostoOperativoController::class, 'store'])->name('costos-operativos.store');
+            Route::post('costos-operativos/{id}/anular', [Admin\CostoOperativoController::class, 'anular'])->name('costos-operativos.anular');
 
             Route::get('empresas', [Admin\EmpresaController::class, 'index'])->name('empresas.index');
             Route::get('empresas/{id}', [Admin\EmpresaController::class, 'show'])->name('empresas.show');
@@ -121,6 +130,7 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('clientes', [Admin\ClienteController::class, 'index'])->name('clientes.index');
             Route::get('clientes/{id}', [Admin\ClienteController::class, 'show'])->name('clientes.show');
             Route::get('pedidos', [Admin\PedidoController::class, 'index'])->name('pedidos.index');
+            Route::post('pedidos/{id}/reembolso', [Admin\PedidoController::class, 'reembolsar'])->name('pedidos.reembolso');
             Route::get('tickets', [Admin\TicketController::class, 'index'])->name('tickets.index');
             Route::get('tickets/{id}', [Admin\TicketController::class, 'show'])->name('tickets.show');
             Route::post('tickets/{id}/mensajes', [Admin\TicketController::class, 'mensaje'])->name('tickets.mensaje');
@@ -134,6 +144,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('empleados', Pendiente::class)->name('empleados.store');                               // PENDIENTE · agregarEmpleados (usuarios + invitaciones)
         Route::patch('empleados/{id}/estado', [Empresa\EmpleadoController::class, 'estado'])->name('empleados.estado');
         Route::get('pedidos-de-manana', [Empresa\PedidosMananaController::class, 'index'])->name('pedidos-de-manana');
+        Route::get('indicadores', [Empresa\IndicadoresController::class, 'show'])->name('indicadores');
         Route::get('consumo', [Empresa\ConsumoController::class, 'index'])->name('consumo');
         Route::get('facturas', [Empresa\FacturaController::class, 'index'])->name('facturas.index');
         Route::get('facturas/vista-previa', [Empresa\FacturaController::class, 'vistaPrevia'])->name('facturas.vista-previa');
@@ -160,6 +171,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('elecciones', [Empleado\EleccionController::class, 'index'])->name('elecciones.index');
         Route::put('elecciones', [Empleado\EleccionController::class, 'elegir'])->name('elecciones.elegir');
         Route::delete('elecciones', [Empleado\EleccionController::class, 'quitar'])->name('elecciones.quitar');
+        Route::get('calificaciones/pendientes', [Empleado\CalificacionController::class, 'pendientes'])->name('calificaciones.pendientes');
+        Route::post('calificaciones/entrega', [Empleado\CalificacionController::class, 'entrega'])->name('calificaciones.entrega');
+        Route::post('calificaciones/platillo', [Empleado\CalificacionController::class, 'platillo'])->name('calificaciones.platillo');
     });
 
     // ------------------------------------------------------------------------------------------ app móvil (clientes)
@@ -173,6 +187,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('pedidos', [Cliente\PedidoController::class, 'index'])->name('pedidos.index');
         Route::post('pedidos', [Cliente\PedidoController::class, 'store'])->name('pedidos.store');
         Route::get('pedidos/{id}', [Cliente\PedidoController::class, 'show'])->name('pedidos.show');
-        Route::post('pedidos/{id}/pagar', [Cliente\PedidoController::class, 'pagar'])->name('pedidos.pagar');
+        Route::post('pedidos/{id}/pago', [Cliente\PagoController::class, 'store'])->name('pedidos.pago');
+        Route::post('pedidos/{id}/calificaciones/entrega', [Cliente\CalificacionController::class, 'entrega'])->name('pedidos.calificaciones.entrega');
+        Route::post('pedidos/{id}/calificaciones/platillo', [Cliente\CalificacionController::class, 'platillo'])->name('pedidos.calificaciones.platillo');
     });
 });

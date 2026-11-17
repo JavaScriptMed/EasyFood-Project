@@ -1,0 +1,31 @@
+meta {
+  name: Calificar con estrellas inválidas (rechazado)
+  type: http
+  seq: 13
+}
+
+post {
+  url: {{baseUrl}}/api/v1/empleado/calificaciones/entrega
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenEmpleado}}
+}
+
+body:json {
+  {
+    "fecha": "{{fechaCalificar}}",
+    "puntualidad": 7,
+    "trato_chofer": 4,
+    "empaque": 4
+  }
+}
+
+tests {
+  test("responde 422", function () {
+    expect(res.getStatus()).to.equal(422);
+    expect(res.body.errores).to.have.property("puntualidad");
+  });
+}

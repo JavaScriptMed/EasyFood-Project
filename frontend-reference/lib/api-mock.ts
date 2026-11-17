@@ -10,9 +10,10 @@ import { errorDeContrasena } from './contrasena'
 import { diasEntre, etiquetaMes, sumarDias, sumarMeses } from './format'
 import { PORTALES, portalDeRol } from './portales'
 import * as db from './mock-data'
+import * as ind from './mock-indicadores'
 import type {
   CalendarioServicio, CambioDisponibilidad, CandidatoReasignacion, ContratoPorVencer, FiltroBitacora, IncidenciaDetalle, TipoIncidencia, Comedor, ComedorDetalle, ConfiguracionOperacion, Corte, DiaSinServicio, EntregaEmpresa, VistaPreviaCorte, DashboardAdmin, DisponibilidadConPlatillo, EleccionEmpleado, Empleado, EmpleadoDetalle, Empresa, EmpresaDetalle,
-  ProgramarPrecio, EdicionComedor, EdicionEmpleado, EdicionEmpresa, EdicionPlan, EdicionRepartidor, EdicionUsuarioAcceso, EntregaDetalle, EstadoContrato, FacturaConEmpresa, FacturaDetalle, FacturaMensual, FilaReporteProveedor, GuardarPlatillo, HistorialPrecio,
+  CalificacionPendiente, CalificarEntrega, CalificarPlatillo, CostoOperativo, IndicadoresEmpresa, NuevoCostoOperativo, ProgramarPrecio, EdicionComedor, EdicionEmpleado, EdicionEmpresa, EdicionPlan, EdicionRepartidor, EdicionUsuarioAcceso, EntregaDetalle, EstadoContrato, FacturaConEmpresa, FacturaDetalle, FacturaMensual, FilaReporteProveedor, GuardarPlatillo, HistorialPrecio,
   LiquidacionComedor, LiquidacionConComedor, MenuSemanalDia, MensajeTicket, NuevaEmpresa, NuevoRepartidor, OrdenProduccionDetalle, PedidoDetalle,
   PedidosMananaEmpresa, Plan, Platillo, PlatilloDetalle, RegistroAuditoriaDetalle, RepartidorDetalle, ResultadoAltaEmpleados, ResultadoCorte, RutaDetalle,
   MensajeContacto, NuevoMensajeContacto, ClienteDetalle, ClienteResumen, ConsumoDiario, EstadoInvitacion, Incidencia, MiEleccion, MiMenu, OpcionMenu, InvitacionDetalle, InvitacionPublica, Invitacion, NuevaInvitacion, Portal, ResultadoAceptacion, SolicitudRestablecimiento, TipoOrganizacion, UsuarioAcceso, ValidacionToken, RegistroAuditoria, Repartidor, Ruta, TicketDetalle, TicketResumen, TiempoComida, TipoVehiculo, Usuario, UsuarioResumen,
@@ -60,7 +61,59 @@ function estadoContrato(vigencia_fin: string): EstadoContrato {
 
 export const obtenerDashboard = () => llamar<DashboardAdmin>(() => {
   const alertas = db.incidencias.filter((i) => i.estado === 'abierta')
-  return { resumen: db.resumen_dashboard, alertas, incidencias_del_dia: db.incidencias.length, requieren_atencion: alertas.filter((i) => i.prioridad === 'inmediata').length }
+  return { resumen: db.resumen_dashboard, alertas, incidencias_del_dia: db.incidencias.length, requieren_atencion: alertas.filter((i) => i.prioridad === 'inmediata').length, indicadores: ind.indicadoresAdmin() }
+})
+
+/** Los indicadores de RR. HH. de la propia empresa (platillos entregados, calificaciones, ahorro por empleado, quejas y facturación). */
+export const obtenerIndicadoresEmpresa = (empresa_id: string) => llamar<IndicadoresEmpresa>(() => ind.indicadoresEmpresa(empresa_id))
+
+// ---------------------------------------------------------------- costos operativos (entran al balance de utilidad)
+
+export const listarCostosOperativos = (filtro: { desde?: string; hasta?: string } = {}) => llamar<CostoOperativo[]>(() =>
+  ind.costos_operativos.filter((c) => (!filtro.desde || c.fecha >= filtro.desde) && (!filtro.hasta || c.fecha <= filtro.hasta)).sort((a, b) => b.fecha.localeCompare(a.fecha) || b.id.localeCompare(a.id)))
+
+export const registrarCostoOperativo = (datos: NuevoCostoOperativo) => llamar<CostoOperativo>(() => {
+  if (!(datos.monto > 0)) throw new Error('El monto debe ser mayor a cero.')
+  if (datos.descripcion.trim().length < 3) throw new Error('Describe el gasto (mínimo 3 letras).')
+  if (!datos.fecha || datos.fecha > FECHA_HOY) throw new Error('La fecha no puede ser futura.')
+  const costo: CostoOperativo = { id: siguienteId('COS-', ind.costos_operativos.map((c) => c.id)), fecha: datos.fecha, categoria: datos.categoria, descripcion: datos.descripcion.trim(), monto: Math.round(datos.monto * 100) / 100, registrado_por: nombreDe(USUARIO_ACTUAL_ID), activo: true }
+  ind.costos_operativos.push(costo)
+  auditar('registrar', 'costo_operativo', costo.id, `Registró un costo de $${costo.monto} (${costo.categoria}): ${costo.descripcion}`)
+  return costo
+})
+
+/** Un costo anulado queda en el historial, pero ya no cuenta en el balance. */
+export const anularCostoOperativo = (id: string) => llamar<CostoOperativo>(() => {
+  const costo = ind.costos_operativos.find((c) => c.id === id)
+  if (!costo) throw new Error('El costo no existe.')
+  if (!costo.activo) throw new Error('Ese costo ya está anulado.')
+  costo.activo = false
+  auditar('anular', 'costo_operativo', id, `Anuló el costo de $${costo.monto} (${costo.categoria})`)
+  return costo
+})
+
+// ---------------------------------------------------------------- calificaciones del empleado (entrega y platillo)
+
+/** Lo que el empleado ya recibió (últimos 14 días) y todavía no califica. */
+export const listarCalificacionesPendientes = (_empleado_id: string) => llamar<CalificacionPendiente[]>(() =>
+  ind.calificaciones_pendientes.filter((d) => !d.entrega_calificada || d.platillos.some((p) => !p.calificado)))
+
+const estrellasValidas = (...valores: number[]) => valores.every((n) => Number.isInteger(n) && n >= 1 && n <= 5)
+
+export const calificarEntrega = (_empleado_id: string, datos: CalificarEntrega) => llamar<void>(() => {
+  if (!estrellasValidas(datos.puntualidad, datos.trato_chofer, datos.empaque)) throw new Error('Califica de 1 a 5 estrellas.')
+  const dia = ind.calificaciones_pendientes.find((d) => d.fecha === datos.fecha)
+  if (!dia) throw new Error('Solo se califica una entrega que ya recibiste.')
+  if (dia.entrega_calificada) throw new Error('Ya calificaste esta entrega.')
+  dia.entrega_calificada = true
+})
+
+export const calificarPlatillo = (_empleado_id: string, datos: CalificarPlatillo) => llamar<void>(() => {
+  if (!estrellasValidas(datos.estrellas)) throw new Error('Califica de 1 a 5 estrellas.')
+  const platillo = ind.calificaciones_pendientes.find((d) => d.fecha === datos.fecha)?.platillos.find((p) => p.tiempo_comida === datos.tiempo_comida)
+  if (!platillo) throw new Error('Solo se califica un platillo que ya recibiste.')
+  if (platillo.calificado) throw new Error('Ya calificaste este platillo.')
+  platillo.calificado = true
 })
 
 export const listarEntregas = () => llamar<EntregaDetalle[]>(() => db.entregas_empresa.map((e) => ({ ...e, empresa_nombre: db.empresas.find((x) => x.id === e.empresa_id)?.nombre ?? e.empresa_id })))

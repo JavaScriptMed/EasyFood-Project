@@ -11,7 +11,10 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        // Pasarela de pagos: Stripe, con las claves de .env. Las pruebas la reemplazan por una falsa (sin red).
+        $this->app->singleton(\App\Services\Pagos\PasarelaDePagos::class, fn () => new \App\Services\Pagos\PasarelaStripe(
+            config('services.stripe.secret'), config('services.stripe.webhook_secret'),
+        ));
     }
 
     /**

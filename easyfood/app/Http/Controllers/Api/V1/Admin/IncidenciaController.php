@@ -16,7 +16,7 @@ class IncidenciaController extends Controller
     {
         $f = $request->validate([
             'abiertas' => 'nullable|boolean', 'fecha' => 'nullable|date_format:Y-m-d', 'tipos' => 'nullable|array',
-            'tipos.*' => 'in:falta_repartidores,pago_pendiente,ruta_excede_bloque,entrega_no_localizada,empresa_cerrada,empleado_ausente,repartidor_no_llego,platillo_danado,otro',
+            'tipos.*' => 'in:falta_repartidores,pago_pendiente,ruta_excede_bloque,entrega_no_localizada,empresa_cerrada,empleado_ausente,repartidor_no_llego,platillo_danado,comida_fria,entrega_tardia,otro',
         ]);
 
         $incidencias = Incidencia::query()->with(['ruta.repartidor.usuario'])

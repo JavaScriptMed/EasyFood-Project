@@ -92,6 +92,32 @@ class RutasConClientesIndividualesTest extends TestCase
         $this->assertNull($corte->mensaje);
     }
 
+    public function test_un_pedido_con_tres_comidas_es_una_sola_parada_pero_cada_platillo_cuenta_en_produccion(): void
+    {
+        $desayuno = $this->platillo(null, 'desayuno');
+        $comida = $this->platillo(null, 'comida');
+        $cena = $this->platillo(null, 'cena');
+        foreach ([$desayuno, $comida, $cena] as $menu) {
+            $this->disponible($menu, self::ENTREGA, 50);
+        }
+        $cliente = User::findOrFail($this->usuario());
+        $direccion = Address::create(['user_id' => $cliente->id, 'street_address' => 'Av. Vallarta 100', 'latitude' => 20.67, 'longitude' => -103.35]);
+        $paquete = Paquete::create(['nombre' => 'Un día', 'dias' => 1, 'descuento_porcentaje' => 0]);
+        $servicio = app(ContratacionDePaquetes::class);
+        $pedido = $servicio->pedir($cliente, $paquete, $direccion, [['desayuno' => $desayuno, 'comida' => $comida, 'cena' => $cena]]);
+        $servicio->pagar($pedido, 'tarjeta', '4821');
+        $this->repartidorEn('Centro');
+
+        $this->corte();
+
+        $this->assertSame(1, Parada::count(), 'las tres comidas viajan juntas');
+        $ruta = Ruta::sole();
+        $this->assertSame([1, 1], [$ruta->entregas_asignadas, $ruta->platillos_asignados]);
+        $ordenes = DB::table('ordenes_produccion')->orderBy('menu_id')->get();
+        $this->assertCount(3, $ordenes, 'una orden de producción por platillo');
+        $this->assertSame([1, 1, 1], $ordenes->pluck('porciones_individuales')->map(fn ($n) => (int) $n)->all());
+    }
+
     public function test_un_pedido_por_pagar_no_entra_a_la_ruta(): void
     {
         $menu = $this->menuDisponible();

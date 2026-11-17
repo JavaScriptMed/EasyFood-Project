@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\ContratoEmpresa;
 use App\Models\EleccionEmpleado;
 use App\Models\Pedido;
+use App\Models\User;
 use Database\Seeders\DatosDeEjemploSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -44,7 +45,7 @@ class DatosDeEjemploTest extends TestCase
     {
         $this->cargar();
 
-        $this->assertSame([2, 2, 2, 6, 2, 2], [DB::table('providers')->count(), DB::table('empresas')->count(), DB::table('repartidores')->count(),
+        $this->assertSame([2, 3, 2, 6, 2, 2], [DB::table('providers')->count(), DB::table('empresas')->count(), DB::table('repartidores')->count(),
             DB::table('empleados')->count(), DB::table('users')->where('role_id', 1)->count(), DB::table('contratos_comedor')->count()]);
         $this->assertGreaterThan(5, DB::table('menus')->where('estado_revision', 'publicado')->count());
         foreach (['en_revision', 'borrador', 'rechazado'] as $estado) {
@@ -53,7 +54,7 @@ class DatosDeEjemploTest extends TestCase
         $this->assertSame(3, DB::table('paquetes')->count());
         $this->assertGreaterThan(60, DB::table('elecciones_empleado')->count(), 'historial del mes pasado');
         $this->assertGreaterThan(0, DB::table('entregas_empresa')->where('estado', 'entregada')->count());
-        $this->assertSame(2, DB::table('incidencias')->count());
+        $this->assertGreaterThan(2, DB::table('incidencias')->count(), 'las 2 de soporte y las quejas del dashboard');
         $this->assertSame(1, DB::table('tickets')->count());
         $this->assertSame(3, DB::table('zonas')->count());
         $this->assertGreaterThan(0, DB::table('disponibilidad_dia')->where('es_platillo_del_dia', true)->count());
@@ -64,8 +65,9 @@ class DatosDeEjemploTest extends TestCase
         $this->cargar();
 
         $this->assertSame(3, EleccionEmpleado::whereDate('fecha', '2026-11-12')->where('origen', 'manual')->count());
-        $this->assertSame(['pendiente_pago', 'recibido'], Pedido::orderBy('estado')->pluck('estado')->sort()->values()->all());
-        $this->assertSame(1, Pedido::where('estado', 'pendiente_pago')->whereNotNull('vence_pago_en')->count());
+        $this->assertSame(1, Pedido::where('estado', 'pendiente_pago')->whereNotNull('vence_pago_en')->count(), 'uno por pagar, con su plazo');
+        $this->assertGreaterThanOrEqual(1, Pedido::where('estado', 'recibido')->count(), 'y pagados');
+        $this->assertGreaterThanOrEqual(1, Pedido::where('estado', 'completado')->count(), 'y entregados, de las últimas semanas');
     }
 
     public function test_las_direcciones_de_ejemplo_calculan_su_zona(): void
@@ -103,6 +105,52 @@ class DatosDeEjemploTest extends TestCase
         $this->assertGreaterThan(0, count($corte['empleados_por_defecto']), 'los que no eligieron reciben la regla sin elección');
         $this->assertSame($corte['corte']['empleados_por_defecto'], count($corte['empleados_por_defecto']));
         $this->assertGreaterThan(0, $corte['entregas_consolidadas']);
+    }
+
+    public function test_cada_platillo_tiene_su_categoria_del_catalogo_y_los_catalogos_traen_sus_items(): void
+    {
+        $this->cargar();
+
+        $this->assertSame(0, DB::table('menus')->whereNull('category_id')->count(), 'todos los platillos tienen categoría');
+        $this->assertGreaterThanOrEqual(3, DB::table('menus')->distinct()->count('category_id'), 'hay variedad de categorías');
+        foreach (['TIEMPOS_COMIDA' => 3, 'ALERGENOS' => 5, 'DIETAS' => 4] as $codigo => $items) {
+            $categoria = DB::table('catalog_categories')->where('code', $codigo)->first();
+            $this->assertNotNull($categoria, $codigo);
+            $this->assertSame($items, DB::table('catalog_items')->where('category_id', $categoria->id)->count(), $codigo);
+        }
+    }
+
+    public function test_los_pedidos_de_ejemplo_llevan_2_y_3_comidas_por_dia(): void
+    {
+        $this->cargar();
+
+        $cecilia = Pedido::where('cliente_id', User::where('email', 'cliente@easylunch.test')->value('id'))->orderBy('id')->first();
+        $daniel = Pedido::where('cliente_id', User::where('email', 'cliente2@easylunch.test')->value('id'))->orderBy('id')->first();
+        $this->assertSame([2, false, 3, true], [$cecilia->comidas_por_dia, (bool) $cecilia->con_extra, $daniel->comidas_por_dia, (bool) $daniel->con_extra], 'Cecilia 2 comidas; Daniel 3 y un extra');
+        foreach (Pedido::with('dias.platillos')->get() as $pedido) {
+            foreach ($pedido->dias as $dia) {
+                $this->assertCount($pedido->comidas_por_dia + (int) $pedido->con_extra, $dia->platillos, "{$pedido->folio} · {$dia->fecha->toDateString()}");
+            }
+        }
+    }
+
+    public function test_los_datos_de_ejemplo_llenan_los_10_indicadores_del_dashboard(): void
+    {
+        $this->cargar();
+        $admin = $this->entrar('admin@easylunch.test');
+
+        $i = $this->withToken($admin)->getJson('/api/v1/admin/dashboard')->assertOk()->json('indicadores');
+
+        $this->assertGreaterThan(0, $i['platillos_entregados']['semana'] + array_sum(array_column($i['platillos_entregados']['serie'], 'platillos')), '1 platillos entregados');
+        $this->assertGreaterThan(0, $i['calificacion_entrega']['calificaciones'] + array_sum(array_column($i['calificacion_entrega']['serie'], 'calificaciones')), '2 calificación de la entrega');
+        $this->assertGreaterThan(0, array_sum(array_column($i['calificacion_menu']['serie'], 'calificaciones')), '3 calificación del menú');
+        $this->assertSame('Dos días', $i['paquete_popular']['paquete']['nombre'], '4 paquete más popular');
+        $this->assertGreaterThan(0, $i['ahorro_estimado']['por_empleado_promedio'], '5 ahorro por empleado');
+        $this->assertGreaterThan(0, array_sum(array_column($i['incidencias']['serie'], 'total')), '6 quejas');
+        $this->assertSame('Grupo Alameda', $i['contratos_nuevos']['contratos'][0]['empresa'], '7 contratos nuevos');
+        $this->assertCount(6, $i['balance']['serie'], '8 balance');
+        $this->assertTrue($i['costo_maquila']['en_limite'], '9 maquila dentro de $49');
+        $this->assertSame([1, 1], [$i['facturacion_b2b']['pagadas'], $i['facturacion_b2b']['pendientes']], '10 semáforo: una verde y una roja');
     }
 
     public function test_cargarlo_dos_veces_no_duplica_nada(): void

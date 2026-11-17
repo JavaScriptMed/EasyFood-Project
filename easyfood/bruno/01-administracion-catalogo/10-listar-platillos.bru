@@ -17,6 +17,9 @@ auth:bearer {
 script:post-response {
   const pub = res.body.filter(p => p.estado_revision === "publicado" && p.tiempo_comida === "comida");
   if (pub.length) { bru.setVar("platilloComidaId", pub[0].id); bru.setVar("platilloComidaId2", (pub[1] || pub[0]).id); bru.setVar("platilloComidaId3", (pub[2] || pub[0]).id); }
+  const de = (t) => res.body.find(p => p.estado_revision === "publicado" && p.tiempo_comida === t);
+  if (de("desayuno")) bru.setVar("platilloDesayunoId", de("desayuno").id);
+  if (de("cena")) bru.setVar("platilloCenaId", de("cena").id);
 }
 
 tests {

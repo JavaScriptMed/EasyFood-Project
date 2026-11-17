@@ -23,10 +23,11 @@ Para empezar de cero otra vez: `docker compose exec app php artisan migrate:fres
 | Cuentas (todas con `SEED_PASSWORD`) | `admin@easylunch.test` · `soporte@easylunch.test` · `comedor@easylunch.test` (Cocina Norte) · `comedor.sur@easylunch.test` (Sabor Casero Centro) · `rrhh@nexo.test` (Grupo Industrial Nexo) · `rrhh@pacifico.test` · `ana@nexo.test` y 5 empleados más · `cliente@easylunch.test` · `cliente2@easylunch.test` · `repartidor@easylunch.test` · `repartidor2@easylunch.test` |
 | Zonas | Centro, Zapopan y Tlaquepaque (rectángulos **aproximados**, solo de ejemplo) |
 | Contratos | Nexo (subsidio 60 %, mínimo 420) y Pacífico (50 %, mínimo 300, **vence en 12 días**); comedores a $49 con mínimo de 200 (Sabor Casero **vence en 20 días**) |
-| Platillos | 9 publicados, 1 en revisión, 1 borrador y 1 rechazado; con porciones y «platillo del día» para los próximos 8 días de servicio |
+| Platillos | 9 publicados, 1 en revisión, 1 borrador y 1 rechazado, cada uno con su categoría del catálogo (plato fuerte, sopa y caldo, antojito, sándwich); con porciones y «platillo del día» para los próximos 8 días de servicio |
+| Catálogos | Categorías de platillo y catálogos de tiempos de comida, alérgenos y dietas con sus items |
 | Historial | 12 días de servicio del mes pasado entregados (para facturar y liquidar) y 3 días recientes (para «último platillo») |
 | Próxima entrega | Ana, Beto y Elena ya eligieron; los demás los resuelve la regla «sin elección» al hacer el corte |
-| Clientes | 3 paquetes (1, 2 y 6 días), 3 direcciones (una **sin cobertura**), un pedido pagado y otro por pagar, un ticket |
+| Clientes | 3 paquetes (1, 2 y 6 días), 3 direcciones (una **sin cobertura**), un pedido pagado (2 días con desayuno y comida) y otro por pagar (1 día con desayuno, comida, cena y un extra), un ticket |
 | Soporte | 2 incidencias abiertas, un festivo futuro, un mensaje de contacto |
 
 Las fechas son relativas a hoy, así que el ejemplo siempre sirve.
@@ -48,12 +49,13 @@ Clic derecho en la colección → **Run**, o corre carpeta por carpeta. **Empiez
 | 01 | Administración · catálogo | Empresas, comedores, contratos por vencer, crear/editar/aprobar/rechazar platillos |
 | 02 | Administración · configuración y calendario | Hora de corte, capacidad del auto, días sin servicio y cierres de empresa |
 | 03 | Portal de empleados | Menú, elegir, cambiar y quitar platillo; el precio y el subsidio se congelan al elegir |
-| 04 | App móvil · clientes | Paquetes, direcciones (zona automática y «sin cobertura») y pedidos con pago simulado |
+| 04 | App móvil · clientes | Paquetes, direcciones (zona automática y «sin cobertura») y pedidos (el pago es con Stripe en modo de prueba: sin claves, «iniciar el pago» responde 503) |
 | 05 | Portal de comedores | Perfil, platillos, porciones por día, pagos |
 | 06 | **Corte y reparto** | **Ejecutar el corte**: cierra elecciones, órdenes de producción, entregas por empresa, rutas por zona e incidencias |
 | 07 | Administración · dinero | Facturas a empresas y liquidaciones a comedores (total, partes y diferencia por mínimo) |
 | 08 | Portal de empresas | Empleados (activar/desactivar) y facturas propias |
-| 09 | Administración · clientes y soporte | Clientes, pedidos, tickets |
+| 13 | Dashboard e indicadores | Dashboard del administrador (10 indicadores), costos operativos, indicadores de RR. HH., calificación del menú y captura de calificaciones |
+| 09 | Administración · clientes y soporte | Clientes, pedidos, tickets y reembolso de un pedido pagado con Stripe |
 | 10 | Administración · bitácora | Todo lo que hicieron las carpetas anteriores |
 | 11 | Público y errores de ejemplo | Contacto y ejemplos de 401, 403, 404 y 422 |
 | 12 | Pendientes (501) | Los 18 endpoints configurados pero **todavía no construidos**: deben responder 501 |
@@ -72,7 +74,7 @@ Conéctate a PostgreSQL con DBeaver o TablePlus: `127.0.0.1:5432`, base `easylun
 
 - **Elegir platillo** → `elecciones_empleado` (`precio_congelado`, `porcentaje_subsidio_congelado`) y `disponibilidad_dia.porciones_tomadas`.
 - **Dirección** → `addresses` (`zona`, `sin_cobertura`, `ubicacion`).
-- **Pedido** → `pedidos` (`vence_pago_en`) y `pedido_dias`.
+- **Pedido** → `pedidos` (`vence_pago_en`, `comidas_por_dia`), `pedido_dias` (la entrega de cada día) y `pedido_dia_platillos` (un platillo por comida).
 - **Corte** → `cortes`, `ordenes_produccion`, `entregas_empresa`, `rutas`, `paradas`, `incidencias`.
 - **Dinero** → `facturas_mensuales`, `liquidaciones_comedor`.
 - **Todo lo que hace el panel** → `registros_auditoria` (bitácora).

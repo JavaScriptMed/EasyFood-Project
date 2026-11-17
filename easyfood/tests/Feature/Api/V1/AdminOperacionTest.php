@@ -39,7 +39,7 @@ class AdminOperacionTest extends TestCase
     {
         $this->getJson('/api/v1/admin/configuracion')->assertOk()->assertExactJson([
             'hora_corte' => '18:00', 'zona_horaria' => 'America/Mexico_City', 'dias_entrega' => 'lunes_sabado', 'regla_sin_eleccion' => 'ultimo_platillo',
-            'capacidad_auto_entregas' => 30, 'capacidad_auto_platillos' => 120,
+            'capacidad_auto_entregas' => 30, 'capacidad_auto_platillos' => 120, 'ahorro_apps_porcentaje' => 30, 'costo_maquila_limite' => 49,
         ]);
     }
 

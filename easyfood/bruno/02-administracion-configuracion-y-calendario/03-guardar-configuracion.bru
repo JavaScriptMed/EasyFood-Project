@@ -20,7 +20,9 @@ body:json {
     "dias_entrega": "lunes_sabado",
     "regla_sin_eleccion": "ultimo_platillo",
     "capacidad_auto_entregas": 30,
-    "capacidad_auto_platillos": 120
+    "capacidad_auto_platillos": 120,
+    "ahorro_apps_porcentaje": 30,
+    "costo_maquila_limite": 49
   }
 }
 
@@ -31,9 +33,11 @@ tests {
 
   test("guardó", function () {
     expect(res.body.capacidad_auto_entregas).to.equal(30);
+    expect(res.body.ahorro_apps_porcentaje).to.equal(30);
+    expect(res.body.costo_maquila_limite).to.equal(49);
   });
 }
 
 docs {
-  Manda los 5 campos. Cambia `regla_sin_eleccion` a `platillo_del_dia` o `no_entregar` para ver cómo cambia el corte. Cada cambio queda en la bitácora.
+  Manda los 5 campos de operación; `ahorro_apps_porcentaje` (sobreprecio de las apps de entrega, para el ahorro estimado) y `costo_maquila_limite` (tope del pago a cocinas) son opcionales. Cambia `regla_sin_eleccion` a `platillo_del_dia` o `no_entregar` para ver cómo cambia el corte. Cada cambio queda en la bitácora.
 }
