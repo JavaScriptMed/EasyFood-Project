@@ -26,7 +26,7 @@ class PasarelaStripe implements PasarelaDePagos
             'amount' => $centavos,
             'currency' => $moneda,
             'metadata' => $metadatos,
-            'payment_method_types' => ['card'],
+            // Sin `payment_method_types`: la API actual de Stripe ya no lo acepta; los métodos de pago (tarjeta) se activan en el Dashboard.
         ], ['idempotency_key' => $llaveIdempotente]);
 
         return $this->intento($intento);
