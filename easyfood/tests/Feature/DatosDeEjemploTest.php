@@ -105,6 +105,32 @@ class DatosDeEjemploTest extends TestCase
         $this->assertGreaterThan(0, $corte['entregas_consolidadas']);
     }
 
+    public function test_cada_platillo_tiene_su_categoria_del_catalogo_y_los_catalogos_traen_sus_items(): void
+    {
+        $this->cargar();
+
+        $this->assertSame(0, DB::table('menus')->whereNull('category_id')->count(), 'todos los platillos tienen categoría');
+        $this->assertGreaterThanOrEqual(3, DB::table('menus')->distinct()->count('category_id'), 'hay variedad de categorías');
+        foreach (['TIEMPOS_COMIDA' => 3, 'ALERGENOS' => 5, 'DIETAS' => 4] as $codigo => $items) {
+            $categoria = DB::table('catalog_categories')->where('code', $codigo)->first();
+            $this->assertNotNull($categoria, $codigo);
+            $this->assertSame($items, DB::table('catalog_items')->where('category_id', $categoria->id)->count(), $codigo);
+        }
+    }
+
+    public function test_los_pedidos_de_ejemplo_llevan_2_y_3_comidas_por_dia(): void
+    {
+        $this->cargar();
+
+        $this->assertSame([2, 3], Pedido::orderBy('comidas_por_dia')->pluck('comidas_por_dia')->all());
+        $this->assertSame([false, true], Pedido::orderBy('comidas_por_dia')->pluck('con_extra')->map(fn ($v) => (bool) $v)->all(), 'el de 3 comidas lleva un extra');
+        foreach (Pedido::with('dias.platillos')->get() as $pedido) {
+            foreach ($pedido->dias as $dia) {
+                $this->assertCount($pedido->comidas_por_dia + (int) $pedido->con_extra, $dia->platillos, "{$pedido->folio} · {$dia->fecha->toDateString()}");
+            }
+        }
+    }
+
     public function test_cargarlo_dos_veces_no_duplica_nada(): void
     {
         $this->cargar();

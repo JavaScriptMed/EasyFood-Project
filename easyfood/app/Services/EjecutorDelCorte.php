@@ -252,7 +252,8 @@ class EjecutorDelCorte
             ->whereIn('m.provider_id', $comedores)->whereDate('e.fecha', $fecha)
             ->groupBy('m.provider_id')->selectRaw('m.provider_id, count(*) as total')->pluck('total', 'provider_id');
 
-        $individuales = DB::table('pedido_dias as d')->join('pedidos as p', 'p.id', '=', 'd.pedido_id')->join('menus as m', 'm.id', '=', 'd.menu_id')
+        $individuales = DB::table('pedido_dias as d')->join('pedidos as p', 'p.id', '=', 'd.pedido_id')
+            ->join('pedido_dia_platillos as c', 'c.pedido_dia_id', '=', 'd.id')->join('menus as m', 'm.id', '=', 'c.menu_id')
             ->whereIn('m.provider_id', $comedores)->whereDate('d.fecha', $fecha)->where('d.estado', 'programada')->whereIn('p.estado', ['recibido', 'activo'])
             ->groupBy('m.provider_id')->selectRaw('m.provider_id, count(*) as total')->pluck('total', 'provider_id');
 
@@ -335,9 +336,9 @@ class EjecutorDelCorte
     private function generarOrdenes(Corte $corte, string $fecha, Collection $porEmpresa, Collection $contratos): int
     {
         $individuales = DB::table('pedido_dias as d')
-            ->join('pedidos as p', 'p.id', '=', 'd.pedido_id')->join('menus as m', 'm.id', '=', 'd.menu_id')
+            ->join('pedidos as p', 'p.id', '=', 'd.pedido_id')->join('pedido_dia_platillos as c', 'c.pedido_dia_id', '=', 'd.id')->join('menus as m', 'm.id', '=', 'c.menu_id')
             ->whereDate('d.fecha', $fecha)->where('d.estado', 'programada')->whereIn('p.estado', ['recibido', 'activo'])
-            ->groupBy('d.menu_id', 'm.provider_id')->select('d.menu_id', 'm.provider_id', DB::raw('count(*) as cantidad'))->get();
+            ->groupBy('c.menu_id', 'm.provider_id')->select('c.menu_id', 'm.provider_id', DB::raw('count(*) as cantidad'))->get();
 
         $primeraDelDia = $porEmpresa->pluck('empresa_id')->unique()->map(fn ($id) => $contratos->get($id)?->ventana_entrega_inicio)->filter()->min();
 

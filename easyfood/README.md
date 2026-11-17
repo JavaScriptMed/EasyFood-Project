@@ -41,7 +41,7 @@ Corren contra la base `easylunch_pruebas` (nunca contra la de desarrollo: se bor
 | Empresas | `empresas`, `contratos_empresa`, `empleados` (los de las empresas cliente), `dias_sin_servicio` |
 | Operación diaria | `disponibilidad_dia`, `elecciones_empleado`, `cortes`, `ordenes_produccion`, `entregas_empresa` |
 | Reparto | `repartidores` (nuestro personal), `rutas`, `paradas`, `incidencias` |
-| Clientes individuales | `paquetes`, `pedidos`, `pedido_dias`, `tickets`, `mensajes_ticket` |
+| Clientes individuales | `paquetes`, `pedidos` (`comidas_por_dia`: 1 a 3; `con_extra`), `pedido_dias` (la entrega de un día), `pedido_dia_platillos` (un platillo por tiempo de comida, con su precio congelado), `tickets`, `mensajes_ticket` |
 | Dinero | `facturas_mensuales`, `liquidaciones_comedor` |
 | Sistema | `configuracion`, `registros_auditoria` (bitácora, solo se agrega), `mensajes_contacto`, `zonas`, `avisos`, `contadores_folio` |
 
@@ -100,7 +100,7 @@ Viven en `app/Services` y cada una tiene su prueba en `tests/Feature/Negocio`. L
 | `EjecutorDelCorte` | Aplica la regla de quien no eligió, cierra elecciones, genera una orden por comedor y platillo, consolida una entrega por empresa y crea rutas por zona sin pasar la capacidad del auto. Idempotente: repetirlo deja un registro «sin_cambios». Si falla, no guarda nada. |
 | `GeneradorDeFacturas` | Total = parte empresa + parte empleados + diferencia por mínimo. Solo cuentan entregas «entregada»; el mes debe haber terminado. |
 | `GeneradorDeLiquidaciones` | Al comedor se le paga lo entregado más lo que faltó para su mínimo, a su precio fijo. |
-| `ContratacionDePaquetes` | Paquetes de 1, 2 o 6 días de servicio; precio congelado por día, descuento del paquete, pago simulado. La dirección debe tener cobertura. Un pedido por pagar vence en el corte de su primer día (`vence_pago_en`, `segundos_para_pagar`) y se cancela. |
+| `ContratacionDePaquetes` | Paquetes de 1, 2 o 6 días de servicio con 1, 2 o 3 comidas por día (un platillo por tiempo de comida, los mismos tiempos todos los días, más un extra opcional por día); precio congelado por platillo, descuento del paquete, pago simulado. La dirección debe tener cobertura. Un pedido por pagar vence en el corte de su primer día (`vence_pago_en`, `segundos_para_pagar`) y se cancela. |
 | `AvisosDeVencimiento` | Avisa a la empresa y a los administradores de los contratos que vencen en el mes en curso o en los 7 días siguientes (tabla `avisos`). |
 | `Folios` | Consecutivos `EL-AAAAMM-NNN` y `GDL-AAAAMMDD-NNNN` sin repetirse aunque dos procesos pidan folio a la vez (tabla `contadores_folio`). |
 

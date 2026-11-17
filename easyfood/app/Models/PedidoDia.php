@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class PedidoDia extends ModeloEasyLunch
@@ -12,8 +13,6 @@ class PedidoDia extends ModeloEasyLunch
     protected $fillable = [
         'pedido_id',
         'fecha',
-        'menu_id',
-        'precio_congelado',
         'estado',
         'evidencia_foto_url',
         'entregada_en',
@@ -23,7 +22,6 @@ class PedidoDia extends ModeloEasyLunch
     {
         return [
             'fecha' => 'date:Y-m-d',
-            'precio_congelado' => 'decimal:2',
             'entregada_en' => 'datetime',
         ];
     }
@@ -33,9 +31,10 @@ class PedidoDia extends ModeloEasyLunch
         return $this->belongsTo(Pedido::class, 'pedido_id');
     }
 
-    public function menu(): BelongsTo
+    /** Lo que se come ese día: un platillo por tiempo de comida. */
+    public function platillos(): HasMany
     {
-        return $this->belongsTo(Menu::class, 'menu_id');
+        return $this->hasMany(PedidoDiaPlatillo::class, 'pedido_dia_id');
     }
 
     public function parada(): HasOne

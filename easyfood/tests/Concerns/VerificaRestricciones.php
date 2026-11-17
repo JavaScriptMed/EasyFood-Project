@@ -112,6 +112,12 @@ trait VerificaRestricciones
 
     private function pedidoDia(?int $pedido = null, array $extra = []): int
     {
-        return DB::table('pedido_dias')->insertGetId(array_merge(['pedido_id' => $pedido ?? $this->pedido(), 'fecha' => '2026-11-16', 'menu_id' => $this->menu(), 'precio_congelado' => 119], $extra));
+        return DB::table('pedido_dias')->insertGetId(array_merge(['pedido_id' => $pedido ?? $this->pedido(), 'fecha' => '2026-11-16'], $extra));
+    }
+
+    /** Un platillo de un día de pedido; por defecto, un platillo nuevo de comida. */
+    private function pedidoDiaPlatillo(?int $dia = null, array $extra = []): int
+    {
+        return DB::table('pedido_dia_platillos')->insertGetId(array_merge(['pedido_dia_id' => $dia ?? $this->pedidoDia(), 'tiempo_comida' => 'comida', 'menu_id' => $this->menu(), 'precio_congelado' => 119], $extra));
     }
 }

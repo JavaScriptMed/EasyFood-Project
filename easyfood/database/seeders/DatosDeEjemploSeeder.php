@@ -3,6 +3,8 @@
 namespace Database\Seeders;
 
 use App\Models\Address;
+use App\Models\CatalogCategory;
+use App\Models\CatalogItem;
 use App\Models\ContratoComedor;
 use App\Models\ContratoEmpresa;
 use App\Models\Corte;
@@ -176,26 +178,57 @@ class DatosDeEjemploSeeder extends Seeder
     /** @return array<string, Menu> platillos por clave: ['norte_comida' => [...], ...] */
     private function menus(Provider $norte, Provider $sur): array
     {
-        $crear = fn (Provider $c, string $nombre, string $descripcion, string $tiempo, int $cal, array $alergenos, array $etiquetas, string $estado = 'publicado', ?string $motivo = null) => Menu::create([
-            'provider_id' => $c->id, 'name' => $nombre, 'description' => $descripcion, 'price' => 49, 'estado_revision' => $estado, 'motivo_rechazo' => $motivo,
+        $tipos = $this->catalogos();
+        $crear = fn (Provider $c, string $tipo, string $nombre, string $descripcion, string $tiempo, int $cal, array $alergenos, array $etiquetas, string $estado = 'publicado', ?string $motivo = null) => Menu::create([
+            'provider_id' => $c->id, 'category_id' => $tipos[$tipo]->id, 'name' => $nombre, 'description' => $descripcion, 'price' => 49, 'estado_revision' => $estado, 'motivo_rechazo' => $motivo,
             'tiempo_comida' => $tiempo, 'calorias' => $cal, 'alergenos' => $alergenos, 'etiquetas' => $etiquetas, 'is_available' => true,
         ]);
 
         return [
             'comida' => [
-                $crear($norte, 'Pollo en mole con arroz', 'Pierna de pollo en mole poblano, arroz rojo y frijoles.', 'comida', 720, ['frutos secos', 'ajonjolí'], ['casero']),
-                $crear($norte, 'Milanesa de res con ensalada', 'Milanesa empanizada, ensalada fresca y papas.', 'comida', 680, ['gluten', 'huevo'], []),
-                $crear($norte, 'Enchiladas verdes', 'Tres enchiladas de pollo bañadas en salsa verde.', 'comida', 610, ['lácteos'], ['picante']),
-                $crear($sur, 'Caldo de res', 'Caldo de res con verduras, arroz y tortillas.', 'comida', 540, [], ['ligero']),
-                $crear($sur, 'Chiles rellenos de queso', 'Dos chiles poblanos rellenos con caldillo de jitomate.', 'comida', 650, ['lácteos', 'huevo', 'gluten'], ['vegetariano']),
+                $crear($norte, 'PLATO_FUERTE', 'Pollo en mole con arroz', 'Pierna de pollo en mole poblano, arroz rojo y frijoles.', 'comida', 720, ['frutos secos', 'ajonjolí'], ['casero']),
+                $crear($norte, 'PLATO_FUERTE', 'Milanesa de res con ensalada', 'Milanesa empanizada, ensalada fresca y papas.', 'comida', 680, ['gluten', 'huevo'], []),
+                $crear($norte, 'ANTOJITO', 'Enchiladas verdes', 'Tres enchiladas de pollo bañadas en salsa verde.', 'comida', 610, ['lácteos'], ['picante']),
+                $crear($sur, 'SOPA_Y_CALDO', 'Caldo de res', 'Caldo de res con verduras, arroz y tortillas.', 'comida', 540, [], ['ligero']),
+                $crear($sur, 'PLATO_FUERTE', 'Chiles rellenos de queso', 'Dos chiles poblanos rellenos con caldillo de jitomate.', 'comida', 650, ['lácteos', 'huevo', 'gluten'], ['vegetariano']),
             ],
-            'desayuno' => [$crear($norte, 'Chilaquiles con huevo', 'Chilaquiles rojos con huevo estrellado.', 'desayuno', 520, ['huevo', 'lácteos'], [])],
-            'cena' => [$crear($sur, 'Sopa de lentejas', 'Sopa de lentejas con verduras y pan integral.', 'cena', 380, ['gluten'], ['vegetariano', 'ligero'])],
+            'desayuno' => [$crear($norte, 'ANTOJITO', 'Chilaquiles con huevo', 'Chilaquiles rojos con huevo estrellado.', 'desayuno', 520, ['huevo', 'lácteos'], [])],
+            'cena' => [$crear($sur, 'SOPA_Y_CALDO', 'Sopa de lentejas', 'Sopa de lentejas con verduras y pan integral.', 'cena', 380, ['gluten'], ['vegetariano', 'ligero'])],
             // Para probar la revisión del administrador y los estados del comedor:
-            'revision' => $crear($norte, 'Tacos de cochinita pibil', 'Tres tacos con cebolla morada y habanero.', 'comida', 590, [], ['picante'], 'en_revision'),
-            'borrador' => $crear($sur, 'Pozole rojo', 'Pozole con maíz cacahuazintle.', 'comida', 600, [], [], 'borrador'),
-            'rechazado' => $crear($sur, 'Sándwich de jamón', 'Sándwich de jamón y queso.', 'comida', 450, ['gluten', 'lácteos'], [], 'rechazado', 'Falta la información de alérgenos y una foto.'),
+            'revision' => $crear($norte, 'ANTOJITO', 'Tacos de cochinita pibil', 'Tres tacos con cebolla morada y habanero.', 'comida', 590, [], ['picante'], 'en_revision'),
+            'borrador' => $crear($sur, 'SOPA_Y_CALDO', 'Pozole rojo', 'Pozole con maíz cacahuazintle.', 'comida', 600, [], [], 'borrador'),
+            'rechazado' => $crear($sur, 'SANDWICH', 'Sándwich de jamón', 'Sándwich de jamón y queso.', 'comida', 450, ['gluten', 'lácteos'], [], 'rechazado', 'Falta la información de alérgenos y una foto.'),
         ];
+    }
+
+    /**
+     * Catálogos del equipo (catalog_categories / catalog_items).
+     * Las categorías de platillo son las que se asignan a menus.category_id; los demás catálogos (tiempos de comida,
+     * alérgenos y dietas) traen sus items y quedan disponibles para los formularios.
+     *
+     * @return array<string, CatalogCategory> categorías de platillo por código
+     */
+    private function catalogos(): array
+    {
+        $tipos = [];
+        foreach (['PLATO_FUERTE' => 'Plato fuerte', 'SOPA_Y_CALDO' => 'Sopa y caldo', 'ANTOJITO' => 'Antojito', 'SANDWICH' => 'Sándwich', 'ENSALADA' => 'Ensalada', 'POSTRE' => 'Postre', 'BEBIDA' => 'Bebida'] as $codigo => $nombre) {
+            $tipos[$codigo] = CatalogCategory::firstOrCreate(['code' => $codigo], ['name' => $nombre, 'is_active' => true]);
+        }
+
+        $catalogos = [
+            'TIEMPOS_COMIDA' => ['Tiempos de comida', ['DESAYUNO' => 'Desayuno', 'COMIDA' => 'Comida', 'CENA' => 'Cena']],
+            'ALERGENOS' => ['Alérgenos', ['GLUTEN' => 'Gluten', 'LACTEOS' => 'Lácteos', 'HUEVO' => 'Huevo', 'FRUTOS_SECOS' => 'Frutos secos', 'AJONJOLI' => 'Ajonjolí']],
+            'DIETAS' => ['Dietas y etiquetas', ['VEGETARIANO' => 'Vegetariano', 'LIGERO' => 'Ligero', 'PICANTE' => 'Picante', 'CASERO' => 'Casero']],
+        ];
+        foreach ($catalogos as $codigo => [$nombre, $items]) {
+            $categoria = CatalogCategory::firstOrCreate(['code' => $codigo], ['name' => $nombre, 'is_active' => true]);
+            $orden = 0;
+            foreach ($items as $clave => $etiqueta) {
+                CatalogItem::firstOrCreate(['category_id' => $categoria->id, 'code' => $clave], ['label' => $etiqueta, 'sort_order' => ++$orden, 'is_active' => true]);
+            }
+        }
+
+        return $tipos;
     }
 
     private function disponibilidad(array $menus): void
@@ -298,9 +331,9 @@ class DatosDeEjemploSeeder extends Seeder
     private function clientes(ContratacionDePaquetes $paquetes, array $menus): void
     {
         $paquete = [
-            Paquete::create(['nombre' => 'Un día', 'dias' => 1, 'descuento_porcentaje' => 0, 'detalle' => 'Prueba un día de servicio']),
-            Paquete::create(['nombre' => 'Dos días', 'dias' => 2, 'descuento_porcentaje' => 5, 'detalle' => '5 % de descuento']),
-            Paquete::create(['nombre' => 'Semana', 'dias' => 6, 'descuento_porcentaje' => 12, 'detalle' => 'De lunes a sábado, 12 % de descuento', 'destacado' => true]),
+            Paquete::create(['nombre' => 'Un día', 'dias' => 1, 'descuento_porcentaje' => 0, 'detalle' => 'Un día, con 1, 2 o 3 comidas']),
+            Paquete::create(['nombre' => 'Dos días', 'dias' => 2, 'descuento_porcentaje' => 5, 'detalle' => 'Dos días, con 1, 2 o 3 comidas · 5 % de descuento']),
+            Paquete::create(['nombre' => 'Semana', 'dias' => 6, 'descuento_porcentaje' => 12, 'detalle' => 'De lunes a sábado, con 1, 2 o 3 comidas · 12 % de descuento', 'destacado' => true]),
         ];
 
         $uno = $this->persona('customer', 'Cecilia', 'Navarro', 'cliente@easylunch.test');
@@ -313,9 +346,13 @@ class DatosDeEjemploSeeder extends Seeder
 
         $platillos = $menus['comida'];
         // Un pedido ya pagado (entra al corte y a la ruta) y otro por pagar (para probar el pago y el tiempo restante).
-        $pagado = $paquetes->pedir($uno, $paquete[1], $casa, [$platillos[0], $platillos[1]]);
+        // Cecilia: 2 días con 2 comidas por día (desayuno y comida). Daniel: 1 día con las 3 comidas (desayuno, comida y cena) y un extra.
+        $pagado = $paquetes->pedir($uno, $paquete[1], $casa, [
+            ['desayuno' => $menus['desayuno'][0], 'comida' => $platillos[0]],
+            ['desayuno' => $menus['desayuno'][0], 'comida' => $platillos[1]],
+        ]);
         $paquetes->pagar($pagado, 'tarjeta', '4821');
-        $paquetes->pedir($dos, $paquete[0], $trabajo, [$platillos[2]]);
+        $paquetes->pedir($dos, $paquete[0], $trabajo, [['desayuno' => $menus['desayuno'][0], 'comida' => $platillos[2], 'cena' => $menus['cena'][0], 'extra' => $platillos[1]]]);
 
         $ticket = Ticket::create(['folio' => 'T-0001', 'cliente_id' => $uno->id, 'pedido_id' => $pagado->id, 'asunto' => '¿Puedo cambiar mi platillo del segundo día?', 'mensajes_sin_leer' => 1]);
         MensajeTicket::create(['ticket_id' => $ticket->id, 'autor_id' => $uno->id, 'autor_tipo' => 'cliente', 'texto' => 'Hola, ¿puedo cambiar el platillo del segundo día? Soy alérgica al huevo.']);

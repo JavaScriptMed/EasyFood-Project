@@ -13,6 +13,8 @@ class Pedido extends ModeloEasyLunch
         'folio',
         'cliente_id',
         'paquete_id',
+        'comidas_por_dia',
+        'con_extra',
         'direccion_id',
         'fecha_inicio',
         'fecha_fin',

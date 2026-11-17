@@ -133,7 +133,7 @@ class AppClienteTest extends TestCase
         $paquete = Paquete::create(['nombre' => 'Dos días', 'dias' => 2, 'descuento_porcentaje' => 5]);
         $menu = $this->menuDisponible();
 
-        $p = $this->postJson('/api/v1/cliente/pedidos', ['paquete_id' => $paquete->id, 'direccion_id' => $direccion, 'platillos' => [$menu, $menu]])->assertCreated()->json();
+        $p = $this->postJson('/api/v1/cliente/pedidos', ['paquete_id' => $paquete->id, 'direccion_id' => $direccion, 'platillos' => [['comida' => $menu], ['comida' => $menu]]])->assertCreated()->json();
 
         $this->assertSame(['pendiente_pago', '2026-11-10', '2026-11-11', 'Centro', 'GDL-20261109-0001'], [$p['estado'], $p['fecha_inicio'], $p['fecha_fin'], $p['zona'], $p['folio']]);
         $this->assertEquals(190.0, $p['total'], '(100 + 100) × 95 %');
@@ -143,12 +143,58 @@ class AppClienteTest extends TestCase
         $this->assertCount(2, $p['dias']);
     }
 
+    public function test_el_cliente_elige_cuantas_comidas_por_dia_y_el_pedido_las_devuelve_ordenadas(): void
+    {
+        $this->comoRol('customer');
+        $direccion = $this->postJson('/api/v1/cliente/direcciones', $this->direccionValida())->json('id');
+        $paquete = Paquete::create(['nombre' => 'Un día', 'dias' => 1]);
+        $desayuno = $this->platillo(null, 'desayuno', ['price' => 60]);
+        $comida = $this->platillo(null, 'comida', ['price' => 100]);
+        $cena = $this->platillo(null, 'cena', ['price' => 80]);
+        foreach ([$desayuno, $comida, $cena] as $menu) {
+            $this->disponible($menu, '2026-11-10');
+        }
+
+        $p = $this->postJson('/api/v1/cliente/pedidos', ['paquete_id' => $paquete->id, 'direccion_id' => $direccion, 'platillos' => [['cena' => $cena->id, 'desayuno' => $desayuno->id, 'comida' => $comida->id]]])
+            ->assertCreated()->json();
+
+        $this->assertSame(3, $p['comidas_por_dia']);
+        $this->assertEquals(240.0, $p['total']);
+        $this->assertSame(1, $p['entregas_totales'], 'una entrega por día');
+        $this->assertSame(['desayuno', 'comida', 'cena'], array_column($p['dias'][0]['platillos'], 'tiempo_comida'));
+        $this->assertSame([60.0, 100.0, 80.0], array_map('floatval', array_column($p['dias'][0]['platillos'], 'precio_congelado')));
+
+        $this->postJson('/api/v1/cliente/pedidos', ['paquete_id' => $paquete->id, 'direccion_id' => $direccion, 'platillos' => [['comida' => $desayuno->id]]])
+            ->assertStatus(422)->assertJsonPath('codigo', 'platillo_de_otro_tiempo');
+        $this->postJson('/api/v1/cliente/pedidos', ['paquete_id' => $paquete->id, 'direccion_id' => $direccion, 'platillos' => [[]]])->assertStatus(422);
+    }
+
+    public function test_el_cliente_puede_sumar_un_platillo_extra_por_dia(): void
+    {
+        $this->comoRol('customer');
+        $direccion = $this->postJson('/api/v1/cliente/direcciones', $this->direccionValida())->json('id');
+        $paquete = Paquete::create(['nombre' => 'Un día', 'dias' => 1, 'descuento_porcentaje' => 10]);
+        $comida = $this->platillo(null, 'comida', ['price' => 100]);
+        $postre = $this->platillo(null, 'cena', ['price' => 50]);
+        foreach ([$comida, $postre] as $menu) {
+            $this->disponible($menu, '2026-11-10');
+        }
+
+        $p = $this->postJson('/api/v1/cliente/pedidos', ['paquete_id' => $paquete->id, 'direccion_id' => $direccion, 'platillos' => [['comida' => $comida->id, 'extra' => $postre->id]]])
+            ->assertCreated()->json();
+
+        $this->assertTrue($p['con_extra']);
+        $this->assertSame(1, $p['comidas_por_dia']);
+        $this->assertEquals(135.0, $p['total'], '(100 + 50) × 90 %');
+        $this->assertSame([false, true], array_column($p['dias'][0]['platillos'], 'es_extra'));
+    }
+
     public function test_paga_el_pedido_en_forma_simulada_y_despues_ya_no_tiene_tiempo_para_pagar(): void
     {
         $this->comoRol('customer');
         $direccion = $this->postJson('/api/v1/cliente/direcciones', $this->direccionValida())->json('id');
         $paquete = Paquete::create(['nombre' => 'Un día', 'dias' => 1]);
-        $id = $this->postJson('/api/v1/cliente/pedidos', ['paquete_id' => $paquete->id, 'direccion_id' => $direccion, 'platillos' => [$this->menuDisponible()]])->json('id');
+        $id = $this->postJson('/api/v1/cliente/pedidos', ['paquete_id' => $paquete->id, 'direccion_id' => $direccion, 'platillos' => [['comida' => $this->menuDisponible()]]])->json('id');
 
         $this->postJson("/api/v1/cliente/pedidos/{$id}/pagar", ['metodo_pago' => 'tarjeta', 'ultimos_digitos' => '48'])->assertStatus(422)->assertJsonStructure(['errores' => ['ultimos_digitos']]);
         $this->postJson("/api/v1/cliente/pedidos/{$id}/pagar", ['metodo_pago' => 'tarjeta', 'ultimos_digitos' => '4821'])->assertOk()
@@ -161,7 +207,7 @@ class AppClienteTest extends TestCase
         $this->comoRol('customer');
         $direccion = $this->postJson('/api/v1/cliente/direcciones', $this->direccionValida())->json('id');
         $paquete = Paquete::create(['nombre' => 'Un día', 'dias' => 1]);
-        $id = $this->postJson('/api/v1/cliente/pedidos', ['paquete_id' => $paquete->id, 'direccion_id' => $direccion, 'platillos' => [$this->menuDisponible()]])->json('id');
+        $id = $this->postJson('/api/v1/cliente/pedidos', ['paquete_id' => $paquete->id, 'direccion_id' => $direccion, 'platillos' => [['comida' => $this->menuDisponible()]]])->json('id');
 
         $this->ahoraEs('2026-11-09 18:00:00');
         $this->postJson("/api/v1/cliente/pedidos/{$id}/pagar", ['metodo_pago' => 'tarjeta'])->assertStatus(422)->assertJsonPath('codigo', 'pedido_vencido');
@@ -178,9 +224,9 @@ class AppClienteTest extends TestCase
         $dos = Paquete::create(['nombre' => 'Dos días', 'dias' => 2]);
         $menu = $this->menuDisponible();
 
-        $this->postJson('/api/v1/cliente/pedidos', ['paquete_id' => $dos->id, 'direccion_id' => $lejos, 'platillos' => [$menu, $menu]])->assertStatus(422)->assertJsonPath('codigo', 'sin_cobertura');
-        $this->postJson('/api/v1/cliente/pedidos', ['paquete_id' => $dos->id, 'direccion_id' => $ajena->id, 'platillos' => [$menu, $menu]])->assertStatus(404);
-        $this->postJson('/api/v1/cliente/pedidos', ['paquete_id' => $dos->id, 'direccion_id' => $buena, 'platillos' => [$menu]])->assertStatus(422)->assertJsonPath('codigo', 'platillos_incompletos');
+        $this->postJson('/api/v1/cliente/pedidos', ['paquete_id' => $dos->id, 'direccion_id' => $lejos, 'platillos' => [['comida' => $menu], ['comida' => $menu]]])->assertStatus(422)->assertJsonPath('codigo', 'sin_cobertura');
+        $this->postJson('/api/v1/cliente/pedidos', ['paquete_id' => $dos->id, 'direccion_id' => $ajena->id, 'platillos' => [['comida' => $menu], ['comida' => $menu]]])->assertStatus(404);
+        $this->postJson('/api/v1/cliente/pedidos', ['paquete_id' => $dos->id, 'direccion_id' => $buena, 'platillos' => [['comida' => $menu]]])->assertStatus(422)->assertJsonPath('codigo', 'platillos_incompletos');
         $this->postJson('/api/v1/cliente/pedidos', [])->assertStatus(422)->assertJsonStructure(['errores' => ['paquete_id', 'direccion_id', 'platillos']]);
         $this->assertSame(0, Pedido::count());
     }
@@ -190,7 +236,7 @@ class AppClienteTest extends TestCase
         $cliente = $this->comoRol('customer');
         $direccion = $this->postJson('/api/v1/cliente/direcciones', $this->direccionValida())->json('id');
         $paquete = Paquete::create(['nombre' => 'Un día', 'dias' => 1]);
-        $mio = $this->postJson('/api/v1/cliente/pedidos', ['paquete_id' => $paquete->id, 'direccion_id' => $direccion, 'platillos' => [$this->menuDisponible()]])->json('id');
+        $mio = $this->postJson('/api/v1/cliente/pedidos', ['paquete_id' => $paquete->id, 'direccion_id' => $direccion, 'platillos' => [['comida' => $this->menuDisponible()]]])->json('id');
         $otroCliente = $this->usuarioDeRol('customer');
         $otraDireccion = Address::create(['user_id' => $otroCliente->id, 'street_address' => 'Otra', 'latitude' => 20.67, 'longitude' => -103.35]);
         $ajeno = Pedido::create(['folio' => 'GDL-AJENO', 'cliente_id' => $otroCliente->id, 'paquete_id' => $paquete->id, 'direccion_id' => $otraDireccion->id,

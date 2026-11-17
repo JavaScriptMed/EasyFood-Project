@@ -273,6 +273,8 @@ export interface Pedido {
   bloque: BloqueHorario
   total: number
   estado: EstadoPedido
+  comidas_por_dia?: number // 1 a 3: desayuno, comida y/o cena; una entrega por día
+  con_extra?: boolean // un platillo adicional por día
   entregas_totales: number
   entregas_completadas: number
   direccion_entrega: string

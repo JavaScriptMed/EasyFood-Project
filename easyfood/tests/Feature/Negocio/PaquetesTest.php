@@ -9,6 +9,7 @@ use App\Models\Menu;
 use App\Models\Paquete;
 use App\Models\Pedido;
 use App\Models\PedidoDia;
+use App\Models\PedidoDiaPlatillo;
 use App\Models\User;
 use App\Services\ContratacionDePaquetes;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -91,7 +92,129 @@ class PaquetesTest extends TestCase
         $pedido = $this->paquetes()->pedir($this->cliente, $this->paquete(2, 5), $this->direccion, [$caro, $barato]);
 
         $this->assertSame('237.50', $pedido->total, '(150 + 100) × 95 %');
-        $this->assertSame(['150.00', '100.00'], $pedido->dias()->orderBy('fecha')->pluck('precio_congelado')->all());
+        $this->assertSame(['150.00', '100.00'], PedidoDiaPlatillo::whereIn('pedido_dia_id', $pedido->dias()->pluck('id'))->orderBy('id')->pluck('precio_congelado')->all());
+    }
+
+    /** Un platillo de un tiempo de comida con disponibilidad en las fechas dadas. */
+    private function platilloDe(string $tiempo, array $fechas, float $precio = 100, int $maximo = 50): Menu
+    {
+        $menu = $this->platillo(null, $tiempo, ['price' => $precio]);
+        foreach ($fechas as $fecha) {
+            $this->disponible($menu, $fecha, $maximo);
+        }
+
+        return $menu;
+    }
+
+    private function assertRechazo(string $codigo, callable $accion): void
+    {
+        try {
+            $accion();
+        } catch (ReglaDeNegocioException $e) {
+            $this->assertSame($codigo, $e->codigo);
+
+            return;
+        }
+
+        $this->fail("Debía rechazarse con «{$codigo}».");
+    }
+
+    public function test_el_cliente_elige_1_2_o_3_comidas_por_dia_y_cada_una_lleva_su_platillo_y_su_precio(): void
+    {
+        $fechas = ['2026-11-10', '2026-11-11'];
+        $desayuno = $this->platilloDe('desayuno', $fechas, 60);
+        $comida = $this->platilloDe('comida', $fechas, 100);
+        $cena = $this->platilloDe('cena', $fechas, 80);
+
+        $una = $this->paquetes()->pedir($this->cliente, $this->paquete(1), $this->direccion, [[ 'comida' => $comida ]]);
+        $dos = $this->paquetes()->pedir($this->cliente, Paquete::first(), $this->direccion, [['desayuno' => $desayuno, 'comida' => $comida]]);
+        $tres = $this->paquetes()->pedir($this->cliente, Paquete::first(), $this->direccion, [['cena' => $cena, 'desayuno' => $desayuno, 'comida' => $comida]]);
+
+        $this->assertSame([1, 2, 3], [$una->comidas_por_dia, $dos->comidas_por_dia, $tres->comidas_por_dia]);
+        $this->assertSame(['100.00', '160.00', '240.00'], [$una->total, $dos->total, $tres->total]);
+        $this->assertSame(1, $tres->dias()->count(), 'una sola entrega por día, aunque lleve tres comidas');
+        $this->assertSame(['desayuno', 'comida', 'cena'], $tres->dias()->first()->platillos()->orderBy('id')->pluck('tiempo_comida')->sort()->values()->sortBy(fn ($t) => ['desayuno' => 0, 'comida' => 1, 'cena' => 2][$t])->values()->all());
+    }
+
+    public function test_un_paquete_de_varios_dias_con_varias_comidas_pide_un_platillo_por_comida_y_por_dia(): void
+    {
+        $semana = ['2026-11-10', '2026-11-11'];
+        $desayuno = $this->platilloDe('desayuno', $semana, 50);
+        $cena = $this->platilloDe('cena', $semana, 70);
+
+        $pedido = $this->paquetes()->pedir($this->cliente, $this->paquete(2, 10), $this->direccion, array_fill(0, 2, ['desayuno' => $desayuno, 'cena' => $cena]));
+
+        $this->assertSame(2, $pedido->comidas_por_dia);
+        $this->assertSame(4, PedidoDiaPlatillo::whereIn('pedido_dia_id', $pedido->dias()->pluck('id'))->count());
+        $this->assertSame('216.00', $pedido->total, '(50 + 70) × 2 días × 90 %');
+        $this->assertSame(2, DisponibilidadDia::where('menu_id', $desayuno->id)->sum('porciones_tomadas'));
+    }
+
+    public function test_todos_los_dias_llevan_las_mismas_comidas_y_cada_platillo_es_de_su_tiempo(): void
+    {
+        $fechas = ['2026-11-10', '2026-11-11'];
+        $desayuno = $this->platilloDe('desayuno', $fechas);
+        $comida = $this->platilloDe('comida', $fechas);
+
+        $uno = $this->paquete(1);
+        $dos = $this->paquete(2);
+
+        $this->assertRechazo('comidas_distintas_por_dia', fn () => $this->paquetes()->pedir($this->cliente, $dos, $this->direccion, [['comida' => $comida], ['desayuno' => $desayuno, 'comida' => $comida]]));
+        $this->assertRechazo('platillo_de_otro_tiempo', fn () => $this->paquetes()->pedir($this->cliente, $uno, $this->direccion, [['cena' => $comida]]));
+        $this->assertRechazo('tiempo_de_comida_invalido', fn () => $this->paquetes()->pedir($this->cliente, $uno, $this->direccion, [['merienda' => $comida]]));
+        $this->assertRechazo('comidas_por_dia_invalidas', fn () => $this->paquetes()->pedir($this->cliente, $uno, $this->direccion, [[]]));
+        $this->assertSame(0, Pedido::count(), 'ningún intento dejó un pedido a medias');
+    }
+
+    public function test_el_extra_es_un_platillo_mas_por_dia_de_cualquier_tiempo_y_entra_al_descuento_del_paquete(): void
+    {
+        $fechas = ['2026-11-10', '2026-11-11'];
+        $comida = $this->platilloDe('comida', $fechas, 100);
+        $otraComida = $this->platilloDe('comida', $fechas, 50);
+        $cena = $this->platilloDe('cena', $fechas, 80);
+
+        $pedido = $this->paquetes()->pedir($this->cliente, $this->paquete(2, 10), $this->direccion, array_fill(0, 2, ['comida' => $comida, 'extra' => $otraComida]));
+        $extras = PedidoDiaPlatillo::whereIn('pedido_dia_id', $pedido->dias()->pluck('id'))->where('es_extra', true);
+
+        $this->assertTrue($pedido->con_extra);
+        $this->assertSame(1, $pedido->comidas_por_dia, 'el extra no cuenta como comida base');
+        $this->assertSame(2, (clone $extras)->count(), 'un extra por día');
+        $this->assertSame('270.00', $pedido->total, '(100 + 50) × 2 días × 90 %');
+        $this->assertSame(2, DisponibilidadDia::where('menu_id', $otraComida->id)->sum('porciones_tomadas'), 'el extra aparta su porción');
+
+        $conCena = $this->paquetes()->pedir($this->cliente, $this->paquete(1), $this->direccion, [['comida' => $comida, 'extra' => $cena]]);
+        $this->assertSame('180.00', $conCena->total, 'el extra puede ser de otro tiempo de comida');
+    }
+
+    public function test_el_extra_se_pide_para_todos_los_dias_o_para_ninguno_y_cancelar_lo_libera(): void
+    {
+        $fechas = ['2026-11-10', '2026-11-11'];
+        $comida = $this->platilloDe('comida', $fechas);
+        $extra = $this->platilloDe('cena', $fechas);
+
+        $this->assertRechazo('extra_distinto_por_dia', fn () => $this->paquetes()->pedir($this->cliente, $this->paquete(2), $this->direccion, [['comida' => $comida, 'extra' => $extra], ['comida' => $comida]]));
+        $this->assertSame(0, Pedido::count());
+
+        $pedido = $this->paquetes()->pedir($this->cliente, Paquete::first(), $this->direccion, array_fill(0, 2, ['comida' => $comida, 'extra' => $extra]));
+        $this->assertSame(2, DisponibilidadDia::where('menu_id', $extra->id)->sum('porciones_tomadas'));
+
+        $this->ahoraEs('2026-11-09 18:01');
+        $this->paquetes()->cancelarVencidos();
+
+        $this->assertSame('cancelado', $pedido->fresh()->estado);
+        $this->assertSame(0, (int) DisponibilidadDia::where('menu_id', $extra->id)->sum('porciones_tomadas'), 'el extra también devuelve su porción');
+    }
+
+    public function test_la_base_rechaza_un_platillo_en_un_tiempo_de_comida_que_no_es_el_suyo_y_dos_del_mismo_tiempo_el_mismo_dia(): void
+    {
+        $dia = $this->pedidoDia();
+        $this->assertGreaterThan(0, $this->pedidoDiaPlatillo($dia, ['tiempo_comida' => 'comida']));
+        $this->rechaza('no es de cena', fn () => $this->pedidoDiaPlatillo($dia, ['tiempo_comida' => 'cena']));
+        $this->rechaza('pedido_dia_platillos_un_platillo_por_tiempo', fn () => $this->pedidoDiaPlatillo($dia, ['tiempo_comida' => 'comida']));
+        // El extra sí puede repetir el tiempo de una comida base, pero solo hay uno por día.
+        $this->assertGreaterThan(0, $this->pedidoDiaPlatillo($dia, ['tiempo_comida' => 'comida', 'es_extra' => true]));
+        $this->rechaza('pedido_dia_platillos_un_extra_por_dia', fn () => $this->pedidoDiaPlatillo($dia, ['tiempo_comida' => 'cena', 'menu_id' => $this->menu(null, ['tiempo_comida' => 'cena']), 'es_extra' => true]));
+        $this->rechaza('pedido_dia_platillos_precio_positivo', fn () => $this->pedidoDiaPlatillo($this->pedidoDia(), ['precio_congelado' => 0]));
     }
 
     public function test_el_descuento_lo_define_cada_paquete_y_sin_descuento_se_paga_completo(): void
@@ -112,7 +235,7 @@ class PaquetesTest extends TestCase
 
         $menu->update(['price' => 300]);
 
-        $this->assertSame('100.00', PedidoDia::where('pedido_id', $pedido->id)->value('precio_congelado'));
+        $this->assertSame('100.00', PedidoDiaPlatillo::whereIn('pedido_dia_id', $pedido->dias()->pluck('id'))->value('precio_congelado'));
         $this->assertSame('100.00', $pedido->fresh()->total);
     }
 

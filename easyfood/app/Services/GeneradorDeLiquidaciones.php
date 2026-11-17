@@ -86,7 +86,7 @@ class GeneradorDeLiquidaciones
                  join entregas_empresa en on en.empresa_id = emp.empresa_id and en.fecha = e.fecha and en.estado = 'entregada'
                 where m.provider_id = ? and e.fecha >= ? and e.fecha < ?)
               +
-              (select count(*) from pedido_dias d join menus m on m.id = d.menu_id
+              (select count(*) from pedido_dias d join pedido_dia_platillos c on c.pedido_dia_id = d.id join menus m on m.id = c.menu_id
                 where m.provider_id = ? and d.estado = 'entregada' and d.fecha >= ? and d.fecha < ?) as total
         SQL, [$comedorId, $inicio->toDateString(), $siguiente->toDateString(), $comedorId, $inicio->toDateString(), $siguiente->toDateString()]);
 

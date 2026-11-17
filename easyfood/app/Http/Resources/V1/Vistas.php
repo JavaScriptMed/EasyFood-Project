@@ -316,9 +316,12 @@ final class Vistas
             'direccion_entrega' => $p->direccion?->street_address, 'referencias' => $p->direccion?->delivery_instructions,
             'metodo_pago' => $p->metodo_pago, 'ultimos_digitos' => $p->ultimos_digitos, 'tiene_evidencia' => $dias->contains(fn ($d) => $d->evidencia_foto_url !== null),
             'vence_pago_en' => self::iso($p->vence_pago_en), 'segundos_para_pagar' => $p->segundos_para_pagar,
+            'comidas_por_dia' => $p->comidas_por_dia, 'con_extra' => (bool) $p->con_extra,
             'dias' => $dias->map(fn ($d) => [
-                'id' => $d->id, 'fecha' => $d->fecha->toDateString(), 'platillo_id' => $d->menu_id, 'platillo_nombre' => $d->menu?->name,
-                'precio_congelado' => self::dinero($d->precio_congelado), 'estado' => $d->estado,
+                'id' => $d->id, 'fecha' => $d->fecha->toDateString(), 'estado' => $d->estado,
+                'platillos' => $d->relationLoaded('platillos') ? $d->platillos->sortBy(fn ($c) => [(int) $c->es_extra, ['desayuno' => 0, 'comida' => 1, 'cena' => 2][$c->tiempo_comida]])->map(fn ($c) => [
+                    'tiempo_comida' => $c->tiempo_comida, 'es_extra' => (bool) $c->es_extra, 'platillo_id' => $c->menu_id, 'platillo_nombre' => $c->menu?->name, 'precio_congelado' => self::dinero($c->precio_congelado),
+                ])->values()->all() : [],
             ])->values()->all(),
         ];
     }

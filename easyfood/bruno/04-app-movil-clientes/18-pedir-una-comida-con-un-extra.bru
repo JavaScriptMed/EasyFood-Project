@@ -1,0 +1,41 @@
+meta {
+  name: Pedir 1 comida con un platillo extra
+  type: http
+  seq: 18
+}
+
+post {
+  url: {{baseUrl}}/api/v1/cliente/pedidos
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenCliente}}
+}
+
+body:json {
+  {
+    "paquete_id": "{{paqueteUnDiaId}}",
+    "direccion_id": "{{direccionCasaId}}",
+    "platillos": [
+      { "comida": "{{platilloComidaId}}", "extra": "{{platilloCenaId}}" }
+    ]
+  }
+}
+
+tests {
+  test("responde 201", function () {
+    expect(res.getStatus()).to.equal(201);
+  });
+
+  test("lleva 1 comida base y un extra", function () {
+    expect(res.body.comidas_por_dia).to.equal(1);
+    expect(res.body.con_extra).to.equal(true);
+    expect(res.body.dias[0].platillos.map(p => p.es_extra)).to.eql([false, true]);
+  });
+}
+
+docs {
+  El extra es un platillo adicional por día, de cualquier tiempo de comida, y se pide para todos los días del pedido. Entra al descuento del paquete.
+}
