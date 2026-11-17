@@ -53,7 +53,8 @@ class PagosDePedidos
         $intento = $pedido->stripe_payment_intent_id ? $this->pasarela->obtenerIntento($pedido->stripe_payment_intent_id) : null;
         if ($intento === null || $intento['monto'] !== $centavos || ! in_array($intento['estado'], self::REUTILIZABLES, true)) {
             // La llave incluye el intento anterior: si ese ya no sirve, se pide uno nuevo en vez de repetir el mismo.
-            $llave = 'easylunch-pedido-'.$pedido->id.'-'.$centavos.'-'.substr(sha1((string) $pedido->stripe_payment_intent_id), 0, 8);
+            // Lleva la hora en que se creó el pedido para que un pedido nuevo con el mismo id (por ejemplo, tras reiniciar una base de pruebas) no reciba el intento viejo de Stripe.
+            $llave = 'easylunch-pedido-'.$pedido->id.'-'.$pedido->creado_en?->timestamp.'-'.$centavos.'-'.substr(sha1((string) $pedido->stripe_payment_intent_id), 0, 8);
             $intento = $this->pasarela->crearIntento($centavos, $moneda, ['pedido_id' => (string) $pedido->id, 'folio' => $pedido->folio], $llave);
             $pedido->update(['stripe_payment_intent_id' => $intento['id']]);
         }
