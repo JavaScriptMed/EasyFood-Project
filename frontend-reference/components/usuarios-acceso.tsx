@@ -96,7 +96,7 @@ export function UsuariosAcceso({ organizacion, roles, vacioPlural = 'usuarios' }
                     </div>
                     {u.invitacion && u.invitacion.estado !== 'aceptada' && (
                       <div className="mt-1 flex items-center justify-end gap-1">
-                        <a href={enlaceInvitacion(organizacion.tipo, u.invitacion.token)} target="_blank" rel="noreferrer" title="Abrir el enlace de la invitación (solo maqueta)" aria-label={`Abrir el enlace de la invitación de ${u.nombre} (solo maqueta)`} className="rounded-lg p-2 text-muted-foreground transition hover:bg-muted hover:text-foreground"><ExternalLink className="size-4" /></a>
+                        {u.invitacion.token && <a href={enlaceInvitacion(organizacion.tipo, u.invitacion.token)} target="_blank" rel="noreferrer" title="Abrir el enlace de la invitación (solo maqueta)" aria-label={`Abrir el enlace de la invitación de ${u.nombre} (solo maqueta)`} className="rounded-lg p-2 text-muted-foreground transition hover:bg-muted hover:text-foreground"><ExternalLink className="size-4" /></a>}
                         <BotonReenviar invitacion={u.invitacion} compacto onReenviada={() => usuarios.reload({ silent: true })} />
                       </div>
                     )}

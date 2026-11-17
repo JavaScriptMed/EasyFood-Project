@@ -70,9 +70,7 @@ class RutasDeLaApiTest extends TestCase
         $this->assertSame([
             'v1.admin.empresas.store', 'v1.admin.incidencias.candidatos', 'v1.admin.incidencias.reasignar',
             'v1.admin.platillos.historial-precios', 'v1.admin.platillos.imagen', 'v1.admin.repartidores.store', 'v1.admin.rutas.generar',
-            'v1.comedor.platillos.imagen', 'v1.cuentas.invitaciones.aceptar', 'v1.cuentas.invitaciones.crear', 'v1.cuentas.invitaciones.mostrar',
-            'v1.cuentas.invitaciones.reenviar', 'v1.cuentas.restablecer.aplicar', 'v1.cuentas.restablecer.solicitar', 'v1.cuentas.restablecer.validar',
-            'v1.cuentas.usuarios-acceso', 'v1.empresa.empleados.store',
+            'v1.comedor.platillos.imagen', 'v1.empresa.empleados.store',
         ], $pendientes);
     }
 
@@ -124,11 +122,15 @@ class RutasDeLaApiTest extends TestCase
 
     public function test_los_pendientes_publicos_tambien_responden_501(): void
     {
+        $publicos = 0;
         foreach ($this->rutasV1() as $ruta) {
             if ($this->pendiente($ruta) && ! in_array('auth:sanctum', $ruta->gatherMiddleware(), true)) {
                 $this->json($ruta->methods()[0], $this->direccion($ruta))->assertStatus(501);
+                $publicos++;
             }
         }
+        // Las cuentas (aceptar invitación, restablecer contraseña) ya son reales: no queda ninguna ruta pública pendiente.
+        $this->assertSame(0, $publicos);
     }
 
     public function test_el_soporte_atiende_clientes_tickets_y_incidencias_pero_no_el_dinero(): void

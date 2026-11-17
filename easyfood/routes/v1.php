@@ -15,6 +15,7 @@
 use App\Http\Controllers\Api\V1\Admin;
 use App\Http\Controllers\Api\V1\Cliente;
 use App\Http\Controllers\Api\V1\Comedor;
+use App\Http\Controllers\Api\V1\Cuentas;
 use App\Http\Controllers\Api\V1\CalificacionMenuController;
 use App\Http\Controllers\Api\V1\ContactoController;
 use App\Http\Controllers\Api\V1\Empleado;
@@ -33,13 +34,14 @@ Route::post('contacto', [ContactoController::class, 'store'])->middleware('throt
 // Stripe avisa aquí cuando se cobra un pedido. Público: se confía en la firma del webhook, no en un token.
 Route::post('webhooks/stripe', [Webhooks\StripeController::class, 'recibir'])->middleware('throttle:300,1')->name('v1.webhooks.stripe');
 
-// Cuentas: invitaciones y restablecer contraseña (PENDIENTE: requieren correo y tokens).
+// Cuentas (públicas): aceptar una invitación y restablecer la contraseña. Los enlaces llegan por correo (en desarrollo, MAIL_MAILER=log
+// y además storage/logs/enlaces.log).
 Route::prefix('cuentas')->middleware('throttle:10,1')->name('v1.cuentas.')->group(function () {
-    Route::post('restablecer/solicitar', Pendiente::class)->name('restablecer.solicitar');               // solicitarRestablecimiento
-    Route::get('restablecer/{token}', Pendiente::class)->name('restablecer.validar');                     // validarTokenRestablecimiento
-    Route::post('restablecer/{token}', Pendiente::class)->name('restablecer.aplicar');                    // restablecerContrasena
-    Route::get('invitaciones/{token}', Pendiente::class)->name('invitaciones.mostrar');                   // obtenerInvitacionPublica
-    Route::post('invitaciones/{token}/aceptar', Pendiente::class)->name('invitaciones.aceptar');          // aceptarInvitacion
+    Route::post('restablecer/solicitar', [Cuentas\RestablecimientoController::class, 'solicitar'])->name('restablecer.solicitar');   // solicitarRestablecimiento
+    Route::get('restablecer/{token}', [Cuentas\RestablecimientoController::class, 'validar'])->name('restablecer.validar');           // validarTokenRestablecimiento
+    Route::post('restablecer/{token}', [Cuentas\RestablecimientoController::class, 'aplicar'])->name('restablecer.aplicar');          // restablecerContrasena
+    Route::get('invitaciones/{token}', [Cuentas\InvitacionController::class, 'mostrar'])->name('invitaciones.mostrar');               // obtenerInvitacionPublica
+    Route::post('invitaciones/{token}/aceptar', [Cuentas\InvitacionController::class, 'aceptar'])->name('invitaciones.aceptar');      // aceptarInvitacion
 });
 
 Route::middleware('auth:sanctum')->group(function () {
@@ -49,11 +51,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('paquetes', [Cliente\PaqueteController::class, 'index'])->name('v1.paquetes.index');
     Route::get('calificaciones/menu-semanal', [CalificacionMenuController::class, 'show'])->name('v1.calificaciones.menu-semanal'); // promedio de estrellas del menú, en tiempo real
 
-    // Invitar y reenviar (PENDIENTE): los usa el administrador, la empresa y el comedor con su propio alcance.
+    // Invitar y reenviar: los usa el administrador, la empresa y el comedor, cada uno dentro de lo suyo.
     Route::middleware('role:admin,company,provider')->group(function () {
-        Route::get('cuentas/usuarios-acceso', Pendiente::class)->name('v1.cuentas.usuarios-acceso');      // listarUsuariosAcceso
-        Route::post('cuentas/invitaciones', Pendiente::class)->name('v1.cuentas.invitaciones.crear');     // invitarUsuario
-        Route::post('cuentas/invitaciones/{id}/reenviar', Pendiente::class)->name('v1.cuentas.invitaciones.reenviar'); // reenviarInvitacion
+        Route::get('cuentas/usuarios-acceso', [Cuentas\UsuarioAccesoController::class, 'index'])->name('v1.cuentas.usuarios-acceso');              // listarUsuariosAcceso
+        Route::post('cuentas/invitaciones', [Cuentas\InvitacionController::class, 'store'])->name('v1.cuentas.invitaciones.crear');               // invitarUsuario
+        Route::post('cuentas/invitaciones/{id}/reenviar', [Cuentas\InvitacionController::class, 'reenviar'])->name('v1.cuentas.invitaciones.reenviar'); // reenviarInvitacion
     });
 
     // ------------------------------------------------------------------------------------------ administración

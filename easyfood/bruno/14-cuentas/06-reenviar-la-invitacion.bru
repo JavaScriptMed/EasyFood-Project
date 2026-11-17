@@ -1,0 +1,29 @@
+meta {
+  name: Reenviar la invitación
+  type: http
+  seq: 6
+}
+
+post {
+  url: {{baseUrl}}/api/v1/cuentas/invitaciones/{{invitacionId}}/reenviar
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+tests {
+  test("responde 200", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("enlace nuevo y vigencia renovada", function () {
+    expect(res.body.estado).to.equal("enviada");
+  });
+}
+
+docs {
+  El enlace anterior deja de servir; el nuevo queda en `storage/logs/enlaces.log`.
+}

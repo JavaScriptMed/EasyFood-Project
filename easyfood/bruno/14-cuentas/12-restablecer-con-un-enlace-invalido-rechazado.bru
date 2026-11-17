@@ -1,0 +1,24 @@
+meta {
+  name: Restablecer con un enlace inválido (rechazado)
+  type: http
+  seq: 12
+}
+
+post {
+  url: {{baseUrl}}/api/v1/cuentas/restablecer/enlace-que-no-existe
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "contrasena": "Clave12345"
+  }
+}
+
+tests {
+  test("responde 422 enlace_invalido", function () {
+    expect(res.getStatus()).to.equal(422);
+    expect(res.body.codigo).to.equal("enlace_invalido");
+  });
+}

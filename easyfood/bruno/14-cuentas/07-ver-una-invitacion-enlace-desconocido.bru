@@ -1,0 +1,25 @@
+meta {
+  name: Ver una invitación (enlace desconocido)
+  type: http
+  seq: 7
+}
+
+get {
+  url: {{baseUrl}}/api/v1/cuentas/invitaciones/enlace-que-no-existe
+  body: none
+  auth: none
+}
+
+tests {
+  test("responde 200", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("estado invalida, no 404", function () {
+    expect(res.body.estado).to.equal("invalida");
+  });
+}
+
+docs {
+  Público (sin sesión). Con un enlace bueno devuelve de quién es, la organización y a qué portal entra.
+}

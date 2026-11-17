@@ -45,7 +45,6 @@ Las pantallas no cambiaron: siguen llamando a las mismas funciones de `@/lib/api
 
 Todo funciona con el backend **excepto** lo que el backend todavía no construye. Esas funciones avisan con un mensaje claro («… todavía no está disponible en el servidor») o muestran su pantalla vacía:
 
-- **Cuentas por correo:** invitar y reenviar invitaciones, aceptar invitación, restablecer contraseña.
 - **Altas:** crear empresa, crear repartidor, agregar empleados.
 - **Operación:** reasignar una incidencia (y ver candidatos) y regenerar rutas (las crea el corte).
 - **Datos sin tabla todavía:** historial de precios (vacío). El dashboard ya es real (resumen, alertas y los 10 indicadores).

@@ -59,7 +59,8 @@ Rutas en `routes/v1.php` (prefijo `/api/v1`), JSON en español y token Bearer de
 | App móvil (`customer`) | `/cliente` | paquetes, menú semanal, direcciones, pedidos (pedir), pago con tarjeta (`POST /cliente/pedidos/{id}/pago`) | |
 | Administración y soporte | `/admin/pedidos/{id}/reembolso` | reembolso total de un pedido pagado con Stripe | |
 | Cualquier rol con sesión | `/configuracion/operacion`, `/paquetes`, `/calificaciones/menu-semanal` | lectura de la configuración de operación, de los paquetes y de la calificación semanal del menú | |
-| Público | `/contacto`, `/cuentas`, `/webhooks/stripe` | formulario de contacto, aviso de cobro de Stripe (se confía en su firma) | invitaciones y restablecer contraseña (necesitan correo) |
+| Público | `/contacto`, `/cuentas`, `/webhooks/stripe` | formulario de contacto, aceptar una invitación y restablecer la contraseña (por enlace de correo), aviso de cobro de Stripe (se confía en su firma) | |
+| Administración, empresa y comedor (cada uno dentro de lo suyo) | `/cuentas/usuarios-acceso`, `/cuentas/invitaciones` | ver quién tiene acceso, invitar y reenviar la invitación | |
 
 Un endpoint «solo ruta» ya tiene su URL, su rol y su nombre, pero responde `501 { "codigo": "no_implementado" }` desde `NoImplementadoController` hasta que se construya; entonces solo se cambia su línea en `routes/v1.php`. `php artisan route:list --path=api/v1` muestra el mapa completo.
 
@@ -113,6 +114,19 @@ Sin ellas, el pago y el webhook responden `503 pagos_no_configurados`. Después 
 - **Webhook `charge.refunded`.** Cubre los reembolsos hechos desde el Dashboard de Stripe: si el pedido está pagado, pasa a `cancelado` con los datos del reembolso; si el endpoint ya lo hizo, no repite nada. Un reembolso parcial no cancela: queda `pago.reembolso_parcial` en la bitácora. Agrega `charge.refunded` a `--events` en `stripe listen` (arriba) y para probarlo: `stripe refunds create --payment-intent=pi_XXXX`.
 
 **Reglas.** Se compara contra la hora del cargo, no la del webhook. Un pedido vencido no se puede empezar a pagar (`422 pedido_vencido`), pero el pago no lo cancela: lo cancela el corte. Si Stripe cobra algo que ya no se puede aplicar, el pedido no cambia y el cobro se reembolsa (ver Reembolsos). Las pruebas usan una pasarela falsa (`tests/Support/PasarelaFalsa.php`): ninguna llama a la red.
+
+## Cuentas: invitaciones y contraseña
+
+- **Invitar** (`POST /api/v1/cuentas/invitaciones`): administración invita a cualquier organización; una empresa, a la suya; un comedor, al suyo. Crea la cuenta **inactiva** y manda un correo con el enlace; la persona elige su contraseña al aceptar (`POST /cuentas/invitaciones/{token}/aceptar`, mínimo 8 caracteres con letras y números) y ya entra por el portal de su rol. La invitación vence a los 7 días; **reenviar** da un enlace nuevo (el anterior deja de servir). Quien acepta una invitación de empresa o comedor ve los datos de esa organización.
+- **Restablecer** (`POST /cuentas/restablecer/solicitar`, `GET` y `POST /cuentas/restablecer/{token}`): responde siempre igual, exista o no el correo; el enlace vence a los 60 minutos, sirve una vez, y al usarlo se cierran las sesiones abiertas de esa cuenta. Solo reciben el correo las cuentas activas con portal web.
+- **Del enlace solo se guarda el hash** (la base no tiene enlaces utilizables) y la API nunca lo devuelve: solo viaja por correo.
+- **Correo en desarrollo:** `MAIL_MAILER=log` (no hace falta SMTP; tampoco hay Mailpit). El correo completo queda en `storage/logs/laravel.log`, pero codificado; por eso, **en local y en pruebas, cada enlace se escribe además solo y en una línea en `storage/logs/enlaces.log`**:
+  ```bash
+  docker compose exec app tail -f storage/logs/enlaces.log
+  # [2026-11-17 11:58:37] local.INFO: INVITACIÓN para persona@easylunch.test
+  # http://localhost:3000/admin/aceptar-invitacion?token=…
+  ```
+  Copia el enlace al navegador. Los enlaces apuntan a `FRONTEND_URL` (por defecto `http://localhost:3000`). **En producción nunca se escriben en ningún log** (permitirían entrar a la cuenta de otra persona); allí solo sale el correo, con el `MAIL_MAILER` real que se configure.
 
 ## Dashboard e indicadores
 

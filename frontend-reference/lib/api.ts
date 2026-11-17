@@ -7,11 +7,12 @@
 // (invitaciones, crear empresa o repartidor, reasignar, generar rutas, imágenes…) avisan con un mensaje claro en vez de fallar en silencio.
 
 import { USAR_MOCK, FECHA_OPERACION } from './config'
-import { borrar, ErrorApi, get, patch, post, put } from './http'
+import { borrar, ErrorApi, get, http, patch, post, put } from './http'
 import { leerSesion } from './sesion'
 import * as mock from './api-mock'
 import type {
-  BloqueHorario, CalificacionPendiente, CostoOperativo, IndicadoresEmpresa, CalendarioServicio, ClienteDetalle, ClienteResumen, ComedorDetalle, ConfiguracionOperacion, ConsumoDiario, ContratoPorVencer, Corte,
+  BloqueHorario, CalificacionPendiente, CostoOperativo, IndicadoresEmpresa, InvitacionDetalle, InvitacionPublica, ResultadoAceptacion, SolicitudRestablecimiento,
+  UsuarioAcceso, ValidacionToken, CalendarioServicio, ClienteDetalle, ClienteResumen, ComedorDetalle, ConfiguracionOperacion, ConsumoDiario, ContratoPorVencer, Corte,
   DashboardAdmin, DiaSinServicio, DisponibilidadConPlatillo, EleccionEmpleado, Empleado, EmpleadoDetalle, EmpresaDetalle, EntregaDetalle, FacturaConEmpresa,
   FacturaDetalle, FacturaMensual, FilaReporteProveedor, IncidenciaDetalle, LiquidacionComedor, LiquidacionConComedor, MensajeContacto, MensajeTicket,
   MenuSemanalDia, MiEleccion, MiMenu, OrdenProduccionDetalle, PedidoDetalle, PedidosMananaEmpresa, Plan, PlatilloDetalle, RegistroAuditoriaDetalle,
@@ -99,17 +100,18 @@ const real: typeof mock = {
   listarBitacora: async (filtro = {}) => leer<RegistroAuditoriaDetalle[]>('/api/v1/admin/bitacora', { usuario_id: filtro.usuario_id, rol: filtro.rol, desde: filtro.desde, hasta: filtro.hasta }),
   listarActoresBitacora: async () => [{ id: 'sistema', nombre: 'Sistema', rol: null }, ...(await leer<{ id: string; nombre: string; rol: Rol | null }[]>('/api/v1/admin/bitacora/actores'))],
 
-  // ---- invitaciones y cuenta (necesitan correo: pendientes en el backend)
-  listarUsuariosAcceso: async () => [],
-  invitarUsuario: async () => { throw pendiente('Invitar usuarios') },
-  reenviarInvitacion: async () => { throw pendiente('Reenviar invitaciones') },
+  // ---- invitaciones y cuenta. El enlace de cada correo solo viaja por correo (en desarrollo, también en storage/logs/enlaces.log del backend):
+  // la API nunca lo devuelve, por eso `token` llega vacío y el front no ofrece «abrir el enlace».
+  listarUsuariosAcceso: async (organizacion) => leer<UsuarioAcceso[]>('/api/v1/cuentas/usuarios-acceso', { tipo: organizacion.tipo, id: organizacion.id }),
+  invitarUsuario: async (datos) => ids(await post<UsuarioAcceso>('/api/v1/cuentas/invitaciones', datos)),
+  reenviarInvitacion: async (id) => ids(await post<InvitacionDetalle>(`/api/v1/cuentas/invitaciones/${id}/reenviar`)),
   editarUsuarioAcceso: async () => { throw pendiente('Editar usuarios') },
   cambiarEstadoUsuarioAcceso: async () => { throw pendiente('Desactivar usuarios') },
-  solicitarRestablecimiento: async () => { throw pendiente('Restablecer la contraseña por correo') },
-  validarTokenRestablecimiento: async () => ({ valido: false, motivo: 'invalido' as const }),
-  restablecerContrasena: async () => { throw pendiente('Restablecer la contraseña') },
-  obtenerInvitacionPublica: async () => ({ estado: 'invalida' as const, nombre_invitado: '', correo: '', organizacion_nombre: '', organizacion_tipo: 'plataforma' as const, rol: 'cliente' as const, portal: 'admin' as const }),
-  aceptarInvitacion: async () => { throw pendiente('Aceptar invitaciones') },
+  solicitarRestablecimiento: async (correo) => post<SolicitudRestablecimiento>('/api/v1/cuentas/restablecer/solicitar', { correo }, { publico: true }),
+  validarTokenRestablecimiento: async (token) => http<ValidacionToken>('GET', `/api/v1/cuentas/restablecer/${encodeURIComponent(token)}`, { publico: true }),
+  restablecerContrasena: async (token, contrasena) => { await post(`/api/v1/cuentas/restablecer/${encodeURIComponent(token)}`, { contrasena }, { publico: true }) },
+  obtenerInvitacionPublica: async (token) => http<InvitacionPublica>('GET', `/api/v1/cuentas/invitaciones/${encodeURIComponent(token)}`, { publico: true }),
+  aceptarInvitacion: async (token, contrasena) => post<ResultadoAceptacion>(`/api/v1/cuentas/invitaciones/${encodeURIComponent(token)}/aceptar`, { contrasena }, { publico: true }),
 
   // ---- empleados de una empresa
   listarEmpleados: async () => leer<EmpleadoDetalle[]>('/api/v1/empresa/empleados'),

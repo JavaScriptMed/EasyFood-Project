@@ -1,0 +1,8 @@
+meta {
+  name: Cuentas (invitaciones y contraseña)
+  seq: 14
+}
+
+docs {
+  Invitar a una persona, aceptar la invitación y restablecer la contraseña. Los correos salen con MAIL_MAILER=log: el enlace de cada correo queda en `storage/logs/enlaces.log` (solo en local), una línea por correo: `docker compose exec app tail -n 20 storage/logs/enlaces.log`. La API nunca devuelve el enlace. Para probar el flujo completo, copia el `token=` de ese archivo a la variable `tokenInvitacion` o `tokenRestablecer` del entorno.
+}

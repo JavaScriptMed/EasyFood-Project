@@ -58,6 +58,14 @@ return [
             'ignore_exceptions' => false,
         ],
 
+        // Enlaces de invitación y de restablecimiento, uno por línea y fáciles de copiar (solo en local y pruebas; ver EnlacesDeCuenta).
+        'enlaces' => [
+            'driver' => 'single',
+            'path' => storage_path('logs/enlaces.log'),
+            'level' => 'info',
+            'replace_placeholders' => true,
+        ],
+
         'single' => [
             'driver' => 'single',
             'path' => storage_path('logs/laravel.log'),
