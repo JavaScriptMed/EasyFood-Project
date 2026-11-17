@@ -49,17 +49,6 @@ class PedidoController extends Controller
         return response()->json(Vistas::pedido($pedido->load(['cliente', 'paquete', 'direccion', 'dias.platillos.menu'])), 201);
     }
 
-    /** Pago simulado: no cobra nada, solo registra método y últimos 4 dígitos. Pasado el corte el pedido se cancela. */
-    public function pagar(Request $request, int $id, ContratacionDePaquetes $paquetes): JsonResponse
-    {
-        $datos = $request->validate(['metodo_pago' => 'required|string|max:30', 'ultimos_digitos' => ['nullable', 'regex:/^[0-9]{4}$/']]);
-        $pedido = $this->propios($request)->findOrFail($id);
-
-        $pagado = $paquetes->pagar($pedido, $datos['metodo_pago'], $datos['ultimos_digitos'] ?? null);
-
-        return response()->json(Vistas::pedido($pagado->load(['cliente', 'paquete', 'direccion', 'dias.platillos.menu'])));
-    }
-
     private function propios(Request $request)
     {
         return Pedido::query()->with(['cliente', 'paquete', 'direccion', 'dias.platillos.menu'])->where('cliente_id', $request->user()->id);

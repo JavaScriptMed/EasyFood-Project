@@ -6,11 +6,14 @@ use App\Models\Address;
 use App\Models\MensajeContacto;
 use App\Models\Paquete;
 use App\Models\Pedido;
+use App\Services\ContratacionDePaquetes;
+use App\Services\Pagos\PasarelaDePagos;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Tests\Concerns\ActuaComoUsuario;
 use Tests\Concerns\ArmaEscenarios;
 use Tests\Concerns\VerificaRestricciones;
+use Tests\Support\PasarelaFalsa;
 use Tests\TestCase;
 
 /** App móvil: paquetes, direcciones y pedidos de los clientes, y el formulario de contacto. «Hoy» es el lunes 9 de nov de 2026 a las 10:00. */
@@ -21,9 +24,12 @@ class AppClienteTest extends TestCase
     use RefreshDatabase;
     use VerificaRestricciones;
 
+    private PasarelaFalsa $pasarela;
+
     protected function setUp(): void
     {
         parent::setUp();
+        $this->app->instance(PasarelaDePagos::class, $this->pasarela = new PasarelaFalsa); // sin red
         $this->ahoraEs('2026-11-09 10:00');
         $this->zonaDePruebas('Centro');
     }
@@ -189,20 +195,36 @@ class AppClienteTest extends TestCase
         $this->assertSame([false, true], array_column($p['dias'][0]['platillos'], 'es_extra'));
     }
 
-    public function test_paga_el_pedido_en_forma_simulada_y_despues_ya_no_tiene_tiempo_para_pagar(): void
+    public function test_iniciar_el_pago_da_el_client_secret_por_el_total_en_mxn_y_no_cambia_el_pedido(): void
     {
         $this->comoRol('customer');
         $direccion = $this->postJson('/api/v1/cliente/direcciones', $this->direccionValida())->json('id');
         $paquete = Paquete::create(['nombre' => 'Un día', 'dias' => 1]);
         $id = $this->postJson('/api/v1/cliente/pedidos', ['paquete_id' => $paquete->id, 'direccion_id' => $direccion, 'platillos' => [['comida' => $this->menuDisponible()]]])->json('id');
 
-        $this->postJson("/api/v1/cliente/pedidos/{$id}/pagar", ['metodo_pago' => 'tarjeta', 'ultimos_digitos' => '48'])->assertStatus(422)->assertJsonStructure(['errores' => ['ultimos_digitos']]);
-        $this->postJson("/api/v1/cliente/pedidos/{$id}/pagar", ['metodo_pago' => 'tarjeta', 'ultimos_digitos' => '4821'])->assertOk()
-            ->assertJsonPath('estado', 'recibido')->assertJsonPath('ultimos_digitos', '4821')->assertJsonPath('segundos_para_pagar', null);
-        $this->postJson("/api/v1/cliente/pedidos/{$id}/pagar", ['metodo_pago' => 'tarjeta'])->assertStatus(422)->assertJsonPath('codigo', 'pedido_no_pagable');
+        $pago = $this->postJson("/api/v1/cliente/pedidos/{$id}/pago")->assertOk()->assertJsonPath('monto', '100.00')->assertJsonPath('moneda', 'MXN')->json();
+
+        $this->assertSame(['pi_prueba_1', 'pi_prueba_1_secret'], [$pago['payment_intent_id'], $pago['client_secret']]);
+        $this->assertSame(10000, $this->pasarela->intentos['pi_prueba_1']['monto'], 'el total en centavos');
+        $this->assertSame((string) $id, $this->pasarela->intentos['pi_prueba_1']['metadatos']['pedido_id']);
+        $this->getJson("/api/v1/cliente/pedidos/{$id}")->assertJsonPath('estado', 'pendiente_pago')->assertJsonPath('ultimos_digitos', null);
+        $this->assertSame('pi_prueba_1', Pedido::findOrFail($id)->stripe_payment_intent_id);
+
+        $this->postJson("/api/v1/cliente/pedidos/{$id}/pago")->assertOk()->assertJsonPath('payment_intent_id', 'pi_prueba_1');
+        $this->assertCount(1, $this->pasarela->intentos, 'repetir la llamada no crea otro intento');
+        $this->postJson("/api/v1/cliente/pedidos/{$id}/pagar")->assertStatus(404); // ya no existe el pago simulado
     }
 
-    public function test_pagar_despues_del_corte_cancela_el_pedido_y_pide_hacerlo_de_nuevo(): void
+    public function test_sin_las_claves_de_stripe_los_pagos_responden_503(): void
+    {
+        $this->pasarela->configurada = false;
+        $this->comoRol('customer');
+
+        $this->postJson('/api/v1/cliente/pedidos/1/pago')->assertStatus(503)->assertJsonPath('codigo', 'pagos_no_configurados');
+        $this->postJson('/api/v1/webhooks/stripe', [])->assertStatus(503)->assertJsonPath('codigo', 'pagos_no_configurados');
+    }
+
+    public function test_un_pedido_vencido_no_se_puede_pagar_pero_no_cambia_y_el_corte_lo_cancela(): void
     {
         $this->comoRol('customer');
         $direccion = $this->postJson('/api/v1/cliente/direcciones', $this->direccionValida())->json('id');
@@ -210,8 +232,14 @@ class AppClienteTest extends TestCase
         $id = $this->postJson('/api/v1/cliente/pedidos', ['paquete_id' => $paquete->id, 'direccion_id' => $direccion, 'platillos' => [['comida' => $this->menuDisponible()]]])->json('id');
 
         $this->ahoraEs('2026-11-09 18:00:00');
-        $this->postJson("/api/v1/cliente/pedidos/{$id}/pagar", ['metodo_pago' => 'tarjeta'])->assertStatus(422)->assertJsonPath('codigo', 'pedido_vencido');
+        $this->postJson("/api/v1/cliente/pedidos/{$id}/pago")->assertStatus(422)->assertJsonPath('codigo', 'pedido_vencido');
+        $this->getJson("/api/v1/cliente/pedidos/{$id}")->assertOk()->assertJsonPath('estado', 'pendiente_pago');
+        $this->assertSame([], $this->pasarela->intentos, 'no se crea ningún intento');
+
+        app(ContratacionDePaquetes::class)->cancelarVencidos();
+
         $this->getJson("/api/v1/cliente/pedidos/{$id}")->assertOk()->assertJsonPath('estado', 'cancelado')->assertJsonPath('segundos_para_pagar', null);
+        $this->postJson("/api/v1/cliente/pedidos/{$id}/pago")->assertStatus(422)->assertJsonPath('codigo', 'pedido_no_pagable');
         $this->assertSame(0, (int) DB::table('disponibilidad_dia')->sum('porciones_tomadas'));
     }
 
@@ -244,7 +272,7 @@ class AppClienteTest extends TestCase
 
         $this->getJson('/api/v1/cliente/pedidos')->assertOk()->assertJsonCount(1)->assertJsonPath('0.id', $mio)->assertJsonPath('0.cliente_id', $cliente->id);
         $this->getJson("/api/v1/cliente/pedidos/{$ajeno->id}")->assertStatus(404);
-        $this->postJson("/api/v1/cliente/pedidos/{$ajeno->id}/pagar", ['metodo_pago' => 'tarjeta'])->assertStatus(404);
+        $this->postJson("/api/v1/cliente/pedidos/{$ajeno->id}/pago")->assertStatus(404);
     }
 
     // ------------------------------------------------------------------ contacto (público)

@@ -56,9 +56,9 @@ Rutas en `routes/v1.php` (prefijo `/api/v1`), JSON en español y token Bearer de
 | Portal de empresas (`company`) | `/empresa` | perfil, empleados (ver, activar/desactivar), pedidos de mañana, consumo, vista previa del mes en curso, facturas | agregar empleados |
 | Portal de comedores (`provider`) | `/comedor` | perfil, platillos, disponibilidad, producción, pagos | imágenes |
 | Portal de empleados (`employee`) | `/empleado` | menú, elegir/quitar platillo, historial | |
-| App móvil (`customer`) | `/cliente` | paquetes, menú semanal, direcciones, pedidos (pedir y pagar) | |
+| App móvil (`customer`) | `/cliente` | paquetes, menú semanal, direcciones, pedidos (pedir), pago con tarjeta (`POST /cliente/pedidos/{id}/pago`) | |
 | Cualquier rol con sesión | `/configuracion/operacion`, `/paquetes` | lectura de la configuración de operación y de los paquetes | |
-| Público | `/contacto`, `/cuentas` | formulario de contacto | invitaciones y restablecer contraseña (necesitan correo) |
+| Público | `/contacto`, `/cuentas`, `/webhooks/stripe` | formulario de contacto, aviso de cobro de Stripe (se confía en su firma) | invitaciones y restablecer contraseña (necesitan correo) |
 
 Un endpoint «solo ruta» ya tiene su URL, su rol y su nombre, pero responde `501 { "codigo": "no_implementado" }` desde `NoImplementadoController` hasta que se construya; entonces solo se cambia su línea en `routes/v1.php`. `php artisan route:list --path=api/v1` muestra el mapa completo.
 
@@ -71,6 +71,39 @@ La carpeta [`bruno/`](bruno/README.md) es una colección de [Bruno](https://www.
 ```bash
 docker compose exec app php artisan db:seed --class=DatosDeEjemploSeeder
 ```
+
+## Pagos con Stripe (modo de prueba)
+
+El pedido de un cliente individual se paga con tarjeta. La app móvil llama a `POST /api/v1/cliente/pedidos/{id}/pago`, recibe el `client_secret` y cobra con el SDK de Stripe; cuando Stripe confirma, avisa a `POST /api/v1/webhooks/stripe`, que pasa el pedido a `recibido`. El pago simulado ya no existe como ruta.
+
+**Claves.** Solo en tu `.env` (nunca en el código ni en el repositorio; `.env` está en `.gitignore`):
+
+```
+STRIPE_SECRET=sk_test_...        # Dashboard de Stripe → Developers → API keys (modo de prueba)
+STRIPE_WEBHOOK_SECRET=whsec_...  # el que imprime `stripe listen` (abajo) o el del endpoint que crees en el Dashboard
+```
+
+Sin ellas, el pago y el webhook responden `503 pagos_no_configurados`. Después de cambiar el `.env`: `docker compose exec app php artisan config:clear`.
+
+**Probar el webhook en local con Stripe CLI.**
+
+1. Instala [Stripe CLI](https://docs.stripe.com/stripe-cli) y entra a tu cuenta de prueba: `stripe login`.
+2. Con el backend encendido (`docker compose up -d`, puerto 8000), reenvía los eventos a tu máquina:
+   ```bash
+   stripe listen --forward-to http://localhost:8000/api/v1/webhooks/stripe --events payment_intent.succeeded,payment_intent.payment_failed
+   ```
+   Imprime `Your webhook signing secret is whsec_...`: cópialo a `STRIPE_WEBHOOK_SECRET` y limpia la configuración (paso anterior). Deja esa terminal abierta.
+3. Crea un pedido con Bruno (carpeta *04 · App móvil · clientes*, peticiones 11 y 13) o con la app. La respuesta de «Iniciar el pago» trae `payment_intent_id` y `client_secret`.
+4. Cobra ese intento con una tarjeta de prueba (sin la app):
+   ```bash
+   stripe payment_intents confirm pi_XXXX --payment-method pm_card_visa --return-url https://example.com
+   ```
+   (`pm_card_chargeDeclined` simula un pago rechazado.) En la terminal de `stripe listen` verás `payment_intent.succeeded → 200`, y el pedido pasa a `recibido` con `ultimos_digitos` `4242`.
+5. Reenvía el mismo evento con `stripe events resend evt_XXXX`: responde 200 con `resultado: repetido` y no cambia nada.
+
+`stripe trigger payment_intent.succeeded` también funciona, pero crea un cobro que no es de ningún pedido: queda como `ignorado`. Para ver lo que pasó, mira la tabla `stripe_eventos` y la bitácora (`pedido.pagado`, `pago.reembolso_manual`).
+
+**Reglas.** Se compara contra la hora del cargo, no la del webhook. Un pedido vencido no se puede empezar a pagar (`422 pedido_vencido`), pero el pago no lo cancela: lo cancela el corte. Si Stripe cobra algo que ya no se puede aplicar, el pedido no cambia y queda un aviso en la bitácora para devolver el dinero a mano (no hay reembolso automático). Las pruebas usan una pasarela falsa (`tests/Support/PasarelaFalsa.php`): ninguna llama a la red.
 
 ## Tareas automáticas
 
@@ -100,7 +133,8 @@ Viven en `app/Services` y cada una tiene su prueba en `tests/Feature/Negocio`. L
 | `EjecutorDelCorte` | Aplica la regla de quien no eligió, cierra elecciones, genera una orden por comedor y platillo, consolida una entrega por empresa y crea rutas por zona sin pasar la capacidad del auto. Idempotente: repetirlo deja un registro «sin_cambios». Si falla, no guarda nada. |
 | `GeneradorDeFacturas` | Total = parte empresa + parte empleados + diferencia por mínimo. Solo cuentan entregas «entregada»; el mes debe haber terminado. |
 | `GeneradorDeLiquidaciones` | Al comedor se le paga lo entregado más lo que faltó para su mínimo, a su precio fijo. |
-| `ContratacionDePaquetes` | Paquetes de 1, 2 o 6 días de servicio con 1, 2 o 3 comidas por día (un platillo por tiempo de comida, los mismos tiempos todos los días, más un extra opcional por día); precio congelado por platillo, descuento del paquete, pago simulado. La dirección debe tener cobertura. Un pedido por pagar vence en el corte de su primer día (`vence_pago_en`, `segundos_para_pagar`) y se cancela. |
+| `ContratacionDePaquetes` | Paquetes de 1, 2 o 6 días de servicio con 1, 2 o 3 comidas por día (un platillo por tiempo de comida, los mismos tiempos todos los días, más un extra opcional por día); precio congelado por platillo, descuento del paquete. El pago de verdad lo confirma Stripe (`PagosDePedidos`); `pagar()` es un pago simulado interno, sin ruta, para el seeder y las pruebas. La dirección debe tener cobertura. Un pedido por pagar vence en el corte de su primer día (`vence_pago_en`, `segundos_para_pagar`) y se cancela. |
+| `PagosDePedidos` | Pago con tarjeta con Stripe (modo de prueba). `iniciar()` crea un PaymentIntent por el total en MXN (solo pedido propio, por pagar y sin vencer) y no cambia el pedido; `procesarEvento()` atiende el webhook: idempotente (`stripe_eventos`), pasa el pedido a «recibido» con la hora del cargo y los últimos 4 dígitos. Un pago fallido no cambia nada; un cobro que ya no se puede aplicar (tardío, monto distinto, pedido cancelado o ya pagado) tampoco, y queda en la bitácora (`pago.reembolso_manual`) para reembolsarlo a mano. Nunca se guardan datos de tarjeta. |
 | `AvisosDeVencimiento` | Avisa a la empresa y a los administradores de los contratos que vencen en el mes en curso o en los 7 días siguientes (tabla `avisos`). |
 | `Folios` | Consecutivos `EL-AAAAMM-NNN` y `GDL-AAAAMMDD-NNNN` sin repetirse aunque dos procesos pidan folio a la vez (tabla `contadores_folio`). |
 

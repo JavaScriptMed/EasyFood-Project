@@ -1,5 +1,5 @@
 meta {
-  name: Pagar otra vez (rechazado)
+  name: El pago simulado ya no existe
   type: http
   seq: 14
 }
@@ -21,7 +21,7 @@ body:json {
 }
 
 tests {
-  test("responde 422", function () {
-    expect(res.getStatus()).to.equal(422);
+  test("responde 404: solo se paga con Stripe", function () {
+    expect(res.getStatus()).to.equal(404);
   });
 }

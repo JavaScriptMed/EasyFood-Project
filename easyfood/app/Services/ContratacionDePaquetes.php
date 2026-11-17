@@ -173,7 +173,10 @@ class ContratacionDePaquetes
         return $resultado;
     }
 
-    /** Pago simulado: no cobra nada. Un pedido pagado entra al corte; uno por pagar, no. */
+    /**
+     * Pago simulado: no cobra nada. Método interno (lo usan el seeder y las pruebas); no tiene ruta pública, porque el pago de verdad
+     * lo confirma el webhook de Stripe (PagosDePedidos). Un pedido pagado entra al corte; uno por pagar, no.
+     */
     public function pagar(Pedido $pedido, string $metodoPago, ?string $ultimosDigitos = null, ?CarbonInterface $ahora = null): Pedido
     {
         $pedido = Pedido::query()->findOrFail($pedido->id);
@@ -187,12 +190,27 @@ class ContratacionDePaquetes
             throw new ReglaDeNegocioException('pedido_vencido', 'El tiempo para pagar terminó (el corte de la primera entrega ya pasó): el pedido se canceló y hay que pedirlo de nuevo.');
         }
 
-        $pedido->update([
-            'estado' => 'recibido', 'metodo_pago' => $metodoPago, 'ultimos_digitos' => $ultimosDigitos,
-            'pagado_en' => $this->calendario->ahora($ahora),
-        ]);
+        return $this->confirmarPago($pedido, $metodoPago, $ultimosDigitos, $this->calendario->ahora($ahora));
+    }
+
+    /** Pasa un pedido por pagar a «recibido» con su fecha de pago. Único lugar donde se marca un pago (simulado o de Stripe). */
+    public function confirmarPago(Pedido $pedido, string $metodoPago, ?string $ultimosDigitos, CarbonInterface $pagadoEn): Pedido
+    {
+        $pedido->update(['estado' => 'recibido', 'metodo_pago' => $metodoPago, 'ultimos_digitos' => $ultimosDigitos, 'pagado_en' => $pagadoEn]);
 
         return $pedido->refresh();
+    }
+
+    /** ¿Ya no se puede empezar a pagar? (llegó su plazo o el corte de su primer día ya se ejecutó). No cancela nada. */
+    public function yaNoSePuedePagar(Pedido $pedido, ?CarbonInterface $ahora = null): bool
+    {
+        return $this->haVencido($pedido, $pedido->dias()->orderBy('fecha')->first()?->fecha, $ahora);
+    }
+
+    /** ¿El pago hecho en `$momento` llegó después del plazo del pedido? Compara contra la hora del cargo, no contra la de hoy. */
+    public function pagoLlegoTarde(Pedido $pedido, CarbonInterface $momento): bool
+    {
+        return $pedido->vence_pago_en !== null && $momento->gte($pedido->vence_pago_en);
     }
 
     /**

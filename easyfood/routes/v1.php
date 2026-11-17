@@ -20,6 +20,7 @@ use App\Http\Controllers\Api\V1\Empleado;
 use App\Http\Controllers\Api\V1\Empresa;
 use App\Http\Controllers\Api\V1\MenuSemanalController;
 use App\Http\Controllers\Api\V1\NoImplementadoController as Pendiente;
+use App\Http\Controllers\Api\V1\Webhooks;
 use Illuminate\Support\Facades\Route;
 
 // Los ids de la API son numéricos.
@@ -27,6 +28,9 @@ Route::pattern('id', '[0-9]+');
 
 // ---------------------------------------------------------------------------------------------- público
 Route::post('contacto', [ContactoController::class, 'store'])->middleware('throttle:10,1')->name('v1.contacto.store');
+
+// Stripe avisa aquí cuando se cobra un pedido. Público: se confía en la firma del webhook, no en un token.
+Route::post('webhooks/stripe', [Webhooks\StripeController::class, 'recibir'])->middleware('throttle:300,1')->name('v1.webhooks.stripe');
 
 // Cuentas: invitaciones y restablecer contraseña (PENDIENTE: requieren correo y tokens).
 Route::prefix('cuentas')->middleware('throttle:10,1')->name('v1.cuentas.')->group(function () {
@@ -173,6 +177,6 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('pedidos', [Cliente\PedidoController::class, 'index'])->name('pedidos.index');
         Route::post('pedidos', [Cliente\PedidoController::class, 'store'])->name('pedidos.store');
         Route::get('pedidos/{id}', [Cliente\PedidoController::class, 'show'])->name('pedidos.show');
-        Route::post('pedidos/{id}/pagar', [Cliente\PedidoController::class, 'pagar'])->name('pedidos.pagar');
+        Route::post('pedidos/{id}/pago', [Cliente\PagoController::class, 'store'])->name('pedidos.pago');
     });
 });

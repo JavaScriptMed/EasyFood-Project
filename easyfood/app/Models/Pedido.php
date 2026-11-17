@@ -24,6 +24,7 @@ class Pedido extends ModeloEasyLunch
         'ultimos_digitos',
         'pagado_en',
         'vence_pago_en',
+        'stripe_payment_intent_id',
     ];
 
     /** Lo que el front muestra del pedido por pagar: cuándo vence y cuántos segundos quedan (nulo si ya no está por pagar). */

@@ -49,7 +49,7 @@ Clic derecho en la colección → **Run**, o corre carpeta por carpeta. **Empiez
 | 01 | Administración · catálogo | Empresas, comedores, contratos por vencer, crear/editar/aprobar/rechazar platillos |
 | 02 | Administración · configuración y calendario | Hora de corte, capacidad del auto, días sin servicio y cierres de empresa |
 | 03 | Portal de empleados | Menú, elegir, cambiar y quitar platillo; el precio y el subsidio se congelan al elegir |
-| 04 | App móvil · clientes | Paquetes, direcciones (zona automática y «sin cobertura») y pedidos con pago simulado |
+| 04 | App móvil · clientes | Paquetes, direcciones (zona automática y «sin cobertura») y pedidos (el pago es con Stripe en modo de prueba: sin claves, «iniciar el pago» responde 503) |
 | 05 | Portal de comedores | Perfil, platillos, porciones por día, pagos |
 | 06 | **Corte y reparto** | **Ejecutar el corte**: cierra elecciones, órdenes de producción, entregas por empresa, rutas por zona e incidencias |
 | 07 | Administración · dinero | Facturas a empresas y liquidaciones a comedores (total, partes y diferencia por mínimo) |
