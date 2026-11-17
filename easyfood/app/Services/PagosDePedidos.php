@@ -16,9 +16,10 @@ use Illuminate\Support\Facades\DB;
  *
  * - iniciar(): el cliente pide pagar su pedido y recibe el `client_secret` de un PaymentIntent por el total en MXN.
  *   Solo si el pedido es suyo, está por pagar y no ha vencido. No cambia el pedido.
- * - procesarEvento(): el webhook de Stripe avisa que se cobró. Es idempotente (cada evento se procesa una sola vez) y es lo único
- *   que pasa el pedido a «recibido». Un pago fallido, o uno que llega cuando el pedido ya no se puede pagar, no lo cambia:
- *   el corte sigue cancelando los pedidos sin pagar, y el cobro tardío queda en la bitácora para reembolsarlo a mano.
+ * - procesarEvento(): el webhook de Stripe avisa que se cobró (o que se reembolsó). Es idempotente (cada evento se procesa una sola
+ *   vez) y es lo único que pasa el pedido a «recibido». Un pago fallido no lo cambia. Un cobro que llega cuando el pedido ya no se
+ *   puede pagar (cancelado o vencido) tampoco lo cambia: se reembolsa completo y, si Stripe falla, queda en la bitácora para hacerlo
+ *   a mano. Un reembolso de un pedido pagado (`charge.refunded`) lo cancela.
  * - Nunca se guardan datos de tarjeta: solo los últimos 4 dígitos.
  */
 class PagosDePedidos
@@ -29,6 +30,7 @@ class PagosDePedidos
     public function __construct(
         private readonly PasarelaDePagos $pasarela,
         private readonly ContratacionDePaquetes $paquetes,
+        private readonly ReembolsosDePedidos $reembolsos,
     ) {}
 
     /**
@@ -80,6 +82,7 @@ class PagosDePedidos
             [$resultado, $pedidoId] = match ($evento['tipo']) {
                 'payment_intent.succeeded' => $this->cobroExitoso($evento),
                 'payment_intent.payment_failed' => $this->cobroFallido($evento),
+                'charge.refunded' => $this->reembolsoRecibido($evento),
                 default => ['ignorado', null],
             };
 
@@ -107,9 +110,16 @@ class PagosDePedidos
 
             return ['monto_distinto', $pedido->id];
         }
-        if ($pedido->estado !== 'pendiente_pago' || $this->paquetes->pagoLlegoTarde($pedido, $momento)) {
-            $motivo = $pedido->estado === 'pendiente_pago' ? 'el cargo se hizo después del plazo para pagar' : "el pedido ya estaba {$pedido->estado}";
-            $this->avisarParaReembolso($pedido, $intento, $motivo);
+        $vencido = $pedido->estado === 'pendiente_pago' && $this->paquetes->pagoLlegoTarde($pedido, $momento);
+        if ($pedido->estado === 'cancelado' || $vencido) {
+            // Un cobro sobre un pedido cancelado o vencido: se devuelve el dinero y el pedido no cambia.
+            $motivo = $vencido ? 'el cargo se hizo después del plazo para pagar' : 'el pedido ya estaba cancelado';
+
+            return [$this->reembolsos->reembolsarCobroNoAplicable($pedido, $intento, $motivo), $pedido->id];
+        }
+        if ($pedido->estado !== 'pendiente_pago') {
+            // Ya estaba pagado (o en curso): puede ser un segundo cobro o el mismo; no se sabe cuál es el bueno, lo decide una persona.
+            $this->avisarParaReembolso($pedido, $intento, "el pedido ya estaba {$pedido->estado}");
 
             return ['pedido_no_pagable', $pedido->id];
         }
@@ -118,6 +128,39 @@ class PagosDePedidos
         Bitacora::registrar(null, 'pedido.pagado', 'pedidos', $pedido->id, "Pago con tarjeta confirmado por Stripe para el pedido {$pedido->folio}.");
 
         return ['pagado', $pedido->id];
+    }
+
+    /**
+     * Stripe avisa que un cargo se reembolsó. Si el pedido está pagado, pasa a cancelado con los datos del reembolso (el endpoint de
+     * reembolso ya lo hace al momento; aquí converge sin repetirse y cubre los reembolsos hechos desde el Dashboard de Stripe).
+     * Un reembolso parcial no cancela nada: se deja constancia para que una persona lo revise.
+     *
+     * @return array{0: string, 1: ?int}
+     */
+    private function reembolsoRecibido(array $evento): array
+    {
+        $cargo = $evento['cargo'] ?? null;
+        $pedido = $cargo && $cargo['intento_id'] ? Pedido::query()->where('stripe_payment_intent_id', $cargo['intento_id'])->lockForUpdate()->first() : null;
+        if (! $pedido) {
+            return ['ignorado', null];
+        }
+        if ($pedido->reembolsado_en !== null) {
+            return ['reembolsado', $pedido->id]; // ya estaba anotado (lo hizo el endpoint de reembolso)
+        }
+        if (! in_array($pedido->estado, ['recibido', 'activo'], true)) {
+            return ['ignorado', $pedido->id]; // el reembolso de un cobro que nunca se aplicó al pedido (por ejemplo, el automático)
+        }
+        if (! $cargo['reembolso_total']) {
+            Bitacora::registrar(null, 'pago.reembolso_parcial', 'pedidos', $pedido->id, sprintf('Stripe reembolsó %s de %s MXN del pedido %s. El pedido no se canceló: revísalo.', Dinero::formato($cargo['reembolsado']), Dinero::formato($cargo['monto']), $pedido->folio));
+
+            return ['ignorado', $pedido->id];
+        }
+
+        $reembolso = $this->pasarela->ultimoReembolso($cargo['id']);
+        $momento = CarbonImmutable::createFromTimestamp($reembolso['creado'] ?? $evento['creado'], config('app.timezone'));
+        $this->reembolsos->aplicarReembolso($pedido, $reembolso['id'] ?? 're_'.$cargo['id'], $cargo['reembolsado'], $momento); // lo total devuelto del cobro, no solo el último reembolso
+
+        return ['reembolsado', $pedido->id];
     }
 
     /** @return array{0: string, 1: ?int} */

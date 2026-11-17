@@ -25,6 +25,9 @@ class Pedido extends ModeloEasyLunch
         'pagado_en',
         'vence_pago_en',
         'stripe_payment_intent_id',
+        'reembolsado_en',
+        'monto_reembolsado',
+        'stripe_refund_id',
     ];
 
     /** Lo que el front muestra del pedido por pagar: cuándo vence y cuántos segundos quedan (nulo si ya no está por pagar). */
@@ -47,6 +50,8 @@ class Pedido extends ModeloEasyLunch
             'total' => 'decimal:2',
             'pagado_en' => 'datetime',
             'vence_pago_en' => 'datetime',
+            'reembolsado_en' => 'datetime',
+            'monto_reembolsado' => 'decimal:2',
         ];
     }
 

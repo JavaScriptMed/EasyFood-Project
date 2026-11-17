@@ -126,18 +126,22 @@ class PagosConStripeTest extends TestCase
         $this->webhook('evt_2', 'payment_intent.succeeded', $intento, 10000, '2026-11-09T12:00:00-06:00')->assertJsonPath('resultado', 'pagado');
     }
 
-    public function test_un_cargo_hecho_despues_del_plazo_no_cambia_el_pedido_y_queda_en_la_bitacora_para_reembolsarlo(): void
+    public function test_un_cargo_hecho_despues_del_plazo_se_reembolsa_completo_y_el_pedido_no_cambia(): void
     {
         $intento = $this->iniciar();
 
-        $this->webhook('evt_1', 'payment_intent.succeeded', $intento, 10000, '2026-11-09T18:00:01-06:00')->assertOk()->assertJsonPath('resultado', 'pedido_no_pagable');
+        $this->webhook('evt_1', 'payment_intent.succeeded', $intento, 10000, '2026-11-09T18:00:01-06:00')->assertOk()->assertJsonPath('resultado', 'reembolso_automatico');
 
-        $this->assertSame('pendiente_pago', $this->pedido->fresh()->estado);
-        $aviso = $this->bitacora('pago.reembolso_manual')->sole();
+        $this->assertSame('pendiente_pago', $this->pedido->fresh()->estado, 'el pedido no cambia de estado');
+        $this->assertNull($this->pedido->fresh()->reembolsado_en);
+        $reembolso = collect($this->pasarela->llamadas)->firstWhere(0, 'crearReembolso');
+        $this->assertSame([$intento, 10000, 'easylunch-reembolso-auto-'.$intento], [$reembolso[1], $reembolso[2], $reembolso[3]], 'reembolso total, con llave de idempotencia');
+        $this->assertSame('reembolso_automatico', StripeEvento::sole()->resultado);
+        $aviso = $this->bitacora('pago.reembolsado_automatico')->sole();
         $this->assertStringContainsString($intento, $aviso->detalle);
-        $this->assertStringContainsString($this->pedido->folio, $aviso->detalle);
-        $this->assertStringContainsString('reembolsarlo manualmente', $aviso->detalle);
+        $this->assertStringContainsString('re_prueba_1', $aviso->detalle);
         $this->assertNull($aviso->usuario_id, 'lo registra el sistema');
+        $this->assertCount(0, $this->bitacora('pago.reembolso_manual'));
 
         $this->ahoraEs('2026-11-09 18:30');
         app(ContratacionDePaquetes::class)->cancelarVencidos();
@@ -155,17 +159,59 @@ class PagosConStripeTest extends TestCase
         $this->assertCount(0, $this->bitacora('pago.reembolso_manual'));
     }
 
-    public function test_un_cobro_de_un_pedido_que_el_corte_ya_cancelo_no_lo_revive(): void
+    public function test_un_cobro_de_un_pedido_que_el_corte_ya_cancelo_no_lo_revive_y_se_reembolsa(): void
     {
         $intento = $this->iniciar();
         $this->ahoraEs('2026-11-09 18:30');
         app(ContratacionDePaquetes::class)->cancelarVencidos();
 
-        $this->webhook('evt_1', 'payment_intent.succeeded', $intento, 10000, '2026-11-09T17:00:00-06:00')->assertJsonPath('resultado', 'pedido_no_pagable');
+        $this->webhook('evt_1', 'payment_intent.succeeded', $intento, 10000, '2026-11-09T17:00:00-06:00')->assertJsonPath('resultado', 'reembolso_automatico');
 
         $this->assertSame('cancelado', $this->pedido->fresh()->estado);
+        $this->assertNull($this->pedido->fresh()->reembolsado_en, 'el pedido nunca se pagó: no lleva datos de reembolso');
         $this->assertSame(0, (int) DisponibilidadDia::sum('porciones_tomadas'));
-        $this->assertCount(1, $this->bitacora('pago.reembolso_manual'));
+        $this->assertCount(1, $this->bitacora('pago.reembolsado_automatico'));
+        $this->assertCount(1, $this->pasarela->reembolsos);
+    }
+
+    public function test_el_reembolso_automatico_no_se_repite_si_el_webhook_llega_otra_vez(): void
+    {
+        $intento = $this->iniciar();
+        $this->webhook('evt_1', 'payment_intent.succeeded', $intento, 10000, '2026-11-09T18:00:01-06:00')->assertJsonPath('resultado', 'reembolso_automatico');
+
+        $this->webhook('evt_1', 'payment_intent.succeeded', $intento, 10000, '2026-11-09T18:00:01-06:00')->assertJsonPath('resultado', 'repetido');
+
+        $this->assertCount(1, $this->pasarela->reembolsos);
+        $this->assertCount(1, $this->bitacora('pago.reembolsado_automatico'));
+    }
+
+    public function test_si_el_reembolso_automatico_falla_queda_el_aviso_para_hacerlo_a_mano_y_el_pedido_no_cambia(): void
+    {
+        $intento = $this->iniciar();
+        $this->pasarela->fallaAlReembolsar = 'Stripe no responde';
+
+        $this->webhook('evt_1', 'payment_intent.succeeded', $intento, 10000, '2026-11-09T18:00:01-06:00')->assertOk()->assertJsonPath('resultado', 'reembolso_fallido');
+
+        $this->assertSame('pendiente_pago', $this->pedido->fresh()->estado);
+        $this->assertSame('reembolso_fallido', StripeEvento::sole()->resultado);
+        $aviso = $this->bitacora('pago.reembolso_manual')->sole();
+        $this->assertStringContainsString('falló (Stripe no responde)', $aviso->detalle);
+        $this->assertStringContainsString('reembolsarlo manualmente', $aviso->detalle);
+        $this->assertStringContainsString($intento, $aviso->detalle);
+        $this->assertCount(0, $this->bitacora('pago.reembolsado_automatico'));
+    }
+
+    public function test_el_aviso_de_reembolso_de_un_cobro_no_aplicado_no_cancela_nada(): void
+    {
+        $intento = $this->iniciar();
+        $this->webhook('evt_1', 'payment_intent.succeeded', $intento, 10000, '2026-11-09T18:00:01-06:00');
+        $this->pasarela->intentos[$intento]['cargo'] = ['id' => 'ch_'.$intento, 'monto' => 10000, 'reembolsado' => 10000, 'creado' => time()];
+
+        [$cuerpo] = $this->pasarela->webhookReembolso('evt_2', $intento);
+        $this->call('POST', '/api/v1/webhooks/stripe', [], [], [], ['CONTENT_TYPE' => 'application/json', 'HTTP_ACCEPT' => 'application/json', 'HTTP_STRIPE_SIGNATURE' => PasarelaFalsa::FIRMA], $cuerpo)
+            ->assertOk()->assertJsonPath('resultado', 'ignorado');
+
+        $this->assertSame('pendiente_pago', $this->pedido->fresh()->estado);
     }
 
     public function test_un_segundo_cobro_de_un_pedido_ya_pagado_se_avisa_para_reembolso(): void

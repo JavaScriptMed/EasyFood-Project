@@ -125,6 +125,7 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('clientes', [Admin\ClienteController::class, 'index'])->name('clientes.index');
             Route::get('clientes/{id}', [Admin\ClienteController::class, 'show'])->name('clientes.show');
             Route::get('pedidos', [Admin\PedidoController::class, 'index'])->name('pedidos.index');
+            Route::post('pedidos/{id}/reembolso', [Admin\PedidoController::class, 'reembolsar'])->name('pedidos.reembolso');
             Route::get('tickets', [Admin\TicketController::class, 'index'])->name('tickets.index');
             Route::get('tickets/{id}', [Admin\TicketController::class, 'show'])->name('tickets.show');
             Route::post('tickets/{id}/mensajes', [Admin\TicketController::class, 'mensaje'])->name('tickets.mensaje');

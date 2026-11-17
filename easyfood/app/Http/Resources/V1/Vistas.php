@@ -317,6 +317,7 @@ final class Vistas
             'metodo_pago' => $p->metodo_pago, 'ultimos_digitos' => $p->ultimos_digitos, 'tiene_evidencia' => $dias->contains(fn ($d) => $d->evidencia_foto_url !== null),
             'vence_pago_en' => self::iso($p->vence_pago_en), 'segundos_para_pagar' => $p->segundos_para_pagar,
             'comidas_por_dia' => $p->comidas_por_dia, 'con_extra' => (bool) $p->con_extra,
+            'reembolsado_en' => self::iso($p->reembolsado_en), 'monto_reembolsado' => $p->monto_reembolsado === null ? null : self::dinero($p->monto_reembolsado), 'stripe_refund_id' => $p->stripe_refund_id,
             'dias' => $dias->map(fn ($d) => [
                 'id' => $d->id, 'fecha' => $d->fecha->toDateString(), 'estado' => $d->estado,
                 'platillos' => $d->relationLoaded('platillos') ? $d->platillos->sortBy(fn ($c) => [(int) $c->es_extra, ['desayuno' => 0, 'comida' => 1, 'cena' => 2][$c->tiempo_comida]])->map(fn ($c) => [

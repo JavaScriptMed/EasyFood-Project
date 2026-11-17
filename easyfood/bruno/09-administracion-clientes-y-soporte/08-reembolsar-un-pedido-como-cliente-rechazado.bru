@@ -1,0 +1,21 @@
+meta {
+  name: Reembolsar un pedido como cliente (rechazado)
+  type: http
+  seq: 8
+}
+
+post {
+  url: {{baseUrl}}/api/v1/admin/pedidos/{{pedidoId}}/reembolso
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenCliente}}
+}
+
+tests {
+  test("responde 403: solo administración y soporte reembolsan", function () {
+    expect(res.getStatus()).to.equal(403);
+  });
+}

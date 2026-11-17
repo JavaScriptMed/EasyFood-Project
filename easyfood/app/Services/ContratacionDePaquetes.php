@@ -249,8 +249,11 @@ class ContratacionDePaquetes
             || ($primerDia && $this->calendario->corteYaEjecutado($primerDia));
     }
 
-    /** Pedido por pagar → cancelado; sus días → cancelados y se devuelven las porciones que tenían apartadas. */
-    private function cancelar(Pedido $pedido): void
+    /**
+     * Cancela un pedido: sus días por entregar → cancelados y se devuelven las porciones que tenían apartadas.
+     * Lo usan el corte (pedidos sin pagar) y los reembolsos (pedidos pagados); lo ya entregado no se toca.
+     */
+    public function cancelar(Pedido $pedido): void
     {
         DB::transaction(function () use ($pedido) {
             $dias = PedidoDia::query()->with('platillos')->where('pedido_id', $pedido->id)->where('estado', 'programada')->lockForUpdate()->get();

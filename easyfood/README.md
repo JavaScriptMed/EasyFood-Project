@@ -57,6 +57,7 @@ Rutas en `routes/v1.php` (prefijo `/api/v1`), JSON en español y token Bearer de
 | Portal de comedores (`provider`) | `/comedor` | perfil, platillos, disponibilidad, producción, pagos | imágenes |
 | Portal de empleados (`employee`) | `/empleado` | menú, elegir/quitar platillo, historial | |
 | App móvil (`customer`) | `/cliente` | paquetes, menú semanal, direcciones, pedidos (pedir), pago con tarjeta (`POST /cliente/pedidos/{id}/pago`) | |
+| Administración y soporte | `/admin/pedidos/{id}/reembolso` | reembolso total de un pedido pagado con Stripe | |
 | Cualquier rol con sesión | `/configuracion/operacion`, `/paquetes` | lectura de la configuración de operación y de los paquetes | |
 | Público | `/contacto`, `/cuentas`, `/webhooks/stripe` | formulario de contacto, aviso de cobro de Stripe (se confía en su firma) | invitaciones y restablecer contraseña (necesitan correo) |
 
@@ -90,7 +91,7 @@ Sin ellas, el pago y el webhook responden `503 pagos_no_configurados`. Después 
 1. Instala [Stripe CLI](https://docs.stripe.com/stripe-cli) y entra a tu cuenta de prueba: `stripe login`.
 2. Con el backend encendido (`docker compose up -d`, puerto 8000), reenvía los eventos a tu máquina:
    ```bash
-   stripe listen --forward-to http://localhost:8000/api/v1/webhooks/stripe --events payment_intent.succeeded,payment_intent.payment_failed
+   stripe listen --forward-to http://localhost:8000/api/v1/webhooks/stripe --events payment_intent.succeeded,payment_intent.payment_failed,charge.refunded
    ```
    Imprime `Your webhook signing secret is whsec_...`: cópialo a `STRIPE_WEBHOOK_SECRET` y limpia la configuración (paso anterior). Deja esa terminal abierta.
 3. Crea un pedido con Bruno (carpeta *04 · App móvil · clientes*, peticiones 11 y 13) o con la app. La respuesta de «Iniciar el pago» trae `payment_intent_id` y `client_secret`.
@@ -103,7 +104,13 @@ Sin ellas, el pago y el webhook responden `503 pagos_no_configurados`. Después 
 
 `stripe trigger payment_intent.succeeded` también funciona, pero crea un cobro que no es de ningún pedido: queda como `ignorado`. Para ver lo que pasó, mira la tabla `stripe_eventos` y la bitácora (`pedido.pagado`, `pago.reembolso_manual`).
 
-**Reglas.** Se compara contra la hora del cargo, no la del webhook. Un pedido vencido no se puede empezar a pagar (`422 pedido_vencido`), pero el pago no lo cancela: lo cancela el corte. Si Stripe cobra algo que ya no se puede aplicar, el pedido no cambia y queda un aviso en la bitácora para devolver el dinero a mano (no hay reembolso automático). Las pruebas usan una pasarela falsa (`tests/Support/PasarelaFalsa.php`): ninguna llama a la red.
+**Reembolsos.** Siempre son totales y no hay estado nuevo: un pedido reembolsado queda `cancelado` con `reembolsado_en`, `monto_reembolsado` (todo lo devuelto del cobro) y `stripe_refund_id`.
+
+- **Cobro que no se puede aplicar (automático).** Si llega `payment_intent.succeeded` sobre un pedido cancelado o vencido, el sistema reembolsa el cobro completo en Stripe (llave de idempotencia por intento), anota `pago.reembolsado_automatico` en la bitácora y el pedido no cambia. Si Stripe falla, anota `pago.reembolso_manual` (con el error) para hacerlo a mano. Un monto distinto al del pedido, o un segundo cobro sobre un pedido ya pagado, no se reembolsan solos: quedan como `pago.reembolso_manual`, porque no se sabe cuál es el cobro bueno.
+- **Por administración o soporte.** `POST /api/v1/admin/pedidos/{id}/reembolso` (solo `admin` y `support`): reembolsa lo que falta del cobro (nunca más de lo cobrado), cancela el pedido al momento y anota en la bitácora quién lo hizo (`pedido.reembolsado`). Una segunda llamada responde `422 pedido_ya_reembolsado`; un pedido sin pagar, `422 pedido_no_reembolsable`; si Stripe falla, `502 pasarela_con_error` y el pedido no cambia.
+- **Webhook `charge.refunded`.** Cubre los reembolsos hechos desde el Dashboard de Stripe: si el pedido está pagado, pasa a `cancelado` con los datos del reembolso; si el endpoint ya lo hizo, no repite nada. Un reembolso parcial no cancela: queda `pago.reembolso_parcial` en la bitácora. Agrega `charge.refunded` a `--events` en `stripe listen` (arriba) y para probarlo: `stripe refunds create --payment-intent=pi_XXXX`.
+
+**Reglas.** Se compara contra la hora del cargo, no la del webhook. Un pedido vencido no se puede empezar a pagar (`422 pedido_vencido`), pero el pago no lo cancela: lo cancela el corte. Si Stripe cobra algo que ya no se puede aplicar, el pedido no cambia y el cobro se reembolsa (ver Reembolsos). Las pruebas usan una pasarela falsa (`tests/Support/PasarelaFalsa.php`): ninguna llama a la red.
 
 ## Tareas automáticas
 
@@ -134,7 +141,8 @@ Viven en `app/Services` y cada una tiene su prueba en `tests/Feature/Negocio`. L
 | `GeneradorDeFacturas` | Total = parte empresa + parte empleados + diferencia por mínimo. Solo cuentan entregas «entregada»; el mes debe haber terminado. |
 | `GeneradorDeLiquidaciones` | Al comedor se le paga lo entregado más lo que faltó para su mínimo, a su precio fijo. |
 | `ContratacionDePaquetes` | Paquetes de 1, 2 o 6 días de servicio con 1, 2 o 3 comidas por día (un platillo por tiempo de comida, los mismos tiempos todos los días, más un extra opcional por día); precio congelado por platillo, descuento del paquete. El pago de verdad lo confirma Stripe (`PagosDePedidos`); `pagar()` es un pago simulado interno, sin ruta, para el seeder y las pruebas. La dirección debe tener cobertura. Un pedido por pagar vence en el corte de su primer día (`vence_pago_en`, `segundos_para_pagar`) y se cancela. |
-| `PagosDePedidos` | Pago con tarjeta con Stripe (modo de prueba). `iniciar()` crea un PaymentIntent por el total en MXN (solo pedido propio, por pagar y sin vencer) y no cambia el pedido; `procesarEvento()` atiende el webhook: idempotente (`stripe_eventos`), pasa el pedido a «recibido» con la hora del cargo y los últimos 4 dígitos. Un pago fallido no cambia nada; un cobro que ya no se puede aplicar (tardío, monto distinto, pedido cancelado o ya pagado) tampoco, y queda en la bitácora (`pago.reembolso_manual`) para reembolsarlo a mano. Nunca se guardan datos de tarjeta. |
+| `PagosDePedidos` | Pago con tarjeta con Stripe (modo de prueba). `iniciar()` crea un PaymentIntent por el total en MXN (solo pedido propio, por pagar y sin vencer) y no cambia el pedido; `procesarEvento()` atiende el webhook: idempotente (`stripe_eventos`), pasa el pedido a «recibido» con la hora del cargo y los últimos 4 dígitos, y procesa `charge.refunded`. Un pago fallido no cambia nada; un cobro sobre un pedido cancelado o vencido se reembolsa solo (el pedido no cambia); un monto distinto o un segundo cobro de un pedido ya pagado quedan en la bitácora (`pago.reembolso_manual`) para hacerlo a mano. Nunca se guardan datos de tarjeta. |
+| `ReembolsosDePedidos` | Reembolso total de pedidos pagados con Stripe: por administración o soporte, automático para cobros que no se pueden aplicar, o hecho desde Stripe (`charge.refunded`). Sin estado nuevo (el pedido queda «cancelado» con `reembolsado_en`, `monto_reembolsado`, `stripe_refund_id`), sin doble reembolso y nunca más de lo cobrado. |
 | `AvisosDeVencimiento` | Avisa a la empresa y a los administradores de los contratos que vencen en el mes en curso o en los 7 días siguientes (tabla `avisos`). |
 | `Folios` | Consecutivos `EL-AAAAMM-NNN` y `GDL-AAAAMMDD-NNNN` sin repetirse aunque dos procesos pidan folio a la vez (tabla `contadores_folio`). |
 

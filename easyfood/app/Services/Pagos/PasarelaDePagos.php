@@ -32,9 +32,40 @@ interface PasarelaDePagos
     public function cargo(string $cargoId): ?array;
 
     /**
+     * El cargo de un intento ya cobrado: cuánto se cobró, cuánto lleva reembolsado y cuándo se hizo.
+     *
+     * @return array{id: string, monto: int, reembolsado: int, creado: int}|null
+     *
+     * @throws ErrorDePasarela
+     */
+    public function cargoDeIntento(string $intentoId): ?array;
+
+    /**
+     * Reembolsa `$centavos` de un intento cobrado. `$llaveIdempotente` hace que repetir la llamada devuelva el mismo reembolso.
+     * Stripe nunca reembolsa más de lo cobrado.
+     *
+     * @param  array<string, string>  $metadatos
+     * @return array{id: string, estado: string, monto: int, creado: int}
+     *
+     * @throws ErrorDePasarela si la pasarela lo rechaza o no responde
+     */
+    public function crearReembolso(string $intentoId, int $centavos, string $llaveIdempotente, array $metadatos): array;
+
+    /**
+     * El reembolso más reciente de un cargo (lo necesita el webhook `charge.refunded`, que no trae su id).
+     *
+     * @return array{id: string, estado: string, monto: int, creado: int}|null
+     *
+     * @throws ErrorDePasarela
+     */
+    public function ultimoReembolso(string $cargoId): ?array;
+
+    /**
      * Verifica la firma del webhook con el cuerpo crudo y devuelve el evento ya normalizado.
      *
-     * @return array{id: string, tipo: string, creado: int, intento: array{id: string, monto: int, moneda: string, estado: string, metadatos: array<string, string>, cargo_id: ?string}|null}
+     * `intento` viene en los eventos de un PaymentIntent y `cargo` en los de un cargo (charge.refunded).
+     *
+     * @return array{id: string, tipo: string, creado: int, intento: array{id: string, monto: int, moneda: string, estado: string, metadatos: array<string, string>, cargo_id: ?string}|null, cargo?: array{id: string, intento_id: ?string, monto: int, reembolsado: int, reembolso_total: bool}|null}
      *
      * @throws FirmaDeWebhookInvalida si la firma no corresponde
      */
