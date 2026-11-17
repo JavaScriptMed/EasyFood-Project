@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { Check, Clock3, Eye, Flame, MapPin, ShieldAlert, Trash2, UtensilsCrossed } from 'lucide-react'
+import { CalificarLoRecibido } from '@/components/calificaciones'
 import { GrillaDatos, PanelDetalle, VentanaConfirmar } from '@/components/ventanas'
 import { BloqueEstado, ErrorEstado, FilasEstado } from '@/components/estados'
 import { PageTitle, Pill } from '@/components/panel'
@@ -153,6 +154,8 @@ export default function MiComida() {
           </table>
         </div></div>
       </section>
+
+      <CalificarLoRecibido />
 
       {m && verOpcion && (
         <PanelDetalle etiqueta={etiquetasTiempoComida[verOpcion.platillo.tiempo_comida]} titulo={verOpcion.platillo.nombre} onCerrar={() => setVerPlatilloId(null)} acciones={<Button disabled={!puedeElegir || m.eleccion?.platillo_id === verOpcion.platillo.id || verOpcion.agotado || eligiendo !== null} onClick={async () => { await elegir(verOpcion); setVerPlatilloId(null) }}>{m.eleccion?.platillo_id === verOpcion.platillo.id ? <><Check /> Tu elección</> : verOpcion.agotado ? 'Agotado' : m.eleccion ? 'Cambiar a este' : <><UtensilsCrossed /> Elegir este platillo</>}</Button>}>

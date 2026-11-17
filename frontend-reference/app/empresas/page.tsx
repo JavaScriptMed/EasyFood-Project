@@ -6,6 +6,10 @@ import { ArrowRight, CalendarCheck, CalendarDays, Clock3, Percent, ShoppingBaske
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useEmpresa } from '@/components/empresa-shell'
+import { BloqueEstado } from '@/components/estados'
+import { IndicadoresEmpresaPanel } from '@/components/indicadores'
+import { obtenerIndicadoresEmpresa } from '@/lib/api'
+import { useAsync } from '@/lib/use-async'
 import { MES_ACTUAL } from '@/lib/config'
 import { etiquetaMes, formatDate, formatMXN } from '@/lib/format'
 import { formatCountdown, secondsUntilHour, useCountUp, useNow } from '@/lib/live'
@@ -14,6 +18,7 @@ export default function EmpresaInicio() {
   const { empresa, empleados, horaCorte } = useEmpresa()
   const { contrato } = empresa
   const now = useNow()
+  const indicadores = useAsync(() => obtenerIndicadoresEmpresa(empresa.id), [empresa.id])
 
   const active = empleados.filter((e) => e.activo).length
   const chosen = empleados.filter((e) => e.eleccion_manana).length
@@ -86,6 +91,9 @@ export default function EmpresaInicio() {
           </CardContent>
         </Card>
       </section>
+
+      <BloqueEstado variante="tarjetas" cantidad={3} cargando={indicadores.loading} error={indicadores.error} vacio={false} mensajeVacio="" onReintentar={indicadores.reload} className="mt-10" />
+      {indicadores.data && <IndicadoresEmpresaPanel datos={indicadores.data} />}
 
       <p className="mt-5 flex items-center gap-2 text-xs text-muted-foreground"><CalendarCheck className="size-4" /> Los empleados pueden elegir su platillo hasta el corte de pedidos.</p>
     </div>

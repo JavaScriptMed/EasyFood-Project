@@ -1,0 +1,30 @@
+meta {
+  name: Costos operativos
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/api/v1/admin/costos-operativos
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+tests {
+  test("responde 200", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("trae los costos de las últimas 6 semanas", function () {
+    expect(res.body.length).to.be.greaterThan(0);
+    expect(res.body[0]).to.have.property("categoria");
+  });
+}
+
+docs {
+  Del más reciente al más antiguo. Filtros: `desde` y `hasta`.
+}

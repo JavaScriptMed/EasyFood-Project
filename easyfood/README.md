@@ -52,13 +52,13 @@ Rutas en `routes/v1.php` (prefijo `/api/v1`), JSON en español y token Bearer de
 
 | Grupo (rol) | Prefijo | Construido | Solo ruta (501) |
 |---|---|---|---|
-| Panel de administración (`admin`; `support` en clientes, pedidos, tickets e incidencias) | `/admin` | empresas y comedores (lectura), renovar contratos, contratos por vencer, platillos (crear, editar, revisar), configuración, calendario, corte (y su vista previa), repartidores, rutas, entregas, incidencias, facturas, liquidaciones, reporte de proveedor, menú semanal, consumo de una empresa, clientes, pedidos, tickets, bitácora | dashboard, crear empresa, historial de precios, imágenes, crear repartidor, generar rutas, reasignar incidencias |
-| Portal de empresas (`company`) | `/empresa` | perfil, empleados (ver, activar/desactivar), pedidos de mañana, consumo, vista previa del mes en curso, facturas | agregar empleados |
+| Panel de administración (`admin`; `support` en clientes, pedidos, tickets e incidencias) | `/admin` | empresas y comedores (lectura), renovar contratos, contratos por vencer, platillos (crear, editar, revisar), configuración, calendario, corte (y su vista previa), repartidores, rutas, entregas, incidencias, facturas, liquidaciones, reporte de proveedor, menú semanal, consumo de una empresa, clientes, pedidos, tickets, bitácora, **dashboard con 10 indicadores en tiempo real** (`GET /admin/dashboard`, solo `admin`) y costos operativos (listar, registrar, anular) | crear empresa, historial de precios, imágenes, crear repartidor, generar rutas, reasignar incidencias |
+| Portal de empresas (`company`) | `/empresa` | perfil, empleados (ver, activar/desactivar), pedidos de mañana, consumo, vista previa del mes en curso, facturas, indicadores de RR. HH. (`GET /empresa/indicadores`) | agregar empleados |
 | Portal de comedores (`provider`) | `/comedor` | perfil, platillos, disponibilidad, producción, pagos | imágenes |
-| Portal de empleados (`employee`) | `/empleado` | menú, elegir/quitar platillo, historial | |
+| Portal de empleados (`employee`) | `/empleado` | menú, elegir/quitar platillo, historial, calificar la entrega y el platillo que recibió | |
 | App móvil (`customer`) | `/cliente` | paquetes, menú semanal, direcciones, pedidos (pedir), pago con tarjeta (`POST /cliente/pedidos/{id}/pago`) | |
 | Administración y soporte | `/admin/pedidos/{id}/reembolso` | reembolso total de un pedido pagado con Stripe | |
-| Cualquier rol con sesión | `/configuracion/operacion`, `/paquetes` | lectura de la configuración de operación y de los paquetes | |
+| Cualquier rol con sesión | `/configuracion/operacion`, `/paquetes`, `/calificaciones/menu-semanal` | lectura de la configuración de operación, de los paquetes y de la calificación semanal del menú | |
 | Público | `/contacto`, `/cuentas`, `/webhooks/stripe` | formulario de contacto, aviso de cobro de Stripe (se confía en su firma) | invitaciones y restablecer contraseña (necesitan correo) |
 
 Un endpoint «solo ruta» ya tiene su URL, su rol y su nombre, pero responde `501 { "codigo": "no_implementado" }` desde `NoImplementadoController` hasta que se construya; entonces solo se cambia su línea en `routes/v1.php`. `php artisan route:list --path=api/v1` muestra el mapa completo.
@@ -113,6 +113,27 @@ Sin ellas, el pago y el webhook responden `503 pagos_no_configurados`. Después 
 - **Webhook `charge.refunded`.** Cubre los reembolsos hechos desde el Dashboard de Stripe: si el pedido está pagado, pasa a `cancelado` con los datos del reembolso; si el endpoint ya lo hizo, no repite nada. Un reembolso parcial no cancela: queda `pago.reembolso_parcial` en la bitácora. Agrega `charge.refunded` a `--events` en `stripe listen` (arriba) y para probarlo: `stripe refunds create --payment-intent=pi_XXXX`.
 
 **Reglas.** Se compara contra la hora del cargo, no la del webhook. Un pedido vencido no se puede empezar a pagar (`422 pedido_vencido`), pero el pago no lo cancela: lo cancela el corte. Si Stripe cobra algo que ya no se puede aplicar, el pedido no cambia y el cobro se reembolsa (ver Reembolsos). Las pruebas usan una pasarela falsa (`tests/Support/PasarelaFalsa.php`): ninguna llama a la red.
+
+## Dashboard e indicadores
+
+`GET /api/v1/admin/dashboard` (solo `admin`) devuelve el resumen del día, las alertas abiertas y los 10 indicadores, calculados al pedirlos (sin cachés ni tablas de resumen) en `App\Services\IndicadoresDelDashboard`. Las empresas ven los suyos en `GET /api/v1/empresa/indicadores` y cualquier rol con sesión, la calificación del menú en `GET /api/v1/calificaciones/menu-semanal`.
+
+**Periodos.** «Semana» = de lunes a domingo de la semana en curso; «mes» = el mes calendario en curso. Las series son de 6 semanas.
+
+| # | Indicador | Cómo se calcula |
+|---|---|---|
+| 1 | Platillos entregados por semana | Platillos de las entregas a empresas en estado `entregada` (lo mismo que cuenta la factura), por empresa y por día. |
+| 2 | Calificación de la entrega | Promedio simple de puntualidad, trato del chofer y empaque (1 a 5) de lo calificado esa semana por empleados y clientes. |
+| 3 | Calificación semanal del menú | Promedio simple de estrellas (1 a 5) al sabor y la calidad, también por cocina. |
+| 4 | Paquete más popular | Pedidos individuales pagados del mes por paquete (1, 2 o 6 días); si empatan, gana el de menos días. |
+| 5 | Ahorro estimado por empleado | Lo gastado en platillos entregados en el mes × el sobreprecio estimado de las apps de entrega (`ahorro_apps_porcentaje`, editable en Configuración; arranca en 30 %). |
+| 6 | Incidencias o quejas | Incidencias de la semana de tipo `comida_fria`, `platillo_danado` (empaque dañado) y `entrega_tardia`. |
+| 7 | Nuevos contratos B2B | Empresas cuyo **primer** contrato empezó este mes (las renovaciones no cuentan), con su mínimo mensual. |
+| 8 | Balance semanal de utilidad | Por entrega: ingresos (precio de cada platillo entregado; a clientes, con el descuento de su paquete) − pago a cocinas (su precio de contrato) − costos operativos registrados. |
+| 9 | Costo directo de maquila | Precio por platillo de cada cocina contra el tope `costo_maquila_limite` (arranca en $49); avisa si alguna lo excede. |
+| 10 | Estatus de facturación B2B | Semáforo del mes más reciente con facturas: verde pagada, rojo emitida y pendiente, gris sin emitir. |
+
+**Datos nuevos.** Calificaciones de la entrega y del platillo (1 a 5; solo de lo ya entregado, una vez por persona y dentro de 14 días, lo exige la base), costos operativos (se anulan, no se borran) y dos tipos nuevos de incidencia. Los empleados califican con `GET /empleado/calificaciones/pendientes`, `POST /empleado/calificaciones/entrega` y `/platillo`; los clientes, con `POST /cliente/pedidos/{id}/calificaciones/entrega` y `/platillo`. El administrador maneja los costos en `GET/POST /admin/costos-operativos` y `POST /admin/costos-operativos/{id}/anular`.
 
 ## Tareas automáticas
 

@@ -17,7 +17,7 @@ export type EstadoLiquidacion = 'pendiente' | 'pagado'
 export type EstadoTicket = 'abierto' | 'en_proceso' | 'resuelto' | 'cerrado'
 export type EstadoPedido = 'pendiente_pago' | 'recibido' | 'activo' | 'completado' | 'cancelado'
 export type EstadoContrato = 'activo' | 'por_vencer' | 'vencido'
-export type TipoIncidencia = 'falta_repartidores' | 'pago_pendiente' | 'ruta_excede_bloque' | 'entrega_no_localizada' | 'empresa_cerrada' | 'empleado_ausente' | 'repartidor_no_llego' | 'platillo_danado' | 'otro'
+export type TipoIncidencia = 'falta_repartidores' | 'pago_pendiente' | 'ruta_excede_bloque' | 'entrega_no_localizada' | 'empresa_cerrada' | 'empleado_ausente' | 'repartidor_no_llego' | 'platillo_danado' | 'comida_fria' | 'entrega_tardia' | 'otro'
 export type EstadoIncidencia = 'abierta' | 'reasignada' | 'resuelta'
 export type PrioridadIncidencia = 'normal' | 'inmediata'
 
@@ -438,6 +438,136 @@ export interface DashboardAdmin {
   alertas: Incidencia[]
   incidencias_del_dia: number
   requieren_atencion: number
+  indicadores: IndicadoresAdmin
+}
+
+// ---------------------------------------------------------------- indicadores del dashboard (administrador y portal de empresas)
+
+export type Semaforo = 'verde' | 'rojo' | 'gris' // verde = pagada, rojo = emitida y pendiente de pago, gris = sin emitir
+
+export interface PeriodoIndicadores {
+  semana_inicio: string // lunes
+  semana_fin: string // domingo
+  mes: string // YYYY-MM
+  actualizado_en: string
+}
+
+export interface PromediosEntrega {
+  promedio: number | null // promedio simple de puntualidad, trato del chofer y empaque; null si nadie ha calificado
+  puntualidad: number | null
+  trato_chofer: number | null
+  empaque: number | null
+  calificaciones: number
+}
+
+export interface PromedioMenu {
+  promedio: number | null
+  calificaciones: number
+}
+
+export interface QuejasSemana {
+  total: number
+  abiertas: number
+  por_tipo: { tipo: 'comida_fria' | 'platillo_danado' | 'entrega_tardia'; etiqueta: string; cantidad: number }[]
+}
+
+export interface BalanceSemanal {
+  semana_inicio?: string
+  ingresos_empresas: number
+  ingresos_clientes: number
+  ingresos: number
+  costo_maquila: number
+  costos_operativos: number
+  costos: number
+  utilidad: number // ingresos − costos; puede ser negativa
+}
+
+export interface FacturaSemaforo {
+  empresa_id?: string
+  empresa?: string
+  folio: string | null
+  mes?: string
+  total: number | null
+  estado: 'sin_generar' | EstadoFactura
+  semaforo: Semaforo
+  emitida_en: string | null
+  pagada_en: string | null
+}
+
+export interface AhorroEstimado {
+  mes: string
+  porcentaje_sobreprecio: number
+  empleados: number
+  por_empleado_promedio: number
+  ahorro_total: number
+  por_empresa?: { empresa_id: string; empresa: string; empleados: number; ahorro_promedio: number; ahorro_total: number }[]
+  por_empleado?: { empleado_id: string; empleado: string; platillos: number; ahorro: number }[]
+}
+
+export interface IndicadoresAdmin {
+  periodo: PeriodoIndicadores
+  platillos_entregados: { semana: number; por_empresa: { empresa_id: string; empresa: string; platillos: number }[]; serie: { semana_inicio: string; platillos: number }[] }
+  calificacion_entrega: PromediosEntrega & { serie: ({ semana_inicio: string } & PromediosEntrega)[] }
+  calificacion_menu: PromedioMenu & { por_comedor: { comedor: string; promedio: number; calificaciones: number }[]; serie: ({ semana_inicio: string } & PromedioMenu)[] }
+  paquete_popular: { mes: string; paquete: { id: string; nombre: string; dias: number; pedidos: number } | null; paquetes: { id: string; nombre: string; dias: number; pedidos: number }[] }
+  ahorro_estimado: AhorroEstimado
+  incidencias: { semana: QuejasSemana; serie: { semana_inicio: string; total: number }[] }
+  contratos_nuevos: { mes: string; cantidad: number; mes_anterior: number; contratos: { empresa_id: string; empresa: string; vigencia_inicio: string; vigencia_fin: string; meses: number; compra_minima_mensual: number }[] }
+  balance: { semana: BalanceSemanal; serie: BalanceSemanal[] }
+  costo_maquila: { limite: number; platillos_semana: number; costo_maquila_semana: number; costo_promedio_semana: number | null; en_limite: boolean; cocinas: { comedor_id: string; comedor: string; precio_por_platillo: number; en_limite: boolean }[] }
+  facturacion_b2b: { mes: string; pagadas: number; pendientes: number; sin_emitir: number; monto_cobrado: number; monto_pendiente: number; facturas: FacturaSemaforo[] }
+}
+
+/** Lo que ve RR. HH. de su propia empresa: los indicadores que le tocan (sin utilidad ni paquetes). */
+export interface IndicadoresEmpresa {
+  periodo: PeriodoIndicadores
+  platillos_entregados: { semana: number; por_dia: { fecha: string; platillos: number }[]; serie: { semana_inicio: string; platillos: number }[] }
+  calificacion_entrega: PromediosEntrega
+  calificacion_menu: PromedioMenu & { serie: ({ semana_inicio: string } & PromedioMenu)[] }
+  ahorro_estimado: AhorroEstimado
+  incidencias: { semana: QuejasSemana; serie: { semana_inicio: string; total: number }[] }
+  facturacion: { pagadas: number; pendientes: number; monto_pendiente: number; facturas: FacturaSemaforo[] }
+}
+
+export type CategoriaCosto = 'reparto' | 'empaque' | 'nomina' | 'tecnologia' | 'otro'
+
+export interface CostoOperativo {
+  id: string
+  fecha: string
+  categoria: CategoriaCosto
+  descripcion: string
+  monto: number
+  registrado_por: string | null
+  activo: boolean // false = anulado: no cuenta en el balance
+}
+
+export interface NuevoCostoOperativo {
+  fecha: string
+  categoria: CategoriaCosto
+  descripcion: string
+  monto: number
+}
+
+/** Un día que el empleado ya recibió y todavía no califica del todo. */
+export interface CalificacionPendiente {
+  fecha: string
+  entrega_calificada: boolean
+  platillos: { tiempo_comida: TiempoComida; platillo_id: string; platillo_nombre: string; calificado: boolean }[]
+}
+
+export interface CalificarEntrega {
+  fecha: string
+  puntualidad: number
+  trato_chofer: number
+  empaque: number
+  comentario?: string
+}
+
+export interface CalificarPlatillo {
+  fecha: string
+  tiempo_comida: TiempoComida
+  estrellas: number
+  comentario?: string
 }
 
 export interface TicketResumen extends Ticket {
@@ -553,6 +683,8 @@ export interface ConfiguracionOperacion {
   regla_sin_eleccion: ReglaSinEleccion
   capacidad_auto_entregas: number
   capacidad_auto_platillos: number
+  ahorro_apps_porcentaje: number // sobreprecio estimado de las apps de entrega (para el ahorro por empleado)
+  costo_maquila_limite: number // tope del pago a cada cocina por platillo (MXN)
 }
 
 export interface DiaSinServicio {

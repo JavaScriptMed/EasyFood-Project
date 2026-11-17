@@ -1,0 +1,31 @@
+meta {
+  name: Indicadores de mi empresa (RR. HH.)
+  type: http
+  seq: 8
+}
+
+get {
+  url: {{baseUrl}}/api/v1/empresa/indicadores
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenEmpresa}}
+}
+
+tests {
+  test("responde 200", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("trae los indicadores de RR. HH. y no la utilidad", function () {
+    expect(res.body).to.have.all.keys("periodo", "platillos_entregados", "calificacion_entrega", "calificacion_menu", "ahorro_estimado", "incidencias", "facturacion");
+    expect(res.body.platillos_entregados.por_dia).to.be.an("array");
+    expect(res.body.ahorro_estimado.por_empleado).to.be.an("array");
+  });
+}
+
+docs {
+  Platillos entregados de la semana (por día, para conciliar la factura), calificaciones, ahorro estimado por empleado, quejas y el semáforo de facturación de la propia empresa.
+}

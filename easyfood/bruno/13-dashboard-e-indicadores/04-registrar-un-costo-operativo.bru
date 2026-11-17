@@ -1,0 +1,43 @@
+meta {
+  name: Registrar un costo operativo
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{baseUrl}}/api/v1/admin/costos-operativos
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+body:json {
+  {
+    "fecha": "{{hoy}}",
+    "categoria": "reparto",
+    "descripcion": "Gasolina de prueba (Bruno)",
+    "monto": 350.5
+  }
+}
+
+script:post-response {
+  if (res.status === 201) bru.setVar("costoId", res.body.id);
+}
+
+tests {
+  test("responde 201", function () {
+    expect(res.getStatus()).to.equal(201);
+  });
+
+  test("queda activo y a nombre de quien lo registró", function () {
+    expect(res.body.activo).to.equal(true);
+    expect(res.body.monto).to.equal(350.5);
+  });
+}
+
+docs {
+  Otros gastos (reparto, empaque, nómina, tecnología u otro) que entran al balance de utilidad. La fecha no puede ser futura. Cada alta queda en la bitácora.
+}

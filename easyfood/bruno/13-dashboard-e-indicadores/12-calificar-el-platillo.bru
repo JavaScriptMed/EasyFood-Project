@@ -1,0 +1,34 @@
+meta {
+  name: Calificar el platillo (sabor y calidad)
+  type: http
+  seq: 12
+}
+
+post {
+  url: {{baseUrl}}/api/v1/empleado/calificaciones/platillo
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenEmpleado}}
+}
+
+body:json {
+  {
+    "fecha": "{{fechaCalificar}}",
+    "tiempo_comida": "comida",
+    "estrellas": 5
+  }
+}
+
+tests {
+  test("responde 201 o 422 si ya lo calificó", function () {
+    expect([201, 422]).to.include(res.getStatus());
+    if (res.getStatus() === 422) expect(res.body.codigo).to.equal("ya_calificada");
+  });
+}
+
+docs {
+  De 1 a 5 estrellas al platillo que recibió en ese tiempo de comida.
+}

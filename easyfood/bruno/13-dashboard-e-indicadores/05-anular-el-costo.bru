@@ -1,0 +1,29 @@
+meta {
+  name: Anular el costo
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{baseUrl}}/api/v1/admin/costos-operativos/{{costoId}}/anular
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+tests {
+  test("responde 200", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("queda anulado (no se borra)", function () {
+    expect(res.body.activo).to.equal(false);
+  });
+}
+
+docs {
+  Un costo anulado queda en el historial pero ya no cuenta en el balance.
+}

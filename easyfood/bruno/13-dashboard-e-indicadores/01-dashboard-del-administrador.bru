@@ -1,0 +1,44 @@
+meta {
+  name: Dashboard del administrador
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/api/v1/admin/dashboard
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+script:post-response {
+  if (res.status === 200) bru.setVar("mesFacturacion", res.body.indicadores.facturacion_b2b.mes);
+}
+
+tests {
+  test("responde 200", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("trae el resumen, las alertas y los 10 indicadores", function () {
+    expect(res.body).to.have.all.keys("resumen", "alertas", "incidencias_del_dia", "requieren_atencion", "indicadores");
+    expect(res.body.indicadores).to.have.all.keys("periodo", "platillos_entregados", "calificacion_entrega", "calificacion_menu", "paquete_popular", "ahorro_estimado", "incidencias", "contratos_nuevos", "balance", "costo_maquila", "facturacion_b2b");
+  });
+
+  test("el balance trae 6 semanas y el costo de maquila su límite de $49", function () {
+    expect(res.body.indicadores.balance.serie.length).to.equal(6);
+    expect(res.body.indicadores.costo_maquila.limite).to.equal(49);
+  });
+
+  test("el semáforo de facturación usa verde, rojo y gris", function () {
+    const colores = res.body.indicadores.facturacion_b2b.facturas.map(f => f.semaforo);
+    colores.forEach(c => expect(["verde", "rojo", "gris"]).to.include(c));
+  });
+}
+
+docs {
+  Solo el administrador (soporte recibe 403). Todo se calcula al pedirlo: platillos entregados de la semana, calificación de la entrega y del menú, paquete más popular, ahorro estimado por empleado, quejas, contratos nuevos, balance de utilidad (ingresos contra pago a cocinas y costos operativos), costo de maquila contra su límite y semáforo de facturación (verde pagada, rojo pendiente, gris sin emitir).
+}
