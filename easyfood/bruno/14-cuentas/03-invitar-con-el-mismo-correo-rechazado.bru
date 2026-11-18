@@ -1,0 +1,31 @@
+meta {
+  name: Invitar con el mismo correo (rechazado)
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{baseUrl}}/api/v1/cuentas/invitaciones
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+body:json {
+  {
+    "organizacion_tipo": "plataforma",
+    "nombre": "Persona de Bruno",
+    "correo": "{{correoInvitado}}",
+    "rol": "soporte"
+  }
+}
+
+tests {
+  test("responde 422 correo_en_uso", function () {
+    expect(res.getStatus()).to.equal(422);
+    expect(res.body.codigo).to.equal("correo_en_uso");
+  });
+}

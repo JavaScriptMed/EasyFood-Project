@@ -1,0 +1,31 @@
+meta {
+  name: Editar repartidor en bicicleta (rechazado)
+  type: http
+  seq: 9
+}
+
+put {
+  url: {{baseUrl}}/api/v1/admin/repartidores/{{repartidorNuevoId}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+body:json {
+  {
+    "nombre": "Repartidor Editado",
+    "tipo_vehiculo": "bicicleta",
+    "placas": "JAL-888-C",
+    "zona_base": "Centro"
+  }
+}
+
+tests {
+  test("responde 422 solo_automovil", function () {
+    expect(res.getStatus()).to.equal(422);
+    expect(res.body.codigo).to.equal("solo_automovil");
+  });
+}

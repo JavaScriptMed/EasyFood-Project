@@ -19,8 +19,40 @@ docker compose exec app php artisan migrate
 - Salud de la API y de la base de datos: http://localhost:8000/api/v1/salud
 - Base de datos desde tu equipo (DBeaver, TablePlus…): `127.0.0.1:5432`, con el usuario y la clave de tu `.env`.
 - Apagar: `docker compose down` (los datos se conservan en el volumen `pgdata`; `docker compose down -v` los borra).
-- Si ya tenías el volumen de la base de datos creado antes de esta configuración, crea la base de pruebas una vez:
-  `docker compose exec db psql -U <DB_USERNAME> -d postgres -c "CREATE DATABASE easylunch_pruebas"`
+- Las bases de demo y de pruebas se explican abajo, en «Bases de datos: desarrollo, demo y pruebas».
+
+## Bases de datos: desarrollo, demo y pruebas
+
+Son tres bases distintas en el mismo PostgreSQL, y **cada una tiene un solo uso**:
+
+| Base | Para qué | Quién la borra |
+|---|---|---|
+| `easylunch` | tu desarrollo diario (la de `DB_DATABASE` en `.env`) | nadie: solo `php artisan migrate` |
+| `easylunch_demo` | enseñar el sistema con datos de ejemplo | `scripts/demo.sh preparar` |
+| `easylunch_pruebas` | solo las pruebas (`php artisan test`) y Bruno | cada corrida de pruebas |
+
+En una instalación nueva las tres se crean solas (`docker/db/init`). Si el volumen de la base ya existía, créalas una vez:
+
+```bash
+docker compose exec db psql -U <DB_USERNAME> -d postgres -c "CREATE DATABASE easylunch_demo"
+docker compose exec db psql -U <DB_USERNAME> -d postgres -c "CREATE DATABASE easylunch_pruebas"
+```
+
+**Demo** (no toca tu base de desarrollo ni la de pruebas):
+
+```bash
+scripts/demo.sh preparar   # crea easylunch_demo si falta, migra desde cero, carga los datos de ejemplo y crea un admin
+scripts/demo.sh servir     # API de la demo en http://localhost:8001 (contenedor easylunch-demo)
+scripts/demo.sh detener
+```
+
+Admin rápido: `demo@easylunch.test` / `Admin1234` (`php artisan easylunch:admin-demo [correo] [contraseña]`; solo corre fuera de producción). Las demás cuentas de ejemplo usan la contraseña `Prueba1234`. Para el front: `NEXT_PUBLIC_API_URL=http://localhost:8001`.
+
+**Pruebas y Bruno** usan siempre `easylunch_pruebas`. Si necesitas lanzar un comando contra una base concreta, escribe el nombre tal cual en el comando (`-e DB_DATABASE=easylunch_pruebas`) y comprueba cuál es antes de un `migrate:fresh`:
+
+```bash
+docker compose exec -T -e DB_DATABASE=easylunch_pruebas app php artisan tinker --execute='echo DB::connection()->getDatabaseName();'
+```
 
 **El backend requiere PostgreSQL.** Las migraciones usan CHECK, índices parciales, triggers y PostGIS; SQLite ya no está configurado en el proyecto, y con cualquier otro motor la primera migración falla con un mensaje que lo explica.
 
@@ -31,6 +63,25 @@ docker compose exec app php artisan test
 ```
 
 Corren contra la base `easylunch_pruebas` (nunca contra la de desarrollo: se borra y se recrea en cada corrida). `ConcurrenciaTest` lanza procesos de PHP en paralelo y rehace esa base con `migrate:fresh` al terminar (tarda unos 15 s). Fuera de Docker, apunta `DB_HOST` a tu PostgreSQL.
+
+## Seguridad
+
+| Qué | Cómo está resuelto |
+|---|---|
+| **CORS** | Solo los orígenes de `CORS_ALLOWED_ORIGINS` (el dominio del front en Vercel, separados por coma). `CORS_ALLOWED_ORIGINS_PATTERNS` admite expresiones regulares para las vistas previas de Vercel. En producción el contenedor **no arranca** si está vacío o trae `*`. |
+| **Errores** | `APP_DEBUG=false` en producción (el contenedor no arranca si no): un error interno responde «Server Error» sin trazas, rutas ni claves. PHP además no incluye los argumentos de las funciones en las trazas (`zend.exception_ignore_args`). |
+| **Límite de intentos** | Login: 5 por minuto por cuenta e IP y 30 por IP. Crear cuenta: 10 por hora por IP. «Olvidé mi contraseña»: 3 por hora por correo y 10 por IP (la respuesta es igual exista o no el correo). Enlaces de invitación y de restablecer: 10 por minuto por IP. Responden 429 con `codigo: demasiados_intentos`. |
+| **IP real** | Detrás del proxy del servidor hay que fijar `TRUSTED_PROXIES` (`*` si solo el proxy llega a la app) para que los límites cuenten por IP real y no a todos como una sola. |
+| **Tokens de acceso** | `SANCTUM_EXPIRATION` (minutos; 10080 = 7 días en producción). `sanctum:prune-expired` corre a diario. Cerrar sesión, desactivar a alguien o cambiarle el rol revoca sus tokens. |
+| **Logs sin secretos** | Todo canal de logging pasa por `App\Logging\OcultarSecretos`: tacha claves de Stripe (`sk_`, `rk_`, `pk_`, `whsec_`), tokens (`Bearer …`, `12\|abc…`), contraseñas y los tokens de los enlaces. Nginx de producción tampoco registra los tokens que van en la ruta. Excepción a propósito: el canal `enlaces`, solo para ver los enlaces en desarrollo, que no escribe en producción. |
+| **Correos** | Van a la cola (`php artisan queue:work`, ya incluido en Docker) con 3 reintentos: si el servidor de correo falla, la petición no falla ni queda a medias. En la cola viajan **cifrados** con `APP_KEY` (el enlace lleva el token en claro). En desarrollo, `docker compose up -d` ya levanta el `worker`. |
+| **Archivos subidos** | Fotos de platillos y adjuntos de tickets: solo JPG, PNG, WebP o PDF con tipo verificado (no SVG), nombre aleatorio, y se sirven sin poder ejecutar nada (`Content-Security-Policy: sandbox`, `nosniff`). |
+
+Todo esto lo cubren pruebas automáticas (`tests/Feature/Seguridad`). Para desplegar, ver [DESPLIEGUE.md](DESPLIEGUE.md).
+
+## Respaldos
+
+`scripts/respaldo-db.sh` hace un `pg_dump` comprimido (formato personalizado, nivel 9) de la base de `.env.production`, comprueba que no salga vacío y **rota a 7 días** (`DIAS_A_GUARDAR`). Con `--archivos` respalda también el volumen `storage` (fotos y adjuntos). La clave va por `PGPASSWORD`, nunca en la línea de comandos ni en pantalla; los archivos quedan en modo 600. **Si el respaldo de hoy falla, no se borra ninguno de los anteriores.** Cron diario y cómo restaurar: en [DESPLIEGUE.md](DESPLIEGUE.md). Lo cubren las pruebas de `tests/Feature/Scripts`.
 
 ## Mapa de tablas
 
@@ -52,14 +103,15 @@ Rutas en `routes/v1.php` (prefijo `/api/v1`), JSON en español y token Bearer de
 
 | Grupo (rol) | Prefijo | Construido | Solo ruta (501) |
 |---|---|---|---|
-| Panel de administración (`admin`; `support` en clientes, pedidos, tickets e incidencias) | `/admin` | empresas y comedores (lectura), renovar contratos, contratos por vencer, platillos (crear, editar, revisar), configuración, calendario, corte (y su vista previa), repartidores, rutas, entregas, incidencias, facturas, liquidaciones, reporte de proveedor, menú semanal, consumo de una empresa, clientes, pedidos, tickets, bitácora, **dashboard con 10 indicadores en tiempo real** (`GET /admin/dashboard`, solo `admin`) y costos operativos (listar, registrar, anular) | crear empresa, historial de precios, imágenes, crear repartidor, generar rutas, reasignar incidencias |
-| Portal de empresas (`company`) | `/empresa` | perfil, empleados (ver, activar/desactivar), pedidos de mañana, consumo, vista previa del mes en curso, facturas, indicadores de RR. HH. (`GET /empresa/indicadores`) | agregar empleados |
+| Panel de administración (`admin`; `support` en clientes, pedidos, tickets e incidencias) | `/admin` | empresas y comedores (lectura), **alta de empresa** (`POST /admin/empresas`), **alta de repartidor** (`POST /admin/repartidores`), renovar contratos, contratos por vencer, platillos (crear, editar, revisar), configuración, calendario, corte (y su vista previa), repartidores, rutas (listar, **generar**, aprobar), entregas, incidencias (listar, resolver, **candidatos y reasignar**), facturas, liquidaciones, reporte de proveedor, menú semanal, consumo de una empresa, clientes, pedidos, tickets, bitácora, **dashboard con 10 indicadores en tiempo real** (`GET /admin/dashboard`, solo `admin`) y costos operativos (listar, registrar, anular) | ninguno: todos los endpoints de la API v1 están construidos (ninguna ruta apunta a un controlador provisional; `RutasDeLaApiTest` lo comprueba) |
+| Portal de empresas (`company`) | `/empresa` | perfil, empleados (ver, **agregar**, activar/desactivar), pedidos de mañana, consumo, vista previa del mes en curso, facturas, indicadores de RR. HH. (`GET /empresa/indicadores`) | |
 | Portal de comedores (`provider`) | `/comedor` | perfil, platillos, disponibilidad, producción, pagos | imágenes |
 | Portal de empleados (`employee`) | `/empleado` | menú, elegir/quitar platillo, historial, calificar la entrega y el platillo que recibió | |
 | App móvil (`customer`) | `/cliente` | paquetes, menú semanal, direcciones, pedidos (pedir), pago con tarjeta (`POST /cliente/pedidos/{id}/pago`) | |
 | Administración y soporte | `/admin/pedidos/{id}/reembolso` | reembolso total de un pedido pagado con Stripe | |
 | Cualquier rol con sesión | `/configuracion/operacion`, `/paquetes`, `/calificaciones/menu-semanal` | lectura de la configuración de operación, de los paquetes y de la calificación semanal del menú | |
-| Público | `/contacto`, `/cuentas`, `/webhooks/stripe` | formulario de contacto, aviso de cobro de Stripe (se confía en su firma) | invitaciones y restablecer contraseña (necesitan correo) |
+| Público | `/contacto`, `/cuentas`, `/webhooks/stripe` | formulario de contacto, aceptar una invitación y restablecer la contraseña (por enlace de correo), aviso de cobro de Stripe (se confía en su firma) | |
+| Administración, empresa y comedor (cada uno dentro de lo suyo) | `/cuentas/usuarios-acceso`, `/cuentas/invitaciones` | ver quién tiene acceso, invitar y reenviar la invitación | |
 
 Un endpoint «solo ruta» ya tiene su URL, su rol y su nombre, pero responde `501 { "codigo": "no_implementado" }` desde `NoImplementadoController` hasta que se construya; entonces solo se cambia su línea en `routes/v1.php`. `php artisan route:list --path=api/v1` muestra el mapa completo.
 
@@ -67,7 +119,7 @@ Cada portal solo ve lo suyo: la empresa, el comedor o el empleado se resuelven d
 
 ## Probar la API a mano (Bruno) y datos de ejemplo
 
-La carpeta [`bruno/`](bruno/README.md) es una colección de [Bruno](https://www.usebruno.com/) con 134 peticiones y 242 pruebas automáticas que cubren toda la API v1 (incluidos los pendientes, que deben responder 501). `DatosDeEjemploSeeder` carga empresas, comedores, empleados, platillos, historial, clientes y pedidos de ejemplo (solo desarrollo; la contraseña de las cuentas sale de `SEED_PASSWORD` en tu `.env`):
+La carpeta [`bruno/`](bruno/README.md) es una colección de [Bruno](https://www.usebruno.com/) con 211 peticiones y 345 pruebas automáticas que cubren toda la API v1 (incluidos los pendientes, que deben responder 501). `DatosDeEjemploSeeder` carga empresas, comedores, empleados, platillos, historial, clientes y pedidos de ejemplo (solo desarrollo; la contraseña de las cuentas sale de `SEED_PASSWORD` en tu `.env`):
 
 ```bash
 docker compose exec app php artisan db:seed --class=DatosDeEjemploSeeder
@@ -113,6 +165,64 @@ Sin ellas, el pago y el webhook responden `503 pagos_no_configurados`. Después 
 - **Webhook `charge.refunded`.** Cubre los reembolsos hechos desde el Dashboard de Stripe: si el pedido está pagado, pasa a `cancelado` con los datos del reembolso; si el endpoint ya lo hizo, no repite nada. Un reembolso parcial no cancela: queda `pago.reembolso_parcial` en la bitácora. Agrega `charge.refunded` a `--events` en `stripe listen` (arriba) y para probarlo: `stripe refunds create --payment-intent=pi_XXXX`.
 
 **Reglas.** Se compara contra la hora del cargo, no la del webhook. Un pedido vencido no se puede empezar a pagar (`422 pedido_vencido`), pero el pago no lo cancela: lo cancela el corte. Si Stripe cobra algo que ya no se puede aplicar, el pedido no cambia y el cobro se reembolsa (ver Reembolsos). Las pruebas usan una pasarela falsa (`tests/Support/PasarelaFalsa.php`): ninguna llama a la red.
+
+## Altas: empresa, comedor, repartidor, empleados y planes
+
+- **Comedor** (`POST /admin/comedores`): crea el contacto (cuenta inactiva con invitación al portal de comedores), el comedor y su contrato de 6 meses con el precio por platillo y el mínimo mensual acordados. Razón social y RFC son opcionales (el RFC no se repite); la `zona` debe existir y el nombre no puede repetirse. No modifica el modelo `Provider`.
+- **Plan** (`POST /admin/paquetes`, `PATCH /admin/paquetes/{id}/estado`): solo hay planes de 1, 2 o 6 días y **un solo plan activo por duración**; para cambiar el de una duración que ya existe se edita, o se desactiva y se crea otro. Un plan desactivado deja de ofrecerse y no se puede pedir; los pedidos que ya lo contrataron no cambian.
+- **Empresa** (`POST /admin/empresas`): crea el contacto de RR. HH. (cuenta inactiva con invitación), la empresa y su contrato de 6 meses (`precio_por_platillo` $130 si no se manda). El nombre debe ser único y la `zona` debe existir en `zonas`; si no, el error lista las disponibles.
+- **Repartidor** (`POST /admin/repartidores`): cuenta con invitación, `numero_empleado` automático (`R-001`…), placas obligatorias (solo se reparte en automóvil) y `zona_base` existente.
+- **Empleados** (`POST /empresa/empleados`, hasta 500): cada persona queda inactiva hasta aceptar su invitación; sin correo se arma con el nombre y el dominio de la empresa; los correos repetidos o ya registrados se omiten y se devuelven en `omitidos`.
+
+## Adjuntos en los tickets de soporte
+
+`POST /admin/tickets/{id}/mensajes` acepta `texto`, un archivo `adjunto` (foto JPG, PNG o WebP, o PDF, de hasta 5 MB) o ambos; sin ninguno responde 422. Se guarda en `storage/app/public/tickets` con un nombre aleatorio de 40 caracteres (el nombre original solo se conserva, limpio, para mostrarlo) y el mensaje trae `adjunto: { url, nombre, tipo }`. Se rechazan SVG, scripts y cualquier otro tipo. Hace falta `php artisan storage:link` y correr `php artisan migrate` (agrega las columnas `adjunto_*` a `mensajes_ticket`).
+
+## Fotos y precios de los platillos
+
+- **Foto** (`POST /admin/platillos/{id}/imagen` y `POST /comedor/platillos/{id}/imagen`, multipart, campo `imagen`): JPG, PNG o WebP de hasta 2 MB (se rechazan SVG y cualquier otro archivo). Se guarda en `storage/app/public/platillos` con un nombre aleatorio y `foto_url` apunta a ella; la foto anterior se borra (las fotos externas no se tocan). El comedor solo cambia las de sus platillos, y un platillo publicado o rechazado vuelve a revisión, igual que al editarlo. Para servirlas hace falta `php artisan storage:link` una vez por instalación.
+- **Historial de precios** (`GET /admin/platillos/{id}/historial-precios`): tabla `precios_de_platillos`, un tramo por precio con su costo (lo que se paga al comedor) de ese momento. `menus.price` sigue siendo el precio de hoy; la base impide dos tramos abiertos por platillo. Los platillos que ya existían arrancan con su precio actual al migrar.
+- **Programar un precio** (`POST /admin/platillos/{id}/precios { precio_venta, vigente_desde }`, solo `admin`): desde mañana o después; el tramo de hoy queda vigente hasta el día anterior. Programar otro mientras hay uno pendiente lo reemplaza (nunca llegó a aplicarse). El comando `easylunch:aplicar-precios-programados` (00:05, ya en el programador de tareas) copia a `menus.price` el que entra en vigor. Editar el precio de un platillo (admin o comedor) también deja su tramo en el historial.
+
+## Editar y desactivar
+
+Nada se borra: «eliminar» es **desactivar** (`activo = false`, con su fecha) y se puede reactivar. Cada cambio queda en la bitácora.
+
+| Qué | Endpoint | Quién | Reglas |
+|---|---|---|---|
+| Empresa | `PUT /admin/empresas/{id}`, `PATCH …/estado` | `admin` | nombre único, ventana de entrega válida, necesita un contrato activo; el precio por platillo acordado no cambia y lo ya elegido conserva su precio y subsidio |
+| Empleado | `PUT /empresa/empleados/{id}` | `company` (los suyos) | nombre y departamento |
+| Plan | `PUT /admin/paquetes/{id}` (también se crea y se desactiva: ver Altas) | `admin` | nombre único, descuento de 0 a 100; los días no cambian |
+| Repartidor | `PUT /admin/repartidores/{id}`, `PATCH …/estado` | `admin` | solo automóvil con placas, zona existente, número de empleado único; no se desactiva con rutas por hacer (`repartidor_con_rutas`) |
+| Capacidad del auto | `PUT /admin/repartidores/capacidades { automovil }` | `admin` | las rutas ya creadas conservan la suya |
+| Persona con acceso | `PUT /cuentas/usuarios-acceso/{id}`, `PATCH …/estado` | `admin`, y cada empresa o comedor con la suya | el rol debe corresponder a la organización; nadie cambia ni desactiva su propia cuenta; el titular de una empresa o comedor no cambia de rol; no se activa a quien no aceptó su invitación; al desactivar o cambiar de rol se cierran sus sesiones |
+
+| Comedor | `PUT /admin/comedores/{id}`, `PATCH …/estado` | `admin` | nombre único, zona existente, necesita contrato activo; precio y mínimo > 0 (el precio nuevo aplica a lo que se entregue desde ahora); el correo del contacto se corrige solo mientras no acepte su invitación; **desactivar** deja de ofrecer TODOS sus platillos sin cambiar el estado de cada uno (al reactivar vuelve todo) y no se puede con platillos por entregar (`comedor_con_pedidos`) |
+| Platillo | `PATCH /admin/platillos/{id}/estado`, `PATCH /comedor/platillos/{id}/estado` | `admin`; el comedor solo los suyos | quita o vuelve a poner el platillo en la oferta (`is_available`); no se quita con elecciones o pedidos por entregar (`platillo_con_pedidos`) |
+
+No se modificaron las clases `Provider` ni `Menu`: las reglas viven en `EdicionDeRegistros`.
+
+## Corregir el correo
+
+El correo es el acceso de la cuenta, así que solo se corrige **mientras la persona no haya aceptado su invitación** (un correo mal escrito, o el que el sistema armó al subir un CSV sin correos). Se puede mandar `correo` en `PUT /empresa/empleados/{id}`, `PUT /cuentas/usuarios-acceso/{id}` y `PUT /admin/empresas/{id}` (como `contacto_correo`). Se guarda en la cuenta y en la invitación, el enlace anterior deja de servir y se manda una invitación nueva al correo corregido. Si ya aceptó, responde 422 `correo_no_editable`; si el correo ya existe, `correo_en_uso`.
+
+## Rutas e incidencias
+
+- **Generar rutas** (`POST /admin/rutas/generar { fecha }`, solo `admin`): completa las rutas de una fecha **ya cortada** con lo que quedó sin repartidor (por ejemplo, después de dar de alta a uno). Usa el mismo `GeneradorDeRutas` que el corte: por zona, primero empresas y luego clientes, sin pasar la capacidad del auto. Nunca toca una ruta existente (borrador o aprobada), no duplica incidencias abiertas y cierra solas las de «falta de repartidores» de lo que ya tiene ruta. Rechaza una fecha sin corte (`corte_pendiente`), pasada o sin servicio.
+- **Reasignar** (`GET /admin/incidencias/{id}/candidatos`, `POST /admin/incidencias/{id}/reasignar { repartidor_id, nota }`, admin y soporte): solo para una incidencia **abierta ligada a una ruta**. Es candidato el repartidor activo, disponible, distinto del actual y con capacidad libre ese día (auto menos lo que ya lleva); «alcanza» si le cabe toda la ruta. Al reasignar, la ruta cambia de repartidor (conserva su estado), la incidencia queda `reasignada` y se registra en la bitácora.
+
+## Cuentas: invitaciones y contraseña
+
+- **Invitar** (`POST /api/v1/cuentas/invitaciones`): administración invita a cualquier organización; una empresa, a la suya; un comedor, al suyo. Crea la cuenta **inactiva** y manda un correo con el enlace; la persona elige su contraseña al aceptar (`POST /cuentas/invitaciones/{token}/aceptar`, mínimo 8 caracteres con letras y números) y ya entra por el portal de su rol. La invitación vence a los 7 días; **reenviar** da un enlace nuevo (el anterior deja de servir). Quien acepta una invitación de empresa o comedor ve los datos de esa organización.
+- **Restablecer** (`POST /cuentas/restablecer/solicitar`, `GET` y `POST /cuentas/restablecer/{token}`): responde siempre igual, exista o no el correo; el enlace vence a los 60 minutos, sirve una vez, y al usarlo se cierran las sesiones abiertas de esa cuenta. Solo reciben el correo las cuentas activas con portal web.
+- **Del enlace solo se guarda el hash** (la base no tiene enlaces utilizables) y la API nunca lo devuelve: solo viaja por correo.
+- **Correo en desarrollo:** `MAIL_MAILER=log` (no hace falta SMTP; tampoco hay Mailpit). El correo completo queda en `storage/logs/laravel.log`, pero codificado; por eso, **en local y en pruebas, cada enlace se escribe además solo y en una línea en `storage/logs/enlaces.log`**:
+  ```bash
+  docker compose exec app tail -f storage/logs/enlaces.log
+  # [2026-11-17 11:58:37] local.INFO: INVITACIÓN para persona@easylunch.test
+  # http://localhost:3000/admin/aceptar-invitacion?token=…
+  ```
+  Copia el enlace al navegador. Los enlaces apuntan a `FRONTEND_URL` (por defecto `http://localhost:3000`). **En producción nunca se escriben en ningún log** (permitirían entrar a la cuenta de otra persona); allí solo sale el correo, con el `MAIL_MAILER` real que se configure.
 
 ## Dashboard e indicadores
 

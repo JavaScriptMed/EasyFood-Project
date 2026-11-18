@@ -7,12 +7,13 @@
 // (invitaciones, crear empresa o repartidor, reasignar, generar rutas, imágenes…) avisan con un mensaje claro en vez de fallar en silencio.
 
 import { USAR_MOCK, FECHA_OPERACION } from './config'
-import { borrar, ErrorApi, get, patch, post, put } from './http'
+import { borrar, ErrorApi, get, http, patch, post, put } from './http'
 import { leerSesion } from './sesion'
 import * as mock from './api-mock'
 import type {
-  BloqueHorario, CalificacionPendiente, CostoOperativo, IndicadoresEmpresa, CalendarioServicio, ClienteDetalle, ClienteResumen, ComedorDetalle, ConfiguracionOperacion, ConsumoDiario, ContratoPorVencer, Corte,
-  DashboardAdmin, DiaSinServicio, DisponibilidadConPlatillo, EleccionEmpleado, Empleado, EmpleadoDetalle, EmpresaDetalle, EntregaDetalle, FacturaConEmpresa,
+  BloqueHorario, CalificacionPendiente, CostoOperativo, IndicadoresEmpresa, InvitacionDetalle, InvitacionPublica, ResultadoAceptacion, SolicitudRestablecimiento,
+  ResultadoAltaEmpleados, UsuarioAcceso, ValidacionToken, CalendarioServicio, ClienteDetalle, ClienteResumen, ComedorDetalle, ConfiguracionOperacion, ConsumoDiario, ContratoPorVencer, Corte,
+  DashboardAdmin, DiaSinServicio, DisponibilidadConPlatillo, EleccionEmpleado, Empleado, EmpleadoDetalle, EmpresaDetalle, EntregaDetalle, FacturaConEmpresa, HistorialPrecio,
   FacturaDetalle, FacturaMensual, FilaReporteProveedor, IncidenciaDetalle, LiquidacionComedor, LiquidacionConComedor, MensajeContacto, MensajeTicket,
   MenuSemanalDia, MiEleccion, MiMenu, OrdenProduccionDetalle, PedidoDetalle, PedidosMananaEmpresa, Plan, PlatilloDetalle, RegistroAuditoriaDetalle,
   RepartidorDetalle, ResultadoCorte, Rol, RutaDetalle, TicketDetalle, TicketResumen, TipoVehiculo, VistaPreviaCorte,
@@ -35,7 +36,6 @@ function ids<T>(valor: T): T {
 const leer = async <T>(ruta: string, query?: Record<string, unknown>) => ids(await get<T>(ruta, query))
 const rolActual = (): Rol | null => { const s = leerSesion(); return s.estado === 'ninguna' ? null : s.rol }
 const esRol = (...roles: Rol[]) => { const r = rolActual(); return !!r && roles.includes(r) }
-const pendiente = (que: string) => new ErrorApi(`${que} todavía no está disponible en el servidor.`, 501, 'no_implementado')
 const ahoraIso = () => new Date().toISOString().slice(0, 19)
 
 /** La factura del backend usa el folio como id visible; el id numérico se recuerda para las acciones (emitir, pagar). */
@@ -81,16 +81,27 @@ const real: typeof mock = {
   listarEntregas: async () => (await leer<any[]>('/api/v1/admin/entregas', { fecha: FECHA_OPERACION })) as EntregaDetalle[],
   listarIncidencias: async (filtro = {}) => (await leer<IncidenciaDetalle[]>('/api/v1/admin/incidencias', { abiertas: filtro.abiertas, fecha: filtro.fecha, tipos: filtro.tipos })),
   resolverIncidencia: async (id, nota) => ids(await post<IncidenciaDetalle>(`/api/v1/admin/incidencias/${id}/resolver`, { nota })),
-  listarCandidatosReasignacion: async () => [],
-  reasignarIncidencia: async () => { throw pendiente('Reasignar una ruta') },
+  listarCandidatosReasignacion: async (id) => (await leer<any[]>(`/api/v1/admin/incidencias/${id}/candidatos`)).map((c) => ({ ...c, repartidor: repartidor(c.repartidor) })),
+  reasignarIncidencia: async (datos) => ids(await post<IncidenciaDetalle>(`/api/v1/admin/incidencias/${datos.id}/reasignar`, { repartidor_id: Number(datos.repartidor_id), nota: datos.nota || null })),
   listarAuditoria: async (entidad, entidad_id) => leer<RegistroAuditoriaDetalle[]>(`/api/v1/admin/auditoria/${encodeURIComponent(entidad)}/${encodeURIComponent(entidad_id)}`),
 
   // ---- empresas y contratos
   listarEmpresas: async () => leer<EmpresaDetalle[]>('/api/v1/admin/empresas'),
   obtenerEmpresa: async (id) => leer<EmpresaDetalle>(esRol('empresa') ? '/api/v1/empresa/perfil' : `/api/v1/admin/empresas/${id}`),
-  crearEmpresa: async () => { throw pendiente('Dar de alta una empresa') },
-  editarEmpresa: async () => { throw pendiente('Editar una empresa') },
-  cambiarEstadoEmpresa: async () => { throw pendiente('Desactivar una empresa') },
+  // El formulario captura el contacto como «Nombre y correo» y el horario como «12:30–13:15»; el API los pide separados.
+  crearEmpresa: async (datos) => {
+    const correo = datos.contacto_rrhh.match(/[^\s@,;<>]+@[^\s@,;<>]+\.[^\s@,;<>]+/)?.[0]
+    if (!correo) throw new ErrorApi('Escribe el nombre y el correo del contacto de RR. HH. (por ejemplo, «Mariana Ortega mariana@empresa.mx»).', 422, 'validacion')
+    const [inicio, fin] = datos.horario_entrega.split(/\s*[–-]\s*/).map((h) => h.trim().padStart(5, '0'))
+    if (!inicio || !fin) throw new ErrorApi('Escribe el horario de entrega, por ejemplo 12:30–13:15.', 422, 'validacion')
+    return ids(await post<EmpresaDetalle>('/api/v1/admin/empresas', {
+      nombre: datos.nombre, contacto_nombre: datos.contacto_rrhh.replace(correo, '').replace(/[,;<>]/g, ' ').replace(/\s+/g, ' ').trim() || 'Contacto de RR. HH.', contacto_correo: correo,
+      direccion_entrega: datos.direccion_entrega, zona: datos.zona ?? '', vigencia_inicio: datos.vigencia_inicio, compra_minima_mensual: datos.compra_minima_mensual,
+      porcentaje_subsidio: datos.porcentaje_subsidio, ventana_entrega_inicio: inicio, ventana_entrega_fin: fin,
+    }))
+  },
+  editarEmpresa: async (id, datos) => ids(await put<EmpresaDetalle>(`/api/v1/admin/empresas/${id}`, datos)),
+  cambiarEstadoEmpresa: async (id, activo) => ids(await patch<EmpresaDetalle>(`/api/v1/admin/empresas/${id}/estado`, { activo })),
   renovarContratoEmpresa: async (id) => ids(await post<EmpresaDetalle>(`/api/v1/admin/empresas/${id}/renovar-contrato`)),
   renovarContratoComedor: async (id) => ids(await post<ComedorDetalle>(`/api/v1/admin/comedores/${id}/renovar-contrato`)),
   listarContratosPorVencer: async (dias = 30) => leer<ContratoPorVencer[]>('/api/v1/admin/contratos/por-vencer', { dias }),
@@ -99,22 +110,24 @@ const real: typeof mock = {
   listarBitacora: async (filtro = {}) => leer<RegistroAuditoriaDetalle[]>('/api/v1/admin/bitacora', { usuario_id: filtro.usuario_id, rol: filtro.rol, desde: filtro.desde, hasta: filtro.hasta }),
   listarActoresBitacora: async () => [{ id: 'sistema', nombre: 'Sistema', rol: null }, ...(await leer<{ id: string; nombre: string; rol: Rol | null }[]>('/api/v1/admin/bitacora/actores'))],
 
-  // ---- invitaciones y cuenta (necesitan correo: pendientes en el backend)
-  listarUsuariosAcceso: async () => [],
-  invitarUsuario: async () => { throw pendiente('Invitar usuarios') },
-  reenviarInvitacion: async () => { throw pendiente('Reenviar invitaciones') },
-  editarUsuarioAcceso: async () => { throw pendiente('Editar usuarios') },
-  cambiarEstadoUsuarioAcceso: async () => { throw pendiente('Desactivar usuarios') },
-  solicitarRestablecimiento: async () => { throw pendiente('Restablecer la contraseña por correo') },
-  validarTokenRestablecimiento: async () => ({ valido: false, motivo: 'invalido' as const }),
-  restablecerContrasena: async () => { throw pendiente('Restablecer la contraseña') },
-  obtenerInvitacionPublica: async () => ({ estado: 'invalida' as const, nombre_invitado: '', correo: '', organizacion_nombre: '', organizacion_tipo: 'plataforma' as const, rol: 'cliente' as const, portal: 'admin' as const }),
-  aceptarInvitacion: async () => { throw pendiente('Aceptar invitaciones') },
+  // ---- invitaciones y cuenta. El enlace de cada correo solo viaja por correo (en desarrollo, también en storage/logs/enlaces.log del backend):
+  // la API nunca lo devuelve, por eso `token` llega vacío y el front no ofrece «abrir el enlace».
+  listarUsuariosAcceso: async (organizacion) => leer<UsuarioAcceso[]>('/api/v1/cuentas/usuarios-acceso', { tipo: organizacion.tipo, id: organizacion.id }),
+  invitarUsuario: async (datos) => ids(await post<UsuarioAcceso>('/api/v1/cuentas/invitaciones', datos)),
+  reenviarInvitacion: async (id) => ids(await post<InvitacionDetalle>(`/api/v1/cuentas/invitaciones/${id}/reenviar`)),
+  editarUsuarioAcceso: async (id, datos) => ids(await put<UsuarioAcceso>(`/api/v1/cuentas/usuarios-acceso/${id}`, datos)),
+  cambiarEstadoUsuarioAcceso: async (id, activo) => ids(await patch<UsuarioAcceso>(`/api/v1/cuentas/usuarios-acceso/${id}/estado`, { activo })),
+  solicitarRestablecimiento: async (correo) => post<SolicitudRestablecimiento>('/api/v1/cuentas/restablecer/solicitar', { correo }, { publico: true }),
+  validarTokenRestablecimiento: async (token) => http<ValidacionToken>('GET', `/api/v1/cuentas/restablecer/${encodeURIComponent(token)}`, { publico: true }),
+  restablecerContrasena: async (token, contrasena) => { await post(`/api/v1/cuentas/restablecer/${encodeURIComponent(token)}`, { contrasena }, { publico: true }) },
+  obtenerInvitacionPublica: async (token) => http<InvitacionPublica>('GET', `/api/v1/cuentas/invitaciones/${encodeURIComponent(token)}`, { publico: true }),
+  aceptarInvitacion: async (token, contrasena) => post<ResultadoAceptacion>(`/api/v1/cuentas/invitaciones/${encodeURIComponent(token)}/aceptar`, { contrasena }, { publico: true }),
 
   // ---- empleados de una empresa
-  listarEmpleados: async () => leer<EmpleadoDetalle[]>('/api/v1/empresa/empleados'),
-  agregarEmpleados: async () => { throw pendiente('Dar de alta empleados') },
-  editarEmpleado: async () => { throw pendiente('Editar un empleado') },
+  // La empresa ve los suyos; el administrador ve los de la empresa que consulta.
+  listarEmpleados: async (empresa_id) => leer<EmpleadoDetalle[]>(esRol('empresa') ? '/api/v1/empresa/empleados' : `/api/v1/admin/empresas/${empresa_id}/empleados`),
+  agregarEmpleados: async (_empresa, personas) => post<ResultadoAltaEmpleados>('/api/v1/empresa/empleados', { personas: personas.map((p) => ({ nombre: p.nombre, correo: p.correo || null })) }),
+  editarEmpleado: async (id, datos) => ids(await put<Empleado>(`/api/v1/empresa/empleados/${id}`, datos)),
   quitarMiEleccion: async (_empleado, fecha, tiempo_comida) => { await borrar('/api/v1/empleado/elecciones', { fecha, tiempo_comida }) },
   cambiarEstadoEmpleado: async (id, activo) => ids(await patch<Empleado>(`/api/v1/empresa/empleados/${id}/estado`, { activo })),
   elegirPlatillo: async (_empleado, fecha, tiempo_comida, platillo_id) => ids(await put<EleccionEmpleado>('/api/v1/empleado/elecciones', { fecha, tiempo_comida, platillo_id })),
@@ -164,8 +177,9 @@ const real: typeof mock = {
   // ---- comedores
   listarComedores: async () => leer<ComedorDetalle[]>('/api/v1/admin/comedores'),
   obtenerComedor: async (id) => leer<ComedorDetalle>(esRol('comedor') ? '/api/v1/comedor/perfil' : `/api/v1/admin/comedores/${id}`),
-  editarComedor: async () => { throw pendiente('Editar un comedor') },
-  cambiarEstadoComedor: async () => { throw pendiente('Desactivar un comedor') },
+  crearComedor: async (datos) => ids(await post<ComedorDetalle>('/api/v1/admin/comedores', datos)),
+  editarComedor: async (id, datos) => ids(await put<ComedorDetalle>(`/api/v1/admin/comedores/${id}`, datos)),
+  cambiarEstadoComedor: async (id, activo) => ids(await patch<ComedorDetalle>(`/api/v1/admin/comedores/${id}/estado`, { activo })),
 
   // ---- platillos, menús y disponibilidad
   listarPlatillos: async (filtro = {}) =>
@@ -189,10 +203,17 @@ const real: typeof mock = {
     return platillo(ids(await post<PlatilloDetalle>(`/api/v1/${propio ? 'comedor' : 'admin'}/platillos`, cuerpo)))
   },
   revisarPlatillo: async (id, decision, motivo) => platillo(ids(await post<PlatilloDetalle>(`/api/v1/admin/platillos/${id}/revision`, { decision, motivo }))),
-  listarHistorialPrecios: async () => [], // el backend todavía no guarda historial de precios
-  cambiarEstadoPlatillo: async () => { throw pendiente('Desactivar un platillo') },
-  editarPlan: async () => { throw pendiente('Editar un plan') },
-  programarPrecioPlatillo: async () => { throw pendiente('Programar un precio') },
+  listarHistorialPrecios: async (id) => leer<HistorialPrecio[]>(`/api/v1/admin/platillos/${id}/historial-precios`),
+  cambiarEstadoPlatillo: async (id, activo) => platillo(ids(await patch<PlatilloDetalle>(`/api/v1/${esRol('comedor') ? 'comedor' : 'admin'}/platillos/${id}/estado`, { activo }))),
+  crearPlan: async (datos) => ids(await post<Plan>('/api/v1/admin/paquetes', datos)),
+  cambiarEstadoPlan: async (id, activo) => ids(await patch<Plan>(`/api/v1/admin/paquetes/${id}/estado`, { activo })),
+  editarPlan: async (id, datos) => ids(await put<Plan>(`/api/v1/admin/paquetes/${id}`, datos)),
+  programarPrecioPlatillo: async (id, datos) => ids(await post<HistorialPrecio>(`/api/v1/admin/platillos/${id}/precios`, datos)),
+  subirImagenPlatillo: async (id, archivo) => {
+    const formulario = new FormData()
+    formulario.append('imagen', archivo)
+    return platillo(ids(await http<PlatilloDetalle>('POST', `/api/v1/${esRol('comedor') ? 'comedor' : 'admin'}/platillos/${id}/imagen`, { cuerpo: {}, formulario })))
+  },
   listarPlanes: async () => leer<Plan[]>('/api/v1/paquetes'),
   obtenerMenuSemanal: async (fecha_inicio) => leer<MenuSemanalDia[]>('/api/v1/admin/menu-semanal', { fecha_inicio }),
   listarDisponibilidad: async (_comedor, desde, hasta) => leer<DisponibilidadConPlatillo[]>('/api/v1/comedor/disponibilidad', { desde, hasta }),
@@ -207,12 +228,14 @@ const real: typeof mock = {
   listarRepartidores: async (filtro = {}) => (await leer<any[]>('/api/v1/admin/repartidores', { estado: filtro.estado })).map(repartidor),
   obtenerCapacidadesVehiculo: async () => { const c = await get<{ automovil: number }>('/api/v1/admin/repartidores/capacidades'); return { bicicleta: 0, motocicleta: 0, automovil: c.automovil } as Record<TipoVehiculo, number> },
   cambiarDisponibilidadRepartidor: async (id) => repartidor(ids(await patch<any>(`/api/v1/admin/repartidores/${id}/disponibilidad`))),
-  crearRepartidor: async () => { throw pendiente('Dar de alta repartidores') },
-  editarRepartidor: async () => { throw pendiente('Editar un repartidor') },
-  cambiarEstadoRepartidor: async () => { throw pendiente('Desactivar un repartidor') },
-  guardarCapacidadesVehiculo: async () => { throw pendiente('Cambiar los límites por vehículo') },
+  crearRepartidor: async (datos) => repartidor(ids(await post<any>('/api/v1/admin/repartidores', datos))),
+  editarRepartidor: async (id, datos) => repartidor(ids(await put<any>(`/api/v1/admin/repartidores/${id}`, datos))),
+  cambiarEstadoRepartidor: async (id, activo) => repartidor(ids(await patch<any>(`/api/v1/admin/repartidores/${id}/estado`, { activo }))),
+  // Solo se reparte en auto: el único límite que existe es el del automóvil.
+  guardarCapacidadesVehiculo: async (capacidades) => { const c = await put<{ automovil: number }>('/api/v1/admin/repartidores/capacidades', { automovil: capacidades.automovil }); return { bicicleta: 0, motocicleta: 0, automovil: c.automovil } as Record<TipoVehiculo, number> },
   listarRutas: async (fecha) => (await leer<any[]>('/api/v1/admin/rutas', { fecha })).map(ruta),
-  generarRutas: async () => { throw pendiente('Regenerar las rutas (las crea el corte)') },
+  // Completa las rutas con lo que quedó sin repartidor; no toca las que ya existen.
+  generarRutas: async (fecha) => (await post<{ rutas: any[] }>('/api/v1/admin/rutas/generar', { fecha })).rutas.map(ruta),
   aprobarRutas: async (fecha) => (await post<{ aprobadas: number }>('/api/v1/admin/rutas/aprobar', { fecha })).aprobadas,
 
   // ---- pedidos y soporte
@@ -222,7 +245,13 @@ const real: typeof mock = {
     const t = await leer<any>(`/api/v1/admin/tickets/${id}`)
     return { ...ticket(t), mensajes: t.mensajes, resumen_pedido: t.resumen_pedido ?? { plan: '', proxima_entrega: '', zona: '', total: 0, direccion: '', referencias: '' } } as TicketDetalle
   },
-  enviarMensajeTicket: async (id, texto) => ids(await post<MensajeTicket>(`/api/v1/admin/tickets/${id}/mensajes`, { texto })),
+  enviarMensajeTicket: async (id, texto, adjunto) => {
+    if (!adjunto) return ids(await post<MensajeTicket>(`/api/v1/admin/tickets/${id}/mensajes`, { texto }))
+    const formulario = new FormData()
+    if (texto.trim()) formulario.append('texto', texto)
+    formulario.append('adjunto', adjunto)
+    return ids(await http<MensajeTicket>('POST', `/api/v1/admin/tickets/${id}/mensajes`, { cuerpo: {}, formulario }))
+  },
 
   // ---- portal del empleado
   obtenerMiMenu: async () => leer<MiMenu>('/api/v1/empleado/menu'),
@@ -330,7 +359,11 @@ export const editarEmpleado = elegir('editarEmpleado')
 export const quitarMiEleccion = elegir('quitarMiEleccion')
 export const cambiarEstadoPlatillo = elegir('cambiarEstadoPlatillo')
 export const editarPlan = elegir('editarPlan')
+export const crearPlan = elegir('crearPlan')
+export const cambiarEstadoPlan = elegir('cambiarEstadoPlan')
+export const crearComedor = elegir('crearComedor')
 export const programarPrecioPlatillo = elegir('programarPrecioPlatillo')
+export const subirImagenPlatillo = elegir('subirImagenPlatillo')
 export const editarRepartidor = elegir('editarRepartidor')
 export const cambiarEstadoRepartidor = elegir('cambiarEstadoRepartidor')
 export const guardarCapacidadesVehiculo = elegir('guardarCapacidadesVehiculo')

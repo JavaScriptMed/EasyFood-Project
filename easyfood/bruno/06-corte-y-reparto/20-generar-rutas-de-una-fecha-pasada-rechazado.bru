@@ -1,0 +1,28 @@
+meta {
+  name: Generar rutas de una fecha pasada (rechazado)
+  type: http
+  seq: 20
+}
+
+post {
+  url: {{baseUrl}}/api/v1/admin/rutas/generar
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+body:json {
+  {
+    "fecha": "2020-01-06"
+  }
+}
+
+tests {
+  test("responde 422 fecha_pasada", function () {
+    expect(res.getStatus()).to.equal(422);
+    expect(res.body.codigo).to.equal("fecha_pasada");
+  });
+}

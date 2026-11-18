@@ -1,0 +1,55 @@
+meta {
+  name: Crear una empresa
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/api/v1/admin/empresas
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+body:json {
+  {
+    "nombre": "{{nombreEmpresa}}",
+    "contacto_nombre": "Contacto de Bruno",
+    "contacto_correo": "{{correoEmpresaNueva}}",
+    "direccion_entrega": "Av. Vallarta 1000, Guadalajara",
+    "zona": "centro",
+    "vigencia_inicio": "{{hoy}}",
+    "compra_minima_mensual": 180,
+    "porcentaje_subsidio": 50,
+    "ventana_entrega_inicio": "12:30",
+    "ventana_entrega_fin": "13:15"
+  }
+}
+
+script:pre-request {
+  const t = Date.now(); bru.setVar("nombreEmpresa", "Empresa de Bruno " + t); bru.setVar("correoEmpresaNueva", "rrhh." + t + "@bruno.test");
+}
+
+script:post-response {
+  if (res.status === 201) bru.setVar("empresaNuevaId", res.body.id);
+}
+
+tests {
+  test("responde 201 con la empresa armada", function () {
+    expect(res.getStatus()).to.equal(201);
+    expect(res.body.contrato.compra_minima_mensual).to.equal(180);
+    expect(res.body.activo).to.equal(true);
+  });
+
+  test("el contrato dura 6 meses y la zona queda con su nombre", function () {
+    expect(res.body.zona).to.equal("Centro");
+    expect(res.body.contrato.vigencia_fin > res.body.contrato.vigencia_inicio).to.equal(true);
+  });
+}
+
+docs {
+  Crea el contacto de RR. HH. (cuenta inactiva con invitación), la empresa y su contrato de 6 meses (precio por platillo $130 si no se manda otro). La zona debe existir.
+}

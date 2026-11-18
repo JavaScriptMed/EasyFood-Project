@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\V1\Vistas;
 use App\Models\MensajeTicket;
 use App\Models\Ticket;
+use App\Services\AdjuntosDeTickets;
 use App\Services\Bitacora;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -37,15 +38,23 @@ class TicketController extends Controller
         ]);
     }
 
-    /** Responde al cliente como agente. Si el ticket estaba abierto pasa a «en proceso» y se limpian sus mensajes sin leer. */
-    public function mensaje(Request $request, int $id): JsonResponse
+    /**
+     * Responde al cliente como agente, con texto, con un archivo (foto o PDF de hasta 5 MB, campo `adjunto`) o con ambos.
+     * Si el ticket estaba abierto pasa a «en proceso» y se limpian sus mensajes sin leer.
+     */
+    public function mensaje(Request $request, int $id, AdjuntosDeTickets $adjuntos): JsonResponse
     {
-        $texto = $request->validate(['texto' => 'required|string|max:2000'])['texto'];
+        $d = $request->validate([
+            'texto' => 'required_without:adjunto|nullable|string|max:2000',
+            'adjunto' => ['nullable', ...AdjuntosDeTickets::REGLAS],
+        ]);
         $ticket = Ticket::query()->findOrFail($id);
 
-        $mensaje = MensajeTicket::create(['ticket_id' => $ticket->id, 'autor_id' => $request->user()->id, 'autor_tipo' => 'agente', 'texto' => $texto]);
+        $mensaje = MensajeTicket::create([
+            'ticket_id' => $ticket->id, 'autor_id' => $request->user()->id, 'autor_tipo' => 'agente', 'texto' => trim((string) ($d['texto'] ?? '')),
+        ] + ($request->hasFile('adjunto') ? $adjuntos->guardar($request->file('adjunto')) : []));
         $ticket->update(['mensajes_sin_leer' => 0, 'estado' => $ticket->estado === 'abierto' ? 'en_proceso' : $ticket->estado]);
-        Bitacora::registrar($request->user(), 'ticket.respondido', 'tickets', $ticket->id, "Respondió el ticket {$ticket->folio}.");
+        Bitacora::registrar($request->user(), 'ticket.respondido', 'tickets', $ticket->id, "Respondió el ticket {$ticket->folio}".($mensaje->adjunto_ruta ? ' con un archivo adjunto.' : '.'));
 
         return response()->json(Vistas::mensajeTicket($mensaje->refresh()), 201);
     }

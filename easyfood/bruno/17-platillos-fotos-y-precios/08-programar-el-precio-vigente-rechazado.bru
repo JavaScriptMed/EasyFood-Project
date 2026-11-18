@@ -1,0 +1,29 @@
+meta {
+  name: Programar el precio vigente (rechazado)
+  type: http
+  seq: 8
+}
+
+post {
+  url: {{baseUrl}}/api/v1/admin/platillos/{{platilloFotoId}}/precios
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+body:json {
+  {
+    "precio_venta": {{precioActual}},
+    "vigente_desde": "{{fechaPrecio}}"
+  }
+}
+
+tests {
+  test("responde 422 precio_sin_cambio", function () {
+    expect(res.getStatus()).to.equal(422);
+    expect(res.body.codigo).to.equal("precio_sin_cambio");
+  });
+}

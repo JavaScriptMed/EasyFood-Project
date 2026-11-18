@@ -1,0 +1,35 @@
+meta {
+  name: Editar empresa con la ventana al revés (rechazado)
+  type: http
+  seq: 2
+}
+
+put {
+  url: {{baseUrl}}/api/v1/admin/empresas/{{empresaNuevaId}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+body:json {
+  {
+    "nombre": "{{nombreEmpresaEditada}}",
+    "direccion_entrega": "Av. Nueva 99",
+    "contacto_nombre": "Contacto Editado",
+    "contacto_telefono": "33 5555 0000",
+    "porcentaje_subsidio": 40,
+    "compra_minima_mensual": 300,
+    "ventana_entrega_inicio": "13:00",
+    "ventana_entrega_fin": "12:00"
+  }
+}
+
+tests {
+  test("responde 422 ventana_invalida", function () {
+    expect(res.getStatus()).to.equal(422);
+    expect(res.body.codigo).to.equal("ventana_invalida");
+  });
+}

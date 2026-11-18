@@ -1,0 +1,36 @@
+meta {
+  name: Reprogramar reemplaza al pendiente
+  type: http
+  seq: 6
+}
+
+post {
+  url: {{baseUrl}}/api/v1/admin/platillos/{{platilloFotoId}}/precios
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+body:json {
+  {
+    "precio_venta": {{precioOtro}},
+    "vigente_desde": "{{fechaPrecio}}"
+  }
+}
+
+script:pre-request {
+  bru.setVar("precioOtro", Number(bru.getVar("precioActual")) + 8);
+}
+
+tests {
+  test("responde 201", function () {
+    expect(res.getStatus()).to.equal(201);
+  });
+
+  test("sigue habiendo un solo precio pendiente", function () {
+    expect(res.body.precio_venta).to.equal(Number(bru.getVar("precioActual")) + 8);
+  });
+}

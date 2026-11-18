@@ -15,6 +15,9 @@ class MensajeTicket extends ModeloEasyLunch
         'autor_id',
         'autor_tipo',
         'texto',
+        'adjunto_ruta',
+        'adjunto_nombre',
+        'adjunto_tipo',
         'enviado_en',
     ];
 

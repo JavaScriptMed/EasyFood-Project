@@ -58,7 +58,16 @@ return [
             'ignore_exceptions' => false,
         ],
 
+        // Enlaces de invitación y de restablecimiento, uno por línea y fáciles de copiar (solo en local y pruebas; ver EnlacesDeCuenta).
+        'enlaces' => [
+            'driver' => 'single',
+            'path' => storage_path('logs/enlaces.log'),
+            'level' => 'info',
+            'replace_placeholders' => true,
+        ],
+
         'single' => [
+            'tap' => [App\Logging\OcultarSecretos::class],
             'driver' => 'single',
             'path' => storage_path('logs/laravel.log'),
             'level' => env('LOG_LEVEL', 'debug'),
@@ -66,6 +75,7 @@ return [
         ],
 
         'daily' => [
+            'tap' => [App\Logging\OcultarSecretos::class],
             'driver' => 'daily',
             'path' => storage_path('logs/laravel.log'),
             'level' => env('LOG_LEVEL', 'debug'),
@@ -74,6 +84,7 @@ return [
         ],
 
         'monthly' => [
+            'tap' => [App\Logging\OcultarSecretos::class],
             'driver' => 'monthly',
             'path' => storage_path('logs/laravel.log'),
             'level' => env('LOG_LEVEL', 'debug'),
@@ -82,6 +93,7 @@ return [
         ],
 
         'slack' => [
+            'tap' => [App\Logging\OcultarSecretos::class],
             'driver' => 'slack',
             'url' => env('LOG_SLACK_WEBHOOK_URL'),
             'username' => env('LOG_SLACK_USERNAME', env('APP_NAME', 'Laravel')),
@@ -91,6 +103,7 @@ return [
         ],
 
         'papertrail' => [
+            'tap' => [App\Logging\OcultarSecretos::class],
             'driver' => 'monolog',
             'level' => env('LOG_LEVEL', 'debug'),
             'handler' => env('LOG_PAPERTRAIL_HANDLER', SyslogUdpHandler::class),
@@ -103,6 +116,7 @@ return [
         ],
 
         'stderr' => [
+            'tap' => [App\Logging\OcultarSecretos::class],
             'driver' => 'monolog',
             'level' => env('LOG_LEVEL', 'debug'),
             'handler' => StreamHandler::class,
@@ -114,6 +128,7 @@ return [
         ],
 
         'syslog' => [
+            'tap' => [App\Logging\OcultarSecretos::class],
             'driver' => 'syslog',
             'level' => env('LOG_LEVEL', 'debug'),
             'facility' => env('LOG_SYSLOG_FACILITY', LOG_USER),
@@ -121,6 +136,7 @@ return [
         ],
 
         'errorlog' => [
+            'tap' => [App\Logging\OcultarSecretos::class],
             'driver' => 'errorlog',
             'level' => env('LOG_LEVEL', 'debug'),
             'replace_placeholders' => true,

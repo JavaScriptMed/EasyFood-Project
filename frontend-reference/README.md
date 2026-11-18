@@ -41,14 +41,9 @@ Cada cuenta solo entra por su portal (por ejemplo, el administrador por `/empres
 
 Las pantallas no cambiaron: siguen llamando a las mismas funciones de `@/lib/api`.
 
-## Qué ya es real y qué falta
+## Qué es real
 
-Todo funciona con el backend **excepto** lo que el backend todavía no construye. Esas funciones avisan con un mensaje claro («… todavía no está disponible en el servidor») o muestran su pantalla vacía:
-
-- **Cuentas por correo:** invitar y reenviar invitaciones, aceptar invitación, restablecer contraseña.
-- **Altas:** crear empresa, crear repartidor, agregar empleados.
-- **Operación:** reasignar una incidencia (y ver candidatos) y regenerar rutas (las crea el corte).
-- **Datos sin tabla todavía:** historial de precios (vacío). El dashboard ya es real (resumen, alertas y los 10 indicadores).
+Todo es real: con el backend encendido, **cada función de `lib/api.ts` llama a la API** y no queda ninguna que avise «todavía no está disponible». Los datos son los del backend: el dashboard (resumen, alertas y 10 indicadores), el historial de precios, las fotos de los platillos (JPG, PNG o WebP, hasta 2 MB), los adjuntos de los tickets y todas las altas, ediciones y desactivaciones.
 
 ## Ventanas de crear, editar, eliminar y ver detalle
 
@@ -57,10 +52,10 @@ Las ventanas viven en `components/ventanas.tsx` (formulario, confirmación y pan
 | Entidad | Crear | Editar | Desactivar | Ver detalle |
 |---|---|---|---|---|
 | Empresas (admin) | sí | sí | sí | sí |
-| Comedores (admin) | — | sí | sí | sí |
+| Comedores (admin) | sí | sí | sí | sí |
 | Platillos (admin y comedor) | sí | sí | sí | sí |
 | Precio de un platillo | programar | — | — | historial |
-| Planes | — | sí | — | sí |
+| Planes | sí | sí | sí | sí |
 | Repartidores | sí | sí | sí | sí |
 | Límites por vehículo | — | sí | — | sí |
 | Empleados (empresa) | sí | sí | sí | sí |
@@ -68,7 +63,15 @@ Las ventanas viven en `components/ventanas.tsx` (formulario, confirmación y pan
 | Facturas, pedidos de mañana, pagos al comedor | — | — | — | sí |
 | Elección del empleado | sí | sí | quitar | sí |
 
-**Ventanas listas, rutas del backend pendientes** (devuelven «… todavía no está disponible en el servidor»; las funciones ya existen en `lib/api.ts` y en la maqueta): `editarEmpresa`, `cambiarEstadoEmpresa`, `editarComedor`, `cambiarEstadoComedor`, `editarEmpleado`, `cambiarEstadoPlatillo`, `editarPlan`, `programarPrecioPlatillo`, `editarRepartidor`, `cambiarEstadoRepartidor`, `guardarCapacidadesVehiculo`, `editarUsuarioAcceso` y `cambiarEstadoUsuarioAcceso`. Ya son reales: editar platillo (`PUT …/platillos/{id}`) y quitar la elección (`DELETE /empleado/elecciones`).
+Todas las ventanas ya están conectadas al backend: no queda ninguna función que avise «todavía no está disponible».
+
+## Detalle de una empresa (administración)
+
+El panel de una empresa tiene cuatro pestañas: **Resumen** (contacto, entrega, consumo del mes, vigencia y usuarios con acceso), **Empleados** (quiénes son, estado, platillos del mes y su elección de mañana; `GET /admin/empresas/{id}/empleados`), **Consumo** (gráfica por día de cualquiera de los últimos 6 meses) y **Contrato** (precio, subsidio, mínimo, ventana, vigencia, renovar y calculadora de subsidio).
+
+## Soporte: adjuntar archivos
+
+En el chat de un ticket (`/admin/soporte`) el clip abre el selector de archivos: foto (JPG, PNG, WebP) o PDF de hasta 5 MB. El archivo elegido se muestra sobre el cuadro de texto, con botón para quitarlo, y se puede enviar con o sin texto. Las fotos se ven dentro de la conversación y los PDF salen como enlace (`components/adjunto-de-ticket.tsx`).
 
 ## Dashboard e indicadores
 

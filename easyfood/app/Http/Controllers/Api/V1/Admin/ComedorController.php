@@ -20,10 +20,15 @@ class ComedorController extends Controller
 
     public function show(int $id): JsonResponse
     {
-        $comedor = Provider::query()->with(['user.profile', 'user.role', 'contratos'])->findOrFail($id);
-        [$publicados, $entregados] = $this->cuentas(collect([$id]));
+        return response()->json(self::detallePorId($id));
+    }
 
-        return response()->json(Vistas::comedorDetalle($comedor, $publicados[$id] ?? 0, $entregados[$id] ?? 0));
+    public static function detallePorId(int $id): array
+    {
+        $comedor = Provider::query()->with(['user.profile', 'user.role', 'contratos'])->findOrFail($id);
+        [$publicados, $entregados] = (new self)->cuentas(collect([$id]));
+
+        return Vistas::comedorDetalle($comedor, $publicados[$id] ?? 0, $entregados[$id] ?? 0);
     }
 
     /** @return array{0: array<int,int>, 1: array<int,int>} platillos publicados y porciones producidas en el mes, por comedor */

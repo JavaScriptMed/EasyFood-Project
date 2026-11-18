@@ -14,7 +14,7 @@ import * as ind from './mock-indicadores'
 import type {
   CalendarioServicio, CambioDisponibilidad, CandidatoReasignacion, ContratoPorVencer, FiltroBitacora, IncidenciaDetalle, TipoIncidencia, Comedor, ComedorDetalle, ConfiguracionOperacion, Corte, DiaSinServicio, EntregaEmpresa, VistaPreviaCorte, DashboardAdmin, DisponibilidadConPlatillo, EleccionEmpleado, Empleado, EmpleadoDetalle, Empresa, EmpresaDetalle,
   CalificacionPendiente, CalificarEntrega, CalificarPlatillo, CostoOperativo, IndicadoresEmpresa, NuevoCostoOperativo, ProgramarPrecio, EdicionComedor, EdicionEmpleado, EdicionEmpresa, EdicionPlan, EdicionRepartidor, EdicionUsuarioAcceso, EntregaDetalle, EstadoContrato, FacturaConEmpresa, FacturaDetalle, FacturaMensual, FilaReporteProveedor, GuardarPlatillo, HistorialPrecio,
-  LiquidacionComedor, LiquidacionConComedor, MenuSemanalDia, MensajeTicket, NuevaEmpresa, NuevoRepartidor, OrdenProduccionDetalle, PedidoDetalle,
+  LiquidacionComedor, LiquidacionConComedor, MenuSemanalDia, MensajeTicket, NuevaEmpresa, NuevoComedor, NuevoPlan, NuevoRepartidor, OrdenProduccionDetalle, PedidoDetalle,
   PedidosMananaEmpresa, Plan, Platillo, PlatilloDetalle, RegistroAuditoriaDetalle, RepartidorDetalle, ResultadoAltaEmpleados, ResultadoCorte, RutaDetalle,
   MensajeContacto, NuevoMensajeContacto, ClienteDetalle, ClienteResumen, ConsumoDiario, EstadoInvitacion, Incidencia, MiEleccion, MiMenu, OpcionMenu, InvitacionDetalle, InvitacionPublica, Invitacion, NuevaInvitacion, Portal, ResultadoAceptacion, SolicitudRestablecimiento, TipoOrganizacion, UsuarioAcceso, ValidacionToken, RegistroAuditoria, Repartidor, Ruta, TicketDetalle, TicketResumen, TiempoComida, TipoVehiculo, Usuario, UsuarioResumen,
 } from './types'
@@ -244,7 +244,7 @@ export const crearEmpresa = (datos: NuevaEmpresa) => llamar<EmpresaDetalle>(() =
   const correo = datos.contacto_rrhh.match(/[^\s@]+@[^\s@]+\.[^\s@]+/)?.[0] ?? `rrhh@${id.toLowerCase()}.mx`
   const nombreContacto = datos.contacto_rrhh.replace(correo, '').replace(/[,;<>]/g, ' ').trim() || 'Contacto de RR. HH.'
   const usuario: Usuario = { id: `USR-${id}`, nombre: nombreContacto, correo, telefono: null, rol: 'empresa', activo: true }
-  const empresa: Empresa = { id, usuario_id: usuario.id, nombre: datos.nombre.trim(), dominio: correo.split('@')[1], zona: 'Guadalajara', direccion_entrega: datos.direccion_entrega.trim() }
+  const empresa: Empresa = { id, usuario_id: usuario.id, nombre: datos.nombre.trim(), dominio: correo.split('@')[1], zona: datos.zona?.trim() || 'Guadalajara', direccion_entrega: datos.direccion_entrega.trim() }
   const [ventana_inicio = '12:30', ventana_fin = '13:15'] = datos.horario_entrega.split(/\s*[–-]\s*/)
   const inicio = datos.vigencia_inicio || FECHA_HOY
   const fin = new Date(`${inicio}T00:00:00Z`)
@@ -373,6 +373,10 @@ export const editarUsuarioAcceso = (usuario_id: string, datos: EdicionUsuarioAcc
   if (!datos.nombre.trim()) throw new Error('Escribe el nombre de la persona.')
   usuario.nombre = datos.nombre.trim()
   usuario.rol = datos.rol
+  if (datos.correo && datos.correo.trim().toLowerCase() !== usuario.correo) {
+    if (!datos.correo.includes('@')) throw new Error('Escribe un correo válido.')
+    usuario.correo = datos.correo.trim().toLowerCase()
+  }
   auditar('actualizar', 'usuario', usuario_id, `Editó al usuario ${usuario.nombre}`)
   return filaDeUsuario(usuario)
 })
@@ -539,7 +543,10 @@ export const editarEmpleado = (empleado_id: string, datos: EdicionEmpleado) => l
   if (!empleado) throw new Error('El empleado no existe.')
   if (!datos.nombre.trim()) throw new Error('Escribe el nombre del empleado.')
   const usuario = buscarUsuario(empleado.usuario_id)
-  if (usuario) usuario.nombre = datos.nombre.trim()
+  if (usuario) {
+    usuario.nombre = datos.nombre.trim()
+    if (datos.correo && datos.correo.includes('@')) usuario.correo = datos.correo.trim().toLowerCase()
+  }
   empleado.departamento = datos.departamento.trim() || null
   auditar('actualizar', 'empleado', empleado_id, `Editó al empleado ${datos.nombre.trim()}`)
   return empleado
@@ -924,6 +931,23 @@ function detalleComedor(comedor: Comedor): ComedorDetalle {
 
 export const listarComedores = () => llamar<ComedorDetalle[]>(() => db.comedores.map(detalleComedor))
 
+export const crearComedor = (datos: NuevoComedor) => llamar<ComedorDetalle>(() => {
+  if (!datos.nombre.trim()) throw new Error('Escribe el nombre del comedor.')
+  if (!datos.contacto_correo.includes('@')) throw new Error('Escribe el correo del contacto.')
+  if (!(datos.precio_por_platillo > 0)) throw new Error('El precio por platillo debe ser mayor a cero.')
+  if (!(datos.compra_minima_mensual > 0)) throw new Error('El mínimo mensual debe ser mayor a cero.')
+  if (db.comedores.some((c) => c.nombre.toLowerCase() === datos.nombre.trim().toLowerCase())) throw new Error('Ya hay un comedor con ese nombre.')
+  const id = siguienteId('COM-', db.comedores.map((c) => c.id))
+  const usuario: Usuario = { id: `USR-${id}`, nombre: datos.contacto_nombre.trim() || 'Contacto del comedor', correo: datos.contacto_correo.trim().toLowerCase(), telefono: datos.telefono.trim() || null, rol: 'comedor', activo: false }
+  const comedor: Comedor = { id, usuario_id: usuario.id, nombre: datos.nombre.trim(), zona: datos.zona.trim() || 'Guadalajara', activo: true }
+  const inicio = datos.vigencia_inicio || FECHA_HOY
+  db.usuarios.push(usuario)
+  db.comedores.push(comedor)
+  db.contratos_comedor.push({ id: `CTC-${id.slice(4)}`, comedor_id: id, precio_por_platillo: datos.precio_por_platillo, compra_minima_mensual: datos.compra_minima_mensual, vigencia_inicio: inicio, vigencia_fin: sumarMeses(inicio, 6) })
+  auditar('crear', 'comedor', id, `Dio de alta el comedor ${comedor.nombre}`)
+  return detalleComedor(comedor)
+})
+
 export const editarComedor = (comedor_id: string, datos: EdicionComedor) => llamar<ComedorDetalle>(() => {
   const comedor = db.comedores.find((c) => c.id === comedor_id)
   if (!comedor) throw new Error('El comedor no existe.')
@@ -1006,6 +1030,15 @@ export const editarPlan = (plan_id: string, datos: EdicionPlan) => llamar<Plan>(
   return plan
 })
 
+/** En la maqueta la foto solo vive en el navegador (URL temporal del archivo elegido). */
+export const subirImagenPlatillo = (platillo_id: string, archivo: File) => llamar<PlatilloDetalle>(() => {
+  const existente = db.platillos.find((p) => p.id === platillo_id)
+  if (!existente) throw new Error('El platillo no existe.')
+  existente.foto_url = URL.createObjectURL(archivo)
+  auditar('actualizar', 'platillo', existente.id, `Cambió la foto de ${existente.nombre}`)
+  return conComedor(existente)
+})
+
 export const listarHistorialPrecios = (platillo_id: string) =>
   llamar<HistorialPrecio[]>(() => db.historial_precios.filter((h) => h.platillo_id === platillo_id).sort((a, b) => b.vigente_desde.localeCompare(a.vigente_desde)))
 
@@ -1021,6 +1054,26 @@ export const programarPrecioPlatillo = (platillo_id: string, datos: ProgramarPre
   db.historial_precios.push(registro)
   auditar('programar_precio', 'platillo', platillo_id, `Programó el precio de ${platillo.nombre} en $${datos.precio_venta} desde ${datos.vigente_desde}`)
   return registro
+})
+
+export const crearPlan = (datos: NuevoPlan) => llamar<Plan>(() => {
+  if (!datos.nombre.trim()) throw new Error('Escribe el nombre del plan.')
+  if (datos.descuento_porcentaje < 0 || datos.descuento_porcentaje > 100) throw new Error('El descuento debe estar entre 0 y 100 %.')
+  if (db.planes.some((p) => p.dias === datos.dias)) throw new Error(`Ya hay un plan activo de ${datos.dias} ${datos.dias === 1 ? 'día' : 'días'}: edítalo o desactívalo para crear otro.`)
+  if (db.planes.some((p) => p.nombre.toLowerCase() === datos.nombre.trim().toLowerCase())) throw new Error('Ya hay un plan con ese nombre.')
+  const plan: Plan = { id: `PLAN-${datos.dias}-${Date.now() % 10000}`, dias: datos.dias, nombre: datos.nombre.trim(), descuento_porcentaje: datos.descuento_porcentaje, detalle: datos.detalle.trim(), destacado: datos.destacado }
+  db.planes.push(plan)
+  auditar('crear', 'plan', plan.id, `Creó el plan ${plan.nombre}`)
+  return plan
+})
+
+/** En la maqueta un plan desactivado simplemente deja de listarse. */
+export const cambiarEstadoPlan = (plan_id: string, activo: boolean) => llamar<Plan>(() => {
+  const plan = db.planes.find((p) => p.id === plan_id)
+  if (!plan) throw new Error('El plan no existe.')
+  if (!activo) db.planes.splice(db.planes.indexOf(plan), 1)
+  auditar(activo ? 'activar' : 'desactivar', 'plan', plan_id, `${activo ? 'Reactivó' : 'Desactivó'} el plan ${plan.nombre}`)
+  return plan
 })
 
 export const listarPlanes = () => llamar<Plan[]>(() => db.planes)
@@ -1191,10 +1244,11 @@ export const obtenerTicket = (ticket_id: string) => llamar<TicketDetalle>(() => 
   }
 })
 
-export const enviarMensajeTicket = (ticket_id: string, texto: string) => llamar<MensajeTicket>(() => {
+export const enviarMensajeTicket = (ticket_id: string, texto: string, adjunto?: File) => llamar<MensajeTicket>(() => {
   const ticket = db.tickets.find((t) => t.id === ticket_id)
   if (!ticket) throw new Error('El ticket no existe.')
-  const mensaje: MensajeTicket = { id: `MSG-${Date.now()}`, ticket_id, autor: 'agente', texto: texto.trim(), enviado_en: ahora() }
+  if (!texto.trim() && !adjunto) throw new Error('Escribe un mensaje o adjunta un archivo.')
+  const mensaje: MensajeTicket = { id: `MSG-${Date.now()}`, ticket_id, autor: 'agente', texto: texto.trim(), enviado_en: ahora(), adjunto: adjunto ? { url: URL.createObjectURL(adjunto), nombre: adjunto.name, tipo: adjunto.type } : null }
   db.mensajes_ticket.push(mensaje)
   ticket.actualizado_en = mensaje.enviado_en
   ticket.mensajes_sin_leer = 0

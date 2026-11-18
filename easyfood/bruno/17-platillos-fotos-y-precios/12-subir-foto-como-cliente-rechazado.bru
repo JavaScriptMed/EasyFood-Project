@@ -1,0 +1,25 @@
+meta {
+  name: Subir foto como cliente (rechazado)
+  type: http
+  seq: 12
+}
+
+post {
+  url: {{baseUrl}}/api/v1/admin/platillos/{{platilloFotoId}}/imagen
+  body: multipartForm
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenCliente}}
+}
+
+body:multipart-form {
+  imagen: @file(17-platillos-fotos-y-precios/plato.png)
+}
+
+tests {
+  test("responde 403", function () {
+    expect(res.getStatus()).to.equal(403);
+  });
+}

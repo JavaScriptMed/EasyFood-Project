@@ -13,8 +13,9 @@ import { Switch } from "@/components/ui/switch"
 import { toast } from "sonner"
 import { BloqueEstado } from "@/components/estados"
 import { CampoLista, CampoParrafo, CampoTexto, VentanaConfirmar, VentanaFormulario } from "@/components/ventanas"
-import { cambiarEstadoPlatillo, editarPlan, guardarPlatillo, listarComedores, listarHistorialPrecios, listarPlanes, listarPlatillos, obtenerMenuSemanal, programarPrecioPlatillo } from "@/lib/api"
+import { cambiarEstadoPlan, cambiarEstadoPlatillo, crearPlan, editarPlan, guardarPlatillo, subirImagenPlatillo, listarComedores, listarHistorialPrecios, listarPlanes, listarPlatillos, obtenerMenuSemanal, programarPrecioPlatillo } from "@/lib/api"
 import { FECHA_MANANA } from "@/lib/config"
+import { BotonCambiarFoto, motivoDeFotoInvalida, TIPOS_DE_FOTO } from "@/components/subir-foto"
 import { etiquetasTiempoComida } from "@/lib/etiquetas"
 import { etiquetaDiaCorta, formatDate } from "@/lib/format"
 import type { Plan, PlatilloDetalle, TiempoComida } from "@/lib/types"
@@ -62,7 +63,7 @@ export default function MenusPage() {
       {tab === "Menú semanal" && <WeeklyMenu />}
       {tab === "Planes" && <Plans />}
     </div>
-    {(selected || showNew) && <aside className="fixed inset-y-0 right-0 z-50 w-full max-w-md overflow-y-auto border-l bg-background p-6 shadow-2xl"><div className="mb-6 flex items-center justify-between"><div><p className="text-xs font-semibold uppercase tracking-wider text-primary">{showNew ? "Nuevo registro" : selected?.activo === false ? "Detalle del platillo · Inactivo" : "Detalle del platillo"}</p><h2 className="font-display text-2xl font-bold">{showNew ? "Crear platillo" : selected?.nombre}</h2></div><Button variant="ghost" size="icon" onClick={() => { setSelected(null); setShowNew(false) }}><X /></Button></div>{showNew ? <NewDishForm onSaved={() => { setShowNew(false); platillos.reload({ silent: true }) }} /> : <>{selected?.foto_url ? <img src={selected.foto_url} alt="" className="mb-5 h-44 w-full rounded-xl object-cover" /> : <div className="mb-5 h-44 w-full rounded-xl bg-gradient-to-br from-primary/30 to-muted" />}<div className="grid grid-cols-2 gap-3 text-sm"><div className="rounded-lg bg-muted p-3"><p className="text-muted-foreground">Proveedor</p><strong>{selected?.comedor_nombre}</strong></div><div className="rounded-lg bg-muted p-3"><p className="text-muted-foreground">Calorías</p><strong>{selected?.calorias} kcal</strong></div></div><Separator className="my-6" /><div className="flex items-center justify-between"><h3 className="font-display text-lg font-bold">Historial de precios</h3><Button variant="outline" size="sm" onClick={() => setProgramando(true)}>Programar precio</Button></div>{selected && <HistorialPrecios key={versionPrecios} platilloId={selected.id} />}<Separator className="my-6" /><div className="flex flex-wrap gap-2"><Button variant="outline" onClick={() => setEditando(true)}><Pencil /> Editar platillo</Button>{selected?.activo === false ? <Button variant="outline" disabled={cambiandoEstado} onClick={() => selected && cambiarEstado(selected, true)}><Power /> Reactivar</Button> : <Button variant="outline" className="border-destructive/40 text-destructive hover:bg-destructive/10" onClick={() => setDesactivando(true)}><Power /> Desactivar</Button>}</div></>}</aside>}{selected && editando && <EditarPlatillo platillo={selected} onCerrar={() => setEditando(false)} onGuardado={(p) => { setEditando(false); setSelected(p); platillos.reload({ silent: true }) }} />}{selected && desactivando && <VentanaConfirmar titulo={`¿Desactivar ${selected.nombre}?`} descripcion="Dejará de ofrecerse a los empleados. Conserva su historial y puedes reactivarlo cuando quieras." textoConfirmar="Desactivar" trabajando={cambiandoEstado} onCerrar={() => setDesactivando(false)} onConfirmar={() => cambiarEstado(selected, false)} />}{selected && programando && <ProgramarPrecio platillo={selected} onCerrar={() => setProgramando(false)} onProgramado={() => { setProgramando(false); setVersionPrecios((v) => v + 1) }} />}
+    {(selected || showNew) && <aside className="fixed inset-y-0 right-0 z-50 w-full max-w-md overflow-y-auto border-l bg-background p-6 shadow-2xl"><div className="mb-6 flex items-center justify-between"><div><p className="text-xs font-semibold uppercase tracking-wider text-primary">{showNew ? "Nuevo registro" : selected?.activo === false ? "Detalle del platillo · Inactivo" : "Detalle del platillo"}</p><h2 className="font-display text-2xl font-bold">{showNew ? "Crear platillo" : selected?.nombre}</h2></div><Button variant="ghost" size="icon" onClick={() => { setSelected(null); setShowNew(false) }}><X /></Button></div>{showNew ? <NewDishForm onSaved={() => { setShowNew(false); platillos.reload({ silent: true }) }} /> : <>{selected?.foto_url ? <img src={selected.foto_url} alt="" className="mb-5 h-44 w-full rounded-xl object-cover" /> : <div className="mb-5 h-44 w-full rounded-xl bg-gradient-to-br from-primary/30 to-muted" />}{selected && <BotonCambiarFoto className="mb-5" platilloId={selected.id} onSubida={(p) => { setSelected(p); platillos.reload({ silent: true }) }} />}<div className="grid grid-cols-2 gap-3 text-sm"><div className="rounded-lg bg-muted p-3"><p className="text-muted-foreground">Proveedor</p><strong>{selected?.comedor_nombre}</strong></div><div className="rounded-lg bg-muted p-3"><p className="text-muted-foreground">Calorías</p><strong>{selected?.calorias} kcal</strong></div></div><Separator className="my-6" /><div className="flex items-center justify-between"><h3 className="font-display text-lg font-bold">Historial de precios</h3><Button variant="outline" size="sm" onClick={() => setProgramando(true)}>Programar precio</Button></div>{selected && <HistorialPrecios key={versionPrecios} platilloId={selected.id} />}<Separator className="my-6" /><div className="flex flex-wrap gap-2"><Button variant="outline" onClick={() => setEditando(true)}><Pencil /> Editar platillo</Button>{selected?.activo === false ? <Button variant="outline" disabled={cambiandoEstado} onClick={() => selected && cambiarEstado(selected, true)}><Power /> Reactivar</Button> : <Button variant="outline" className="border-destructive/40 text-destructive hover:bg-destructive/10" onClick={() => setDesactivando(true)}><Power /> Desactivar</Button>}</div></>}</aside>}{selected && editando && <EditarPlatillo platillo={selected} onCerrar={() => setEditando(false)} onGuardado={(p) => { setEditando(false); setSelected(p); platillos.reload({ silent: true }) }} />}{selected && desactivando && <VentanaConfirmar titulo={`¿Desactivar ${selected.nombre}?`} descripcion="Dejará de ofrecerse a los empleados. Conserva su historial y puedes reactivarlo cuando quieras." textoConfirmar="Desactivar" trabajando={cambiandoEstado} onCerrar={() => setDesactivando(false)} onConfirmar={() => cambiarEstado(selected, false)} />}{selected && programando && <ProgramarPrecio platillo={selected} onCerrar={() => setProgramando(false)} onProgramado={() => { setProgramando(false); setVersionPrecios((v) => v + 1) }} />}
   </AdminShell>
 }
 
@@ -70,6 +71,7 @@ function NewDishForm({ onSaved }: { onSaved: () => void }) {
   const comedores = useAsync(listarComedores)
   const [form, setForm] = useState({ nombre: "", descripcion: "", comedor_id: "", tiempo_comida: "comida" as TiempoComida, calorias: "", precio_venta: "", alergenos: "" })
   const [saving, setSaving] = useState(false)
+  const [foto, setFoto] = useState<File | null>(null)
   const campo = (clave: keyof typeof form) => ({ value: form[clave], onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => setForm((f) => ({ ...f, [clave]: e.target.value })) })
   async function guardar() {
     setSaving(true)
@@ -78,6 +80,9 @@ function NewDishForm({ onSaved }: { onSaved: () => void }) {
         comedor_id: form.comedor_id || comedores.data?.[0]?.id || "", nombre: form.nombre, descripcion: form.descripcion, tiempo_comida: form.tiempo_comida, calorias: Number(form.calorias) || 0,
         alergenos: form.alergenos.split(",").map((a) => a.trim()).filter(Boolean), precio_venta: Number(form.precio_venta) || undefined, estado_revision: "publicado",
       })
+      if (foto) {
+        try { await subirImagenPlatillo(platillo.id, foto) } catch (error) { toast.error(error instanceof Error ? `${platillo.nombre} se guardó, pero la foto no: ${error.message}` : "El platillo se guardó, pero la foto no se pudo subir") }
+      }
       toast.success(`${platillo.nombre} guardado`)
       onSaved()
     } catch (error) {
@@ -86,7 +91,7 @@ function NewDishForm({ onSaved }: { onSaved: () => void }) {
       setSaving(false)
     }
   }
-  return <div className="flex flex-col gap-4"><label className="text-sm font-medium">Nombre<Input className="mt-1" placeholder="Ej. Bowl de pollo teriyaki" {...campo("nombre")} /></label><label className="text-sm font-medium">Descripción<textarea className="mt-1 min-h-24 w-full rounded-md border bg-background p-3 text-sm" placeholder="Describe ingredientes y preparación" {...campo("descripcion")} /></label><div className="grid grid-cols-2 gap-3"><label className="text-sm font-medium">Proveedor<select className="mt-1 w-full rounded-md border bg-background p-2 text-sm" disabled={comedores.loading} {...campo("comedor_id")}>{comedores.loading && <option>Cargando…</option>}{comedores.data?.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}</select></label><label className="text-sm font-medium">Tiempo<select className="mt-1 w-full rounded-md border bg-background p-2 text-sm" {...campo("tiempo_comida")}>{(Object.keys(etiquetasTiempoComida) as TiempoComida[]).map((t) => <option key={t} value={t}>{etiquetasTiempoComida[t]}</option>)}</select></label></div>{comedores.error && <p role="alert" className="text-xs text-destructive">No se pudieron cargar los proveedores. <button type="button" onClick={() => comedores.reload()} className="font-semibold underline">Reintentar</button></p>}<div className="rounded-xl border-2 border-dashed p-7 text-center text-sm text-muted-foreground"><Upload className="mx-auto mb-2" />Arrastra una foto o haz clic para subir</div><div className="grid grid-cols-2 gap-3"><label className="text-sm font-medium">Calorías<Input type="number" className="mt-1" placeholder="450" {...campo("calorias")} /></label><label className="text-sm font-medium">Precio MXN<Input type="number" className="mt-1" placeholder="119" {...campo("precio_venta")} /></label></div><label className="text-sm font-medium">Alérgenos<Input className="mt-1" placeholder="Soya, gluten" {...campo("alergenos")} /></label><Button className="mt-3" onClick={guardar} disabled={saving || comedores.loading || !!comedores.error}>{saving ? "Guardando…" : "Guardar platillo"}</Button></div>
+  return <div className="flex flex-col gap-4"><label className="text-sm font-medium">Nombre<Input className="mt-1" placeholder="Ej. Bowl de pollo teriyaki" {...campo("nombre")} /></label><label className="text-sm font-medium">Descripción<textarea className="mt-1 min-h-24 w-full rounded-md border bg-background p-3 text-sm" placeholder="Describe ingredientes y preparación" {...campo("descripcion")} /></label><div className="grid grid-cols-2 gap-3"><label className="text-sm font-medium">Proveedor<select className="mt-1 w-full rounded-md border bg-background p-2 text-sm" disabled={comedores.loading} {...campo("comedor_id")}>{comedores.loading && <option>Cargando…</option>}{comedores.data?.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}</select></label><label className="text-sm font-medium">Tiempo<select className="mt-1 w-full rounded-md border bg-background p-2 text-sm" {...campo("tiempo_comida")}>{(Object.keys(etiquetasTiempoComida) as TiempoComida[]).map((t) => <option key={t} value={t}>{etiquetasTiempoComida[t]}</option>)}</select></label></div>{comedores.error && <p role="alert" className="text-xs text-destructive">No se pudieron cargar los proveedores. <button type="button" onClick={() => comedores.reload()} className="font-semibold underline">Reintentar</button></p>}<label className="block cursor-pointer rounded-xl border-2 border-dashed p-7 text-center text-sm text-muted-foreground focus-within:border-primary"><Upload className="mx-auto mb-2" />{foto ? foto.name : "Haz clic para elegir una foto (JPG, PNG o WebP, hasta 2 MB)"}<input type="file" accept={TIPOS_DE_FOTO.join(",")} className="sr-only" onChange={(e) => { const archivo = e.target.files?.[0] ?? null; const motivo = archivo ? motivoDeFotoInvalida(archivo) : null; if (motivo) { toast.error(motivo); e.target.value = ""; setFoto(null) } else setFoto(archivo) }} /></label><div className="grid grid-cols-2 gap-3"><label className="text-sm font-medium">Calorías<Input type="number" className="mt-1" placeholder="450" {...campo("calorias")} /></label><label className="text-sm font-medium">Precio MXN<Input type="number" className="mt-1" placeholder="119" {...campo("precio_venta")} /></label></div><label className="text-sm font-medium">Alérgenos<Input className="mt-1" placeholder="Soya, gluten" {...campo("alergenos")} /></label><Button className="mt-3" onClick={guardar} disabled={saving || comedores.loading || !!comedores.error}>{saving ? "Guardando…" : "Guardar platillo"}</Button></div>
 }
 
 function HistorialPrecios({ platilloId }: { platilloId: string }) {
@@ -102,7 +107,23 @@ function WeeklyMenu() {
 function Plans() {
   const planes = useAsync(listarPlanes)
   const [editandoPlan, setEditandoPlan] = useState<Plan | null>(null)
-  return <><BloqueEstado variante="tarjetas" cantidad={3} cargando={planes.loading} error={planes.error} vacio={!planes.data?.length} mensajeVacio="Todavía no hay planes configurados." onReintentar={planes.reload} /><div className="grid gap-5 md:grid-cols-3">{planes.data?.map((plan) => <Card key={plan.id} className={plan.destacado ? "border-primary shadow-lg" : ""}><CardHeader><Badge className="w-fit">{plan.destacado ? "Más elegido" : "Plan flexible"}</Badge><CardTitle className="font-display text-2xl">{plan.nombre}</CardTitle></CardHeader><CardContent><p className="mb-5 text-sm text-muted-foreground">{plan.detalle}</p><div className="mb-5 text-4xl font-bold text-primary">{plan.descuento_porcentaje}%<small className="text-sm text-muted-foreground"> descuento</small></div><Button variant="outline" className="w-full" onClick={() => setEditandoPlan(plan)}><Pencil /> Editar plan</Button></CardContent></Card>)}</div>{editandoPlan && <EditarPlan plan={editandoPlan} onCerrar={() => setEditandoPlan(null)} onGuardado={() => { setEditandoPlan(null); planes.reload({ silent: true }) }} />}</>
+  const [creandoPlan, setCreandoPlan] = useState(false)
+  const [desactivandoPlan, setDesactivandoPlan] = useState<Plan | null>(null)
+  const [cambiando, setCambiando] = useState(false)
+  async function desactivar(plan: Plan) {
+    setCambiando(true)
+    try {
+      await cambiarEstadoPlan(plan.id, false)
+      toast.success(`${plan.nombre} dejó de ofrecerse`, { description: "Los pedidos que ya lo contrataron no cambian." })
+      setDesactivandoPlan(null)
+      planes.reload({ silent: true })
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "No se pudo desactivar el plan")
+    } finally {
+      setCambiando(false)
+    }
+  }
+  return <><div className="mb-4 flex justify-end"><Button onClick={() => setCreandoPlan(true)}><Plus /> Nuevo plan</Button></div><BloqueEstado variante="tarjetas" cantidad={3} cargando={planes.loading} error={planes.error} vacio={!planes.data?.length} mensajeVacio="Todavía no hay planes configurados." onReintentar={planes.reload} /><div className="grid gap-5 md:grid-cols-3">{planes.data?.map((plan) => <Card key={plan.id} className={plan.destacado ? "border-primary shadow-lg" : ""}><CardHeader><Badge className="w-fit">{plan.destacado ? "Más elegido" : "Plan flexible"}</Badge><CardTitle className="font-display text-2xl">{plan.nombre}</CardTitle></CardHeader><CardContent><p className="mb-5 text-sm text-muted-foreground">{plan.detalle}</p><div className="mb-5 text-4xl font-bold text-primary">{plan.descuento_porcentaje}%<small className="text-sm text-muted-foreground"> descuento</small></div><Button variant="outline" className="w-full" onClick={() => setEditandoPlan(plan)}><Pencil /> Editar plan</Button><Button variant="ghost" className="mt-2 w-full text-destructive hover:bg-destructive/10" onClick={() => setDesactivandoPlan(plan)}><Power /> Desactivar</Button></CardContent></Card>)}</div>{creandoPlan && <NuevoPlan onCerrar={() => setCreandoPlan(false)} onCreado={() => { setCreandoPlan(false); planes.reload({ silent: true }) }} />}{desactivandoPlan && <VentanaConfirmar titulo={`¿Desactivar ${desactivandoPlan.nombre}?`} descripcion="Dejará de ofrecerse a los clientes. Los pedidos que ya lo contrataron no cambian y puedes crear otro plan de esa duración." textoConfirmar="Desactivar" trabajando={cambiando} onCerrar={() => setDesactivandoPlan(null)} onConfirmar={() => desactivar(desactivandoPlan)} />}{editandoPlan && <EditarPlan plan={editandoPlan} onCerrar={() => setEditandoPlan(null)} onGuardado={() => { setEditandoPlan(null); planes.reload({ silent: true }) }} />}</>
 }
 
 /** Editar un platillo desde el panel del administrador. Conserva su estado de revisión. */
@@ -157,6 +178,32 @@ function ProgramarPrecio({ platillo, onCerrar, onProgramado }: { platillo: Plati
 }
 
 /** Editar el nombre, el descuento y la descripción de un plan (paquete). */
+/** Crear un plan para clientes individuales. Solo hay planes de 1, 2 o 6 días y uno activo por cada duración. */
+function NuevoPlan({ onCerrar, onCreado }: { onCerrar: () => void; onCreado: () => void }) {
+  const [form, setForm] = useState({ nombre: "", dias: "6", descuento_porcentaje: "10", detalle: "", destacado: false })
+  const [guardando, setGuardando] = useState(false)
+  const descuento = Number(form.descuento_porcentaje)
+  async function guardar() {
+    setGuardando(true)
+    try {
+      await crearPlan({ ...form, dias: Number(form.dias) as 1 | 2 | 6, descuento_porcentaje: descuento })
+      toast.success("Plan creado")
+      onCreado()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "No se pudo crear el plan")
+    } finally {
+      setGuardando(false)
+    }
+  }
+  return <VentanaFormulario titulo="Nuevo plan" descripcion="Solo puede haber un plan activo por duración: si ya existe uno de esos días, edítalo o desactívalo primero." textoEnviar="Crear plan" trabajando={guardando} deshabilitarEnvio={!form.nombre.trim() || form.descuento_porcentaje === "" || descuento < 0 || descuento > 100} onCerrar={onCerrar} onEnviar={guardar}>
+    <CampoTexto etiqueta="Nombre del plan" required autoFocus value={form.nombre} onChange={(e) => setForm((f) => ({ ...f, nombre: e.target.value }))} />
+    <label className="text-sm font-medium">Duración<select className="mt-1 w-full rounded-md border bg-background p-2 text-sm" value={form.dias} onChange={(e) => setForm((f) => ({ ...f, dias: e.target.value }))}><option value="1">1 día</option><option value="2">2 días</option><option value="6">6 días (semana)</option></select></label>
+    <CampoTexto etiqueta="Descuento (%)" type="number" min={0} max={100} value={form.descuento_porcentaje} onChange={(e) => setForm((f) => ({ ...f, descuento_porcentaje: e.target.value }))} />
+    <CampoParrafo etiqueta="Descripción" value={form.detalle} onChange={(e) => setForm((f) => ({ ...f, detalle: e.target.value }))} />
+    <label className="flex items-center gap-2 text-sm font-medium"><input type="checkbox" checked={form.destacado} onChange={(e) => setForm((f) => ({ ...f, destacado: e.target.checked }))} /> Mostrar como «Más elegido»</label>
+  </VentanaFormulario>
+}
+
 function EditarPlan({ plan, onCerrar, onGuardado }: { plan: Plan; onCerrar: () => void; onGuardado: () => void }) {
   const [form, setForm] = useState({ nombre: plan.nombre, descuento_porcentaje: String(plan.descuento_porcentaje), detalle: plan.detalle, destacado: plan.destacado })
   const [guardando, setGuardando] = useState(false)

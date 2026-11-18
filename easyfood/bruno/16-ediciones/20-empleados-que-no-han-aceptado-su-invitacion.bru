@@ -1,0 +1,30 @@
+meta {
+  name: Empleados que no han aceptado su invitación
+  type: http
+  seq: 20
+}
+
+get {
+  url: {{baseUrl}}/api/v1/empresa/empleados
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenEmpresa}}
+}
+
+script:post-response {
+  if (res.status === 200) { const p = res.body.find(e => e.invitacion && e.invitacion.estado === "enviada"); const a = res.body.find(e => !e.invitacion); if (p) { bru.setVar("empleadoPendienteId", p.id); bru.setVar("empleadoPendienteNombre", p.nombre); } if (a) { bru.setVar("empleadoActivoId", a.id); bru.setVar("empleadoActivoNombre", a.nombre); } }
+}
+
+tests {
+  test("responde 200 y los pendientes traen su invitación", function () {
+    expect(res.getStatus()).to.equal(200);
+    expect(res.body.some(e => e.invitacion && e.invitacion.estado === "enviada")).to.equal(true);
+  });
+}
+
+docs {
+  Solo los que todavía no aceptan su invitación (los agregados por la empresa o por CSV) pueden cambiar de correo.
+}

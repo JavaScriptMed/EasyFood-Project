@@ -7,6 +7,8 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\V1\Vistas;
 use App\Models\Menu;
 use App\Services\Bitacora;
+use App\Services\EdicionDeRegistros;
+use App\Services\HistorialDePrecios;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -27,24 +29,36 @@ class PlatilloController extends Controller
         );
     }
 
-    public function store(Request $request): JsonResponse
+    public function store(Request $request, HistorialDePrecios $historial): JsonResponse
     {
         $datos = $request->validate(self::reglas(crear: true) + ['comedor_id' => 'required|integer|exists:providers,id']);
 
         $platillo = Menu::create(self::atributos($datos) + ['provider_id' => $datos['comedor_id']]);
+        $historial->sincronizar($platillo);
         Bitacora::registrar($request->user(), 'platillo.creado', 'platillos', $platillo->id, "Creó el platillo «{$platillo->name}».");
 
         return response()->json(Vistas::platillo($platillo->refresh()->load('provider')), 201);
     }
 
-    public function update(Request $request, int $id): JsonResponse
+    public function update(Request $request, int $id, HistorialDePrecios $historial): JsonResponse
     {
         $platillo = Menu::query()->findOrFail($id);
         $datos = $request->validate(self::reglas(crear: false));
 
+        $historial->asegurarPunto($platillo);
         $platillo->update(self::atributos($datos));
+        $historial->sincronizar($platillo);
 
         return response()->json(Vistas::platillo($platillo->refresh()->load('provider')));
+    }
+
+    /** Pone o quita un platillo de la oferta (desactivar no borra nada). */
+    public function estado(Request $request, int $id, EdicionDeRegistros $ediciones): JsonResponse
+    {
+        $activo = $request->validate(['activo' => 'required|boolean'])['activo'];
+        $platillo = $ediciones->cambiarEstadoDePlatillo($request->user(), Menu::query()->findOrFail($id), $activo);
+
+        return response()->json(Vistas::platillo($platillo->load('provider')));
     }
 
     /** El administrador aprueba (publica) o rechaza (con motivo) un platillo que está en revisión. */

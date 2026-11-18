@@ -1,0 +1,29 @@
+meta {
+  name: Programar un precio para hoy (rechazado)
+  type: http
+  seq: 7
+}
+
+post {
+  url: {{baseUrl}}/api/v1/admin/platillos/{{platilloFotoId}}/precios
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+body:json {
+  {
+    "precio_venta": 99,
+    "vigente_desde": "{{hoy}}"
+  }
+}
+
+tests {
+  test("responde 422 fecha_de_precio_invalida", function () {
+    expect(res.getStatus()).to.equal(422);
+    expect(res.body.codigo).to.equal("fecha_de_precio_invalida");
+  });
+}

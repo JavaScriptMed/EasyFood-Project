@@ -1,0 +1,121 @@
+# EasyLunch en PRODUCCIÓN. La base de datos NO está aquí: es el PostgreSQL (con PostGIS) del servidor.
+#
+#   cp .env.production.example .env.production      # y llénalo (ver DESPLIEGUE.md)
+#   docker compose -f docker-compose.prod.yml build
+#   docker compose -f docker-compose.prod.yml up -d
+#
+# Servicios: web (nginx), app (php-fpm), scheduler (tareas automáticas: corte diario, pedidos vencidos, avisos, precios programados)
+# y worker (cola de trabajos). Todos comparten la misma imagen y el mismo volumen «storage» (fotos, adjuntos y logs).
+# Solo «web» publica un puerto, y únicamente en 127.0.0.1: el HTTPS lo pone el proxy del servidor.
+
+name: easylunch-prod
+
+x-laravel: &laravel
+  build:
+    context: .
+    dockerfile: docker/php/Dockerfile.prod
+  image: easylunch-app:prod
+  env_file: .env.production
+  restart: unless-stopped
+  # El PostgreSQL del servidor se ve como host.docker.internal (o pon su IP en DB_HOST de .env.production).
+  extra_hosts:
+    - "host.docker.internal:host-gateway"
+  volumes:
+    - storage:/var/www/html/storage
+  # La imagen es de solo lectura: lo único que se escribe es el volumen «storage» y estas carpetas temporales.
+  read_only: true
+  tmpfs:
+    - /tmp
+    - /var/www/html/bootstrap/cache:uid=82,gid=82,mode=0755
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+
+services:
+  app:
+    <<: *laravel
+    mem_limit: 512m
+    cpus: 1.0
+    healthcheck:
+      test: ["CMD-SHELL", "php -r 'exit(@fsockopen(\"127.0.0.1\", 9000) ? 0 : 1);'"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  scheduler:
+    <<: *laravel
+    # Sin ports ni healthcheck de red: corre `schedule:work`, que despierta cada minuto a los comandos programados.
+    command: ["php", "artisan", "schedule:work"]
+    mem_limit: 256m
+    cpus: 0.5
+    depends_on:
+      app:
+        condition: service_healthy
+
+  worker:
+    <<: *laravel
+    # Procesa la cola (QUEUE_CONNECTION=database). Se reinicia solo cada hora o a las 1000 tareas para no acumular memoria
+    # y para tomar el código nuevo después de un despliegue.
+    command: ["php", "artisan", "queue:work", "--sleep=3", "--tries=3", "--backoff=10", "--max-time=3600", "--max-jobs=1000", "--memory=200"]
+    mem_limit: 384m
+    cpus: 0.5
+    depends_on:
+      app:
+        condition: service_healthy
+
+  web:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    ports:
+      # Solo en el propio servidor: el proxy con HTTPS (Nginx/Caddy) apunta a http://127.0.0.1:8080.
+      - "127.0.0.1:${WEB_PORT:-8080}:80"
+    volumes:
+      - ./docker/nginx/prod.conf:/etc/nginx/conf.d/default.conf:ro
+      - storage:/var/www/storage:ro
+    depends_on:
+      app:
+        condition: service_healthy
+    mem_limit: 128m
+    cpus: 0.5
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/cache/nginx
+      - /var/run
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETGID
+      - SETUID
+      - NET_BIND_SERVICE
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/up >/dev/null || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  # Subred fija: así se le puede dar permiso en pg_hba.conf y en el firewall del servidor para llegar al PostgreSQL (ver DESPLIEGUE.md).
+  default:
+    ipam:
+      config:
+        - subnet: 172.31.250.0/24
+
+volumes:
+  # Fotos de platillos, adjuntos de tickets y logs. Respáldalo (ver DESPLIEGUE.md).
+  storage:

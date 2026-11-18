@@ -54,11 +54,14 @@ Clic derecho en la colección → **Run**, o corre carpeta por carpeta. **Empiez
 | 06 | **Corte y reparto** | **Ejecutar el corte**: cierra elecciones, órdenes de producción, entregas por empresa, rutas por zona e incidencias |
 | 07 | Administración · dinero | Facturas a empresas y liquidaciones a comedores (total, partes y diferencia por mínimo) |
 | 08 | Portal de empresas | Empleados (activar/desactivar) y facturas propias |
+| 15 | Altas (empresa, comedor, repartidor, empleados y planes) | Dar de alta una empresa y un comedor con su contrato, un repartidor, empleados y planes; cada persona recibe su invitación |
+| 16 | Editar y desactivar | Editar y desactivar empresas, repartidores, planes, empleados y personas con acceso; capacidad del auto (usa lo creado en la 15) |
+| 17 | Platillos · fotos y precios | Subir la foto de un platillo (admin y comedor), historial de precios y programar un precio |
+| 14 | Cuentas (invitaciones y contraseña) | Invitar, reenviar y aceptar una invitación, y restablecer la contraseña; los enlaces salen en `storage/logs/enlaces.log` |
 | 13 | Dashboard e indicadores | Dashboard del administrador (10 indicadores), costos operativos, indicadores de RR. HH., calificación del menú y captura de calificaciones |
 | 09 | Administración · clientes y soporte | Clientes, pedidos, tickets y reembolso de un pedido pagado con Stripe |
 | 10 | Administración · bitácora | Todo lo que hicieron las carpetas anteriores |
 | 11 | Público y errores de ejemplo | Contacto y ejemplos de 401, 403, 404 y 422 |
-| 12 | Pendientes (501) | Los 18 endpoints configurados pero **todavía no construidos**: deben responder 501 |
 
 Cada petición tiene su descripción (pestaña **Docs**) y sus pruebas (pestaña **Tests**; ✓ verde = respondió como se espera). Las respuestas salen en español y con la forma `{ mensaje, codigo, errores }`.
 
@@ -84,6 +87,6 @@ Conéctate a PostgreSQL con DBeaver o TablePlus: `127.0.0.1:5432`, base `easylun
 - **El corte es a las 18:00 (hora de Guadalajara).** Se entrega de lunes a sábado. La colección calcula sola la próxima fecha con el corte abierto con la hora de tu computadora (supone que estás en hora de México). Si ya pasaron las 18:00, «mañana» ya está cerrado y se usa el siguiente día de servicio.
 - **«Ejecutar corte ahora» cambia datos de verdad**: cierra la siguiente fecha. Si lo repites para la misma fecha responde «sin cambios»; si no pasas fecha, corta la siguiente que falte. Para volver a probar el flujo completo recarga los datos.
 - **Facturas y liquidaciones**: «Emitir» y «Pagar» responden 200 la primera vez y 422 después (una factura emitida ya no cambia; es lo correcto, por eso esas pruebas aceptan ambos).
-- **Límites**: el contacto y los endpoints públicos de `/cuentas` admiten 10 peticiones por minuto; si repites la carpeta «Pendientes» enseguida verás 429. Espera un minuto.
+- **Límites**: el contacto y los endpoints públicos de `/cuentas` admiten 10 peticiones por minuto; si repites la carpeta «Cuentas» enseguida verás 429. Espera un minuto.
 - **Roles**: `admin` entra a todo el panel; `soporte` solo a clientes, pedidos, tickets e incidencias.
 - Los tokens se guardan como variables de la sesión de Bruno (no en el archivo); si cierras Bruno, vuelve a correr «Sesión».

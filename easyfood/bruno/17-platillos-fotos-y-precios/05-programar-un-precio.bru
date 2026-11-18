@@ -1,0 +1,41 @@
+meta {
+  name: Programar un precio
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{baseUrl}}/api/v1/admin/platillos/{{platilloFotoId}}/precios
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+body:json {
+  {
+    "precio_venta": {{precioNuevo}},
+    "vigente_desde": "{{fechaPrecio}}"
+  }
+}
+
+script:pre-request {
+  const dia = new Date(Date.now() + 10 * 86400000).toISOString().slice(0, 10); bru.setVar("fechaPrecio", dia); bru.setVar("precioNuevo", Number(bru.getVar("precioActual")) + 5);
+}
+
+tests {
+  test("responde 201 con el tramo nuevo", function () {
+    expect(res.getStatus()).to.equal(201);
+  });
+
+  test("queda abierto desde la fecha elegida", function () {
+    expect(res.body.vigente_hasta).to.equal(null);
+    expect(res.body.vigente_desde).to.equal(bru.getVar("fechaPrecio"));
+  });
+}
+
+docs {
+  El precio de hoy sigue vigente hasta el día anterior; un comando diario (`easylunch:aplicar-precios-programados`) lo copia al platillo cuando llega la fecha.
+}

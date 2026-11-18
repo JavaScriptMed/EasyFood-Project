@@ -19,6 +19,7 @@ body:json {
 
 script:post-response {
   bru.setVar("tokenAdmin", res.body.token);
+  if (res.body.user) bru.setVar("adminId", res.body.user.id);
 }
 
 tests {

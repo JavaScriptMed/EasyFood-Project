@@ -8,19 +8,18 @@
 | Autenticación: token Bearer de Sanctum (POST /api/auth/login). Cada grupo exige su rol (middleware `role:`):
 |   admin · support · provider (comedor) · company (empresa) · employee (empleado) · customer (cliente).
 |
-| Los endpoints marcados «PENDIENTE» ya tienen su ruta, su rol y su nombre, pero apuntan a NoImplementadoController
-| (responden 501) porque todavía no se construyen: los más complejos, el dashboard y las imágenes.
+| Todos los endpoints están construidos: RutasDeLaApiTest comprueba que toda ruta apunte a un controlador y método que existen.
 */
 
 use App\Http\Controllers\Api\V1\Admin;
 use App\Http\Controllers\Api\V1\Cliente;
 use App\Http\Controllers\Api\V1\Comedor;
+use App\Http\Controllers\Api\V1\Cuentas;
 use App\Http\Controllers\Api\V1\CalificacionMenuController;
 use App\Http\Controllers\Api\V1\ContactoController;
 use App\Http\Controllers\Api\V1\Empleado;
 use App\Http\Controllers\Api\V1\Empresa;
 use App\Http\Controllers\Api\V1\MenuSemanalController;
-use App\Http\Controllers\Api\V1\NoImplementadoController as Pendiente;
 use App\Http\Controllers\Api\V1\Webhooks;
 use Illuminate\Support\Facades\Route;
 
@@ -33,13 +32,14 @@ Route::post('contacto', [ContactoController::class, 'store'])->middleware('throt
 // Stripe avisa aquí cuando se cobra un pedido. Público: se confía en la firma del webhook, no en un token.
 Route::post('webhooks/stripe', [Webhooks\StripeController::class, 'recibir'])->middleware('throttle:300,1')->name('v1.webhooks.stripe');
 
-// Cuentas: invitaciones y restablecer contraseña (PENDIENTE: requieren correo y tokens).
+// Cuentas (públicas): aceptar una invitación y restablecer la contraseña. Los enlaces llegan por correo (en desarrollo, MAIL_MAILER=log
+// y además storage/logs/enlaces.log).
 Route::prefix('cuentas')->middleware('throttle:10,1')->name('v1.cuentas.')->group(function () {
-    Route::post('restablecer/solicitar', Pendiente::class)->name('restablecer.solicitar');               // solicitarRestablecimiento
-    Route::get('restablecer/{token}', Pendiente::class)->name('restablecer.validar');                     // validarTokenRestablecimiento
-    Route::post('restablecer/{token}', Pendiente::class)->name('restablecer.aplicar');                    // restablecerContrasena
-    Route::get('invitaciones/{token}', Pendiente::class)->name('invitaciones.mostrar');                   // obtenerInvitacionPublica
-    Route::post('invitaciones/{token}/aceptar', Pendiente::class)->name('invitaciones.aceptar');          // aceptarInvitacion
+    Route::post('restablecer/solicitar', [Cuentas\RestablecimientoController::class, 'solicitar'])->middleware('throttle:recuperar')->name('restablecer.solicitar');   // solicitarRestablecimiento
+    Route::get('restablecer/{token}', [Cuentas\RestablecimientoController::class, 'validar'])->name('restablecer.validar');           // validarTokenRestablecimiento
+    Route::post('restablecer/{token}', [Cuentas\RestablecimientoController::class, 'aplicar'])->name('restablecer.aplicar');          // restablecerContrasena
+    Route::get('invitaciones/{token}', [Cuentas\InvitacionController::class, 'mostrar'])->name('invitaciones.mostrar');               // obtenerInvitacionPublica
+    Route::post('invitaciones/{token}/aceptar', [Cuentas\InvitacionController::class, 'aceptar'])->name('invitaciones.aceptar');      // aceptarInvitacion
 });
 
 Route::middleware('auth:sanctum')->group(function () {
@@ -49,11 +49,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('paquetes', [Cliente\PaqueteController::class, 'index'])->name('v1.paquetes.index');
     Route::get('calificaciones/menu-semanal', [CalificacionMenuController::class, 'show'])->name('v1.calificaciones.menu-semanal'); // promedio de estrellas del menú, en tiempo real
 
-    // Invitar y reenviar (PENDIENTE): los usa el administrador, la empresa y el comedor con su propio alcance.
+    // Invitar y reenviar: los usa el administrador, la empresa y el comedor, cada uno dentro de lo suyo.
     Route::middleware('role:admin,company,provider')->group(function () {
-        Route::get('cuentas/usuarios-acceso', Pendiente::class)->name('v1.cuentas.usuarios-acceso');      // listarUsuariosAcceso
-        Route::post('cuentas/invitaciones', Pendiente::class)->name('v1.cuentas.invitaciones.crear');     // invitarUsuario
-        Route::post('cuentas/invitaciones/{id}/reenviar', Pendiente::class)->name('v1.cuentas.invitaciones.reenviar'); // reenviarInvitacion
+        Route::get('cuentas/usuarios-acceso', [Cuentas\UsuarioAccesoController::class, 'index'])->name('v1.cuentas.usuarios-acceso');              // listarUsuariosAcceso
+        Route::put('cuentas/usuarios-acceso/{id}', [Cuentas\UsuarioAccesoController::class, 'update'])->name('v1.cuentas.usuarios-acceso.update');
+        Route::patch('cuentas/usuarios-acceso/{id}/estado', [Cuentas\UsuarioAccesoController::class, 'estado'])->name('v1.cuentas.usuarios-acceso.estado');
+        Route::post('cuentas/invitaciones', [Cuentas\InvitacionController::class, 'store'])->name('v1.cuentas.invitaciones.crear');               // invitarUsuario
+        Route::post('cuentas/invitaciones/{id}/reenviar', [Cuentas\InvitacionController::class, 'reenviar'])->name('v1.cuentas.invitaciones.reenviar'); // reenviarInvitacion
     });
 
     // ------------------------------------------------------------------------------------------ administración
@@ -66,11 +68,20 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::post('costos-operativos/{id}/anular', [Admin\CostoOperativoController::class, 'anular'])->name('costos-operativos.anular');
 
             Route::get('empresas', [Admin\EmpresaController::class, 'index'])->name('empresas.index');
+            Route::get('empresas/{id}/empleados', [Admin\EmpresaController::class, 'empleados'])->name('empresas.empleados');
+            Route::put('empresas/{id}', [Admin\EmpresaEdicionController::class, 'update'])->name('empresas.update');
+            Route::patch('empresas/{id}/estado', [Admin\EmpresaEdicionController::class, 'estado'])->name('empresas.estado');
+            Route::post('paquetes', [Admin\PaqueteController::class, 'store'])->name('paquetes.store');
+            Route::put('paquetes/{id}', [Admin\PaqueteController::class, 'update'])->name('paquetes.update');
+            Route::patch('paquetes/{id}/estado', [Admin\PaqueteController::class, 'estado'])->name('paquetes.estado');
             Route::get('empresas/{id}', [Admin\EmpresaController::class, 'show'])->name('empresas.show');
-            Route::post('empresas', Pendiente::class)->name('empresas.store');                             // PENDIENTE · crearEmpresa (usuario + contrato + invitación)
+            Route::post('empresas', [Admin\EmpresaAltaController::class, 'store'])->name('empresas.store');
             Route::get('empresas/{id}/consumo', [Admin\EmpresaController::class, 'consumo'])->name('empresas.consumo');
             Route::post('empresas/{id}/renovar-contrato', [Admin\ContratoController::class, 'renovarEmpresa'])->name('empresas.renovar');
             Route::get('comedores', [Admin\ComedorController::class, 'index'])->name('comedores.index');
+            Route::post('comedores', [Admin\ComedorAltaController::class, 'store'])->name('comedores.store');
+            Route::put('comedores/{id}', [Admin\ComedorEdicionController::class, 'update'])->name('comedores.update');
+            Route::patch('comedores/{id}/estado', [Admin\ComedorEdicionController::class, 'estado'])->name('comedores.estado');
             Route::get('comedores/{id}', [Admin\ComedorController::class, 'show'])->name('comedores.show');
             Route::post('comedores/{id}/renovar-contrato', [Admin\ContratoController::class, 'renovarComedor'])->name('comedores.renovar');
             Route::get('contratos/por-vencer', [Admin\ContratoController::class, 'porVencer'])->name('contratos.por-vencer');
@@ -78,9 +89,11 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('platillos', [Admin\PlatilloController::class, 'index'])->name('platillos.index');
             Route::post('platillos', [Admin\PlatilloController::class, 'store'])->name('platillos.store');
             Route::put('platillos/{id}', [Admin\PlatilloController::class, 'update'])->name('platillos.update');
+            Route::patch('platillos/{id}/estado', [Admin\PlatilloController::class, 'estado'])->name('platillos.estado');
             Route::post('platillos/{id}/revision', [Admin\PlatilloController::class, 'revision'])->name('platillos.revision');
-            Route::get('platillos/{id}/historial-precios', Pendiente::class)->name('platillos.historial-precios'); // PENDIENTE · no hay tabla de historial
-            Route::post('platillos/{id}/imagen', Pendiente::class)->name('platillos.imagen');              // PENDIENTE · imágenes
+            Route::get('platillos/{id}/historial-precios', [Admin\PlatilloExtrasController::class, 'historial'])->name('platillos.historial-precios');
+            Route::post('platillos/{id}/precios', [Admin\PlatilloExtrasController::class, 'programarPrecio'])->name('platillos.programar-precio');
+            Route::post('platillos/{id}/imagen', [Admin\PlatilloExtrasController::class, 'imagen'])->name('platillos.imagen');
 
             Route::get('configuracion', [Admin\ConfiguracionController::class, 'show'])->name('configuracion.show');
             Route::put('configuracion', [Admin\ConfiguracionController::class, 'update'])->name('configuracion.update');
@@ -95,12 +108,15 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::post('cortes/ejecutar', [Admin\CorteController::class, 'ejecutar'])->name('cortes.ejecutar');
 
             Route::get('repartidores', [Admin\RepartidorController::class, 'index'])->name('repartidores.index');
-            Route::post('repartidores', Pendiente::class)->name('repartidores.store');                     // PENDIENTE · crearRepartidor (usuario + invitación)
+            Route::post('repartidores', [Admin\RepartidorController::class, 'store'])->name('repartidores.store');
             Route::get('repartidores/capacidades', [Admin\RepartidorController::class, 'capacidades'])->name('repartidores.capacidades');
+            Route::put('repartidores/capacidades', [Admin\RepartidorController::class, 'guardarCapacidades'])->name('repartidores.guardar-capacidades');
+            Route::put('repartidores/{id}', [Admin\RepartidorController::class, 'update'])->name('repartidores.update');
+            Route::patch('repartidores/{id}/estado', [Admin\RepartidorController::class, 'estado'])->name('repartidores.estado');
             Route::patch('repartidores/{id}/disponibilidad', [Admin\RepartidorController::class, 'disponibilidad'])->name('repartidores.disponibilidad');
 
             Route::get('rutas', [Admin\RutaController::class, 'index'])->name('rutas.index');
-            Route::post('rutas/generar', Pendiente::class)->name('rutas.generar');                         // PENDIENTE · generarRutas
+            Route::post('rutas/generar', [Admin\RutaController::class, 'generar'])->name('rutas.generar');
             Route::post('rutas/aprobar', [Admin\RutaController::class, 'aprobar'])->name('rutas.aprobar');
             Route::get('entregas', [Admin\EntregaController::class, 'index'])->name('entregas.index');
             Route::get('reportes/proveedor', [Admin\ReporteController::class, 'proveedor'])->name('reportes.proveedor');
@@ -124,8 +140,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::middleware('role:admin,support')->group(function () {
             Route::get('incidencias', [Admin\IncidenciaController::class, 'index'])->name('incidencias.index');
             Route::post('incidencias/{id}/resolver', [Admin\IncidenciaController::class, 'resolver'])->name('incidencias.resolver');
-            Route::get('incidencias/{id}/candidatos', Pendiente::class)->name('incidencias.candidatos');   // PENDIENTE · listarCandidatosReasignacion
-            Route::post('incidencias/{id}/reasignar', Pendiente::class)->name('incidencias.reasignar');     // PENDIENTE · reasignarIncidencia
+            Route::get('incidencias/{id}/candidatos', [Admin\IncidenciaController::class, 'candidatos'])->name('incidencias.candidatos');
+            Route::post('incidencias/{id}/reasignar', [Admin\IncidenciaController::class, 'reasignar'])->name('incidencias.reasignar');
 
             Route::get('clientes', [Admin\ClienteController::class, 'index'])->name('clientes.index');
             Route::get('clientes/{id}', [Admin\ClienteController::class, 'show'])->name('clientes.show');
@@ -141,7 +157,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::prefix('empresa')->name('v1.empresa.')->middleware('role:company')->group(function () {
         Route::get('perfil', [Empresa\PerfilController::class, 'show'])->name('perfil');
         Route::get('empleados', [Empresa\EmpleadoController::class, 'index'])->name('empleados.index');
-        Route::post('empleados', Pendiente::class)->name('empleados.store');                               // PENDIENTE · agregarEmpleados (usuarios + invitaciones)
+        Route::post('empleados', [Empresa\EmpleadoAltaController::class, 'store'])->name('empleados.store');
+        Route::put('empleados/{id}', [Empresa\EmpleadoController::class, 'update'])->name('empleados.update');
         Route::patch('empleados/{id}/estado', [Empresa\EmpleadoController::class, 'estado'])->name('empleados.estado');
         Route::get('pedidos-de-manana', [Empresa\PedidosMananaController::class, 'index'])->name('pedidos-de-manana');
         Route::get('indicadores', [Empresa\IndicadoresController::class, 'show'])->name('indicadores');
@@ -157,7 +174,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('platillos', [Comedor\PlatilloController::class, 'index'])->name('platillos.index');
         Route::post('platillos', [Comedor\PlatilloController::class, 'store'])->name('platillos.store');
         Route::put('platillos/{id}', [Comedor\PlatilloController::class, 'update'])->name('platillos.update');
-        Route::post('platillos/{id}/imagen', Pendiente::class)->name('platillos.imagen');                  // PENDIENTE · imágenes
+        Route::patch('platillos/{id}/estado', [Comedor\PlatilloController::class, 'estado'])->name('platillos.estado');
+        Route::post('platillos/{id}/imagen', [Comedor\PlatilloImagenController::class, 'store'])->name('platillos.imagen');
         Route::get('disponibilidad', [Comedor\DisponibilidadController::class, 'index'])->name('disponibilidad.index');
         Route::put('disponibilidad', [Comedor\DisponibilidadController::class, 'guardar'])->name('disponibilidad.guardar');
         Route::get('produccion', [Comedor\ProduccionController::class, 'index'])->name('produccion.index');

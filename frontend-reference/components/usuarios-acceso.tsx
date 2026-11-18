@@ -85,7 +85,7 @@ export function UsuariosAcceso({ organizacion, roles, vacioPlural = 'usuarios' }
                   <td className="px-5 py-4"><p className="font-semibold">{u.nombre}</p><p className="text-xs text-muted-foreground">{u.correo}</p></td>
                   <td className="px-5 py-4 text-muted-foreground">{etiquetasRol[u.rol]}</td>
                   <td className="px-5 py-4">
-                    {u.invitacion ? <><PillInvitacion estado={u.invitacion.estado} /><p className="mt-1 text-xs text-muted-foreground">{detalleInvitacion(u.invitacion)}</p></> : <Pill tono="brand">Titular</Pill>}
+                    {u.es_principal && <Pill tono="brand">Titular</Pill>}{u.invitacion && <div className={u.es_principal ? "mt-1.5" : ""}><PillInvitacion estado={u.invitacion.estado} /><p className="mt-1 text-xs text-muted-foreground">{detalleInvitacion(u.invitacion)}</p></div>}
                   </td>
                   <td className="px-5 py-4">
                     <div className="flex items-center justify-end gap-1">
@@ -96,7 +96,7 @@ export function UsuariosAcceso({ organizacion, roles, vacioPlural = 'usuarios' }
                     </div>
                     {u.invitacion && u.invitacion.estado !== 'aceptada' && (
                       <div className="mt-1 flex items-center justify-end gap-1">
-                        <a href={enlaceInvitacion(organizacion.tipo, u.invitacion.token)} target="_blank" rel="noreferrer" title="Abrir el enlace de la invitación (solo maqueta)" aria-label={`Abrir el enlace de la invitación de ${u.nombre} (solo maqueta)`} className="rounded-lg p-2 text-muted-foreground transition hover:bg-muted hover:text-foreground"><ExternalLink className="size-4" /></a>
+                        {u.invitacion.token && <a href={enlaceInvitacion(organizacion.tipo, u.invitacion.token)} target="_blank" rel="noreferrer" title="Abrir el enlace de la invitación (solo maqueta)" aria-label={`Abrir el enlace de la invitación de ${u.nombre} (solo maqueta)`} className="rounded-lg p-2 text-muted-foreground transition hover:bg-muted hover:text-foreground"><ExternalLink className="size-4" /></a>}
                         <BotonReenviar invitacion={u.invitacion} compacto onReenviada={() => usuarios.reload({ silent: true })} />
                       </div>
                     )}
@@ -116,6 +116,8 @@ export function UsuariosAcceso({ organizacion, roles, vacioPlural = 'usuarios' }
 
 /** Editar el nombre y el rol de una persona con acceso (el correo es su acceso y no se cambia aquí). */
 function EditarUsuarioModal({ usuario, roles, onCerrar, onGuardado }: { usuario: UsuarioAcceso; roles: Rol[]; onCerrar: () => void; onGuardado: () => void }) {
+  const correoEditable = !!usuario.invitacion && usuario.invitacion.estado !== 'aceptada'
+  const [correo, setCorreo] = useState(usuario.correo)
   const [nombre, setNombre] = useState(usuario.nombre)
   const [rol, setRol] = useState<Rol>(usuario.rol)
   const [guardando, setGuardando] = useState(false)
@@ -123,7 +125,7 @@ function EditarUsuarioModal({ usuario, roles, onCerrar, onGuardado }: { usuario:
   async function guardar() {
     setGuardando(true)
     try {
-      await editarUsuarioAcceso(usuario.usuario_id, { nombre, rol })
+      await editarUsuarioAcceso(usuario.usuario_id, { nombre, rol, ...(correoEditable && correo.trim().toLowerCase() !== usuario.correo.toLowerCase() ? { correo: correo.trim() } : {}) })
       toast.success('Cambios guardados')
       onGuardado()
     } catch (error) {
@@ -135,7 +137,9 @@ function EditarUsuarioModal({ usuario, roles, onCerrar, onGuardado }: { usuario:
   return (
     <VentanaFormulario titulo={`Editar a ${usuario.nombre}`} textoEnviar="Guardar cambios" trabajando={guardando} deshabilitarEnvio={!nombre.trim()} onCerrar={onCerrar} onEnviar={guardar}>
       <CampoTexto etiqueta="Nombre completo" required autoFocus value={nombre} onChange={(e) => setNombre(e.target.value)} />
-      <CampoTexto etiqueta="Correo" value={usuario.correo} disabled readOnly ayuda="Es su acceso a EasyLunch; no se cambia aquí." />
+      {correoEditable
+        ? <CampoTexto etiqueta="Correo" type="email" required value={correo} onChange={(e) => setCorreo(e.target.value)} ayuda="Aún no acepta su invitación: si lo cambias, le mandamos la invitación al correo nuevo." />
+        : <CampoTexto etiqueta="Correo" value={usuario.correo} disabled readOnly ayuda="Es su acceso a EasyLunch y ya lo está usando; no se cambia aquí." />}
       {opciones.length > 1 && !usuario.es_principal && <CampoLista etiqueta="Rol" value={rol} onChange={(e) => setRol(e.target.value as Rol)} opciones={opciones.map((r) => ({ valor: r, texto: etiquetasRol[r] }))} />}
     </VentanaFormulario>
   )

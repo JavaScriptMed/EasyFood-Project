@@ -1,0 +1,27 @@
+meta {
+  name: Validar un enlace de restablecimiento
+  type: http
+  seq: 11
+}
+
+get {
+  url: {{baseUrl}}/api/v1/cuentas/restablecer/{{tokenRestablecer}}
+  body: none
+  auth: none
+}
+
+tests {
+  test("responde 200", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("dice si sirve, y por qué no si no", function () {
+    expect(res.body).to.have.property("valido");
+    if (!res.body.valido) expect(["invalido", "vencido", "usado"]).to.include(res.body.motivo);
+    else expect(res.body.correo_oculto).to.include("***");
+  });
+}
+
+docs {
+  Público. Pega en `tokenRestablecer` el `token=` del enlace de `storage/logs/enlaces.log`.
+}

@@ -85,7 +85,7 @@ export default function EmpresaEmpleados() {
   async function upload(file: File | undefined) {
     if (!file) return
     const people = parseEmployeesCsv(await file.text())
-    if (!people.length) toast.error('El archivo no tiene empleados. Usa las columnas nombre y correo.')
+    if (!people.length) toast.error('El archivo no tiene empleados. Usa las columnas nombre y correo (el correo es opcional).')
     else {
       try {
         const { agregados, omitidos } = await agregarEmpleados(people)
@@ -155,7 +155,7 @@ export default function EmpresaEmpleados() {
           </table>
         </div>
       </Card>
-      <p className="mt-3 text-xs text-muted-foreground">Para subir un CSV usa dos columnas: nombre y correo. Los empleados desactivados dejan de poder elegir platillo.</p>
+      <p className="mt-3 text-xs text-muted-foreground">Para subir un CSV usa dos columnas: nombre y correo (el correo puede ir vacío: lo armamos con el nombre y el dominio de tu empresa). Los empleados desactivados dejan de poder elegir platillo.</p>
 
       {porDesactivar && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4" onClick={() => !desactivando && setPorDesactivar(null)}>
@@ -179,7 +179,7 @@ export default function EmpresaEmpleados() {
             </div>
             <div className="mt-5 flex flex-col gap-4">
               <label className="text-sm font-medium">Nombre completo<input required autoFocus value={name} onChange={(e) => setName(e.target.value)} className="mt-1 h-11 w-full rounded-lg border bg-background px-3" placeholder="Nombre y apellido" /></label>
-              <label className="text-sm font-medium">Correo<input required type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="mt-1 h-11 w-full rounded-lg border bg-background px-3" placeholder="nombre@tuempresa.mx" /></label>
+              <label className="text-sm font-medium">Correo <span className="font-normal text-muted-foreground">(opcional)</span><input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="mt-1 h-11 w-full rounded-lg border bg-background px-3" placeholder="Si lo dejas vacío lo armamos con su nombre" /></label>
             </div>
             <div className="mt-6 flex justify-end gap-2">
               <Button type="button" variant="outline" className="h-10 px-4" onClick={() => setAdding(false)}>Cancelar</Button>
@@ -208,16 +208,19 @@ export default function EmpresaEmpleados() {
   )
 }
 
-/** Editar el nombre y el departamento de un empleado (el correo es su acceso y no se cambia aquí). */
-function EditarEmpleado({ empleado, onCerrar, onGuardado }: { empleado: { id: string; nombre: string; correo: string; departamento: string | null }; onCerrar: () => void; onGuardado: () => void }) {
+/** Editar el nombre, el departamento y (mientras no acepte su invitación) el correo de un empleado. */
+function EditarEmpleado({ empleado, onCerrar, onGuardado }: { empleado: { id: string; nombre: string; correo: string; departamento: string | null; invitacion?: { estado: string } | null }; onCerrar: () => void; onGuardado: () => void }) {
+  const correoEditable = !!empleado.invitacion && empleado.invitacion.estado !== 'aceptada'
+  const [correo, setCorreo] = useState(empleado.correo)
   const [nombre, setNombre] = useState(empleado.nombre)
   const [departamento, setDepartamento] = useState(empleado.departamento ?? '')
   const [guardando, setGuardando] = useState(false)
   async function guardar() {
     setGuardando(true)
     try {
-      await editarEmpleado(empleado.id, { nombre, departamento })
-      toast.success('Cambios guardados')
+      const cambiaElCorreo = correoEditable && correo.trim().toLowerCase() !== empleado.correo.toLowerCase()
+      await editarEmpleado(empleado.id, { nombre, departamento, ...(cambiaElCorreo ? { correo: correo.trim() } : {}) })
+      toast.success('Cambios guardados', cambiaElCorreo ? { description: `Le enviamos una invitación nueva a ${correo.trim()}.` } : undefined)
       onGuardado()
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'No se pudo guardar al empleado')
@@ -229,7 +232,9 @@ function EditarEmpleado({ empleado, onCerrar, onGuardado }: { empleado: { id: st
     <VentanaFormulario titulo={`Editar a ${empleado.nombre}`} textoEnviar="Guardar cambios" trabajando={guardando} deshabilitarEnvio={!nombre.trim()} onCerrar={onCerrar} onEnviar={guardar}>
       <CampoTexto etiqueta="Nombre completo" required autoFocus value={nombre} onChange={(e) => setNombre(e.target.value)} />
       <CampoTexto etiqueta="Departamento" value={departamento} onChange={(e) => setDepartamento(e.target.value)} placeholder="Opcional" />
-      <CampoTexto etiqueta="Correo" value={empleado.correo} disabled ayuda="Es su acceso a EasyLunch; no se cambia aquí." readOnly />
+      {correoEditable
+        ? <CampoTexto etiqueta="Correo" type="email" required value={correo} onChange={(e) => setCorreo(e.target.value)} ayuda="Aún no acepta su invitación: si lo cambias, le mandamos la invitación al correo nuevo." />
+        : <CampoTexto etiqueta="Correo" value={empleado.correo} disabled readOnly ayuda="Es su acceso a EasyLunch y ya lo está usando; no se cambia aquí." />}
     </VentanaFormulario>
   )
 }

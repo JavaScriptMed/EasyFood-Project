@@ -50,7 +50,8 @@ return [
     |
     */
 
-    'expiration' => null,
+    // Minutos de vida de un token (SANCTUM_EXPIRATION). Vacío = no vence; en producción conviene fijarlo (p. ej. 10080 = 7 días).
+    'expiration' => env('SANCTUM_EXPIRATION') !== null && env('SANCTUM_EXPIRATION') !== '' ? (int) env('SANCTUM_EXPIRATION') : null,
 
     /*
     |--------------------------------------------------------------------------

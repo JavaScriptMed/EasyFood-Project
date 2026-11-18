@@ -1,0 +1,29 @@
+meta {
+  name: Reasignar una incidencia ya resuelta (rechazado)
+  type: http
+  seq: 22
+}
+
+post {
+  url: {{baseUrl}}/api/v1/admin/incidencias/{{incidenciaId}}/reasignar
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+body:json {
+  {
+    "repartidor_id": 1,
+    "nota": "Desde Bruno"
+  }
+}
+
+tests {
+  test("responde 422 incidencia_cerrada", function () {
+    expect(res.getStatus()).to.equal(422);
+    expect(res.body.codigo).to.equal("incidencia_cerrada");
+  });
+}
