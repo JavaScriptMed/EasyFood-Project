@@ -119,7 +119,7 @@ Cada portal solo ve lo suyo: la empresa, el comedor o el empleado se resuelven d
 
 ## Probar la API a mano (Bruno) y datos de ejemplo
 
-La carpeta [`bruno/`](bruno/README.md) es una colección de [Bruno](https://www.usebruno.com/) con 211 peticiones y 345 pruebas automáticas que cubren toda la API v1 (incluidos los pendientes, que deben responder 501). `DatosDeEjemploSeeder` carga empresas, comedores, empleados, platillos, historial, clientes y pedidos de ejemplo (solo desarrollo; la contraseña de las cuentas sale de `SEED_PASSWORD` en tu `.env`):
+La carpeta [`bruno/`](bruno/README.md) es una colección de [Bruno](https://www.usebruno.com/) con 224 peticiones y 365 pruebas automáticas que cubren toda la API v1 (incluidos los pendientes, que deben responder 501). `DatosDeEjemploSeeder` carga empresas, comedores, empleados, platillos, historial, clientes y pedidos de ejemplo (solo desarrollo; la contraseña de las cuentas sale de `SEED_PASSWORD` en tu `.env`):
 
 ```bash
 docker compose exec app php artisan db:seed --class=DatosDeEjemploSeeder
@@ -205,6 +205,21 @@ No se modificaron las clases `Provider` ni `Menu`: las reglas viven en `EdicionD
 ## Corregir el correo
 
 El correo es el acceso de la cuenta, así que solo se corrige **mientras la persona no haya aceptado su invitación** (un correo mal escrito, o el que el sistema armó al subir un CSV sin correos). Se puede mandar `correo` en `PUT /empresa/empleados/{id}`, `PUT /cuentas/usuarios-acceso/{id}` y `PUT /admin/empresas/{id}` (como `contacto_correo`). Se guarda en la cuenta y en la invitación, el enlace anterior deja de servir y se manda una invitación nueva al correo corregido. Si ya aceptó, responde 422 `correo_no_editable`; si el correo ya existe, `correo_en_uso`.
+
+## Zonas de entrega
+
+Un polígono por zona (PostGIS). Su **nombre** es el texto que se escribe en empresas, comedores, repartidores y direcciones, así que **no se renombra**. Solo `admin`.
+
+| Qué | Endpoint |
+|---|---|
+| Listar (con cuántas direcciones, empresas, comedores y repartidores usa cada una) | `GET /admin/zonas` |
+| Ver una (con su polígono como Feature) | `GET /admin/zonas/{id}` |
+| Crear | `POST /admin/zonas { nombre, geojson }` (nombre repetido: `zona_repetida`) |
+| Cambiar el polígono | `PUT /admin/zonas/{id} { geojson }` |
+| Importar varias de una vez | `POST /admin/zonas/importar` con un `FeatureCollection` (cada polígono con `properties.nombre`); todo o nada |
+| Desactivar o reactivar | `PATCH /admin/zonas/{id}/estado { activo }` |
+
+El `geojson` puede ser Polygon, MultiPolygon, Feature o un FeatureCollection de un solo polígono. Se valida antes de guardar: coordenadas `[longitud, latitud]` (Guadalajara ≈ `[-103.35, 20.67]`), anillos cerrados y sin cruzarse (`geojson_invalido`, `coordenadas_invalidas`, `poligono_invalido`). Al guardar, la base recalcula la zona de todas las direcciones (si dos zonas se traslapan gana la más pequeña). No se desactiva una zona que usen empresas, comedores o repartidores activos (`zona_en_uso`). El comando `easylunch:cargar-zona` usa el mismo servicio (`ZonasDeEntrega`). En el panel: **Zonas** (menú Operación), con vista previa del polígono antes de guardar.
 
 ## Rutas e incidencias
 

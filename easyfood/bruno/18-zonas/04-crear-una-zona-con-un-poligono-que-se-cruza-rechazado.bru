@@ -1,0 +1,55 @@
+meta {
+  name: Crear una zona con un polígono que se cruza (rechazado)
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{baseUrl}}/api/v1/admin/zonas
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+body:json {
+  {
+    "nombre": "Corbata",
+    "geojson": {
+      "type": "Polygon",
+      "coordinates": [
+        [
+          [
+            -100.4,
+            25.6
+          ],
+          [
+            -100.3,
+            25.7
+          ],
+          [
+            -100.3,
+            25.6
+          ],
+          [
+            -100.4,
+            25.7
+          ],
+          [
+            -100.4,
+            25.6
+          ]
+        ]
+      ]
+    }
+  }
+}
+
+tests {
+  test("responde 422 poligono_invalido", function () {
+    expect(res.getStatus()).to.equal(422);
+    expect(res.body.codigo).to.equal("poligono_invalido");
+  });
+}

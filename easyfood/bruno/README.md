@@ -57,6 +57,7 @@ Clic derecho en la colección → **Run**, o corre carpeta por carpeta. **Empiez
 | 15 | Altas (empresa, comedor, repartidor, empleados y planes) | Dar de alta una empresa y un comedor con su contrato, un repartidor, empleados y planes; cada persona recibe su invitación |
 | 16 | Editar y desactivar | Editar y desactivar empresas, repartidores, planes, empleados y personas con acceso; capacidad del auto (usa lo creado en la 15) |
 | 17 | Platillos · fotos y precios | Subir la foto de un platillo (admin y comedor), historial de precios y programar un precio |
+| 18 | Zonas de entrega | Crear, importar varias, cambiar el polígono y desactivar zonas (GeoJSON); validaciones de coordenadas y de polígonos |
 | 14 | Cuentas (invitaciones y contraseña) | Invitar, reenviar y aceptar una invitación, y restablecer la contraseña; los enlaces salen en `storage/logs/enlaces.log` |
 | 13 | Dashboard e indicadores | Dashboard del administrador (10 indicadores), costos operativos, indicadores de RR. HH., calificación del menú y captura de calificaciones |
 | 09 | Administración · clientes y soporte | Clientes, pedidos, tickets y reembolso de un pedido pagado con Stripe |

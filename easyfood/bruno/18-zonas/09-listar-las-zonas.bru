@@ -1,0 +1,31 @@
+meta {
+  name: Listar las zonas
+  type: http
+  seq: 9
+}
+
+get {
+  url: {{baseUrl}}/api/v1/admin/zonas
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+script:post-response {
+  if (res.status === 200) { const uso = res.body.find(z => z.empresas > 0 && z.activo); if (uso) bru.setVar("zonaEnUsoId", uso.id); }
+}
+
+tests {
+  test("responde 200", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("cada zona trae sus usos y no quedó la zona de la importación mala", function () {
+    expect(res.body.length).to.be.greaterThan(2);
+    expect(res.body[0]).to.have.all.keys("id", "nombre", "activo", "area_km2", "direcciones", "empresas", "comedores", "repartidores");
+    expect(res.body.some(z => z.nombre === "Buena")).to.equal(false);
+  });
+}

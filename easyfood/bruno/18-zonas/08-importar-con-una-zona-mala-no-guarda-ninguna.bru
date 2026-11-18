@@ -1,0 +1,76 @@
+meta {
+  name: Importar con una zona mala no guarda ninguna
+  type: http
+  seq: 8
+}
+
+post {
+  url: {{baseUrl}}/api/v1/admin/zonas/importar
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+body:json {
+  {
+    "type": "FeatureCollection",
+    "features": [
+      {
+        "type": "Feature",
+        "properties": {
+          "nombre": "Buena"
+        },
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [
+            [
+              [
+                -100.73,
+                25.67
+              ],
+              [
+                -100.67,
+                25.67
+              ],
+              [
+                -100.67,
+                25.73
+              ],
+              [
+                -100.73,
+                25.73
+              ],
+              [
+                -100.73,
+                25.67
+              ]
+            ]
+          ]
+        }
+      },
+      {
+        "type": "Feature",
+        "properties": {
+          "nombre": "Mala"
+        },
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            -100.7,
+            25.7
+          ]
+        }
+      }
+    ]
+  }
+}
+
+tests {
+  test("responde 422 y nombra la zona con error", function () {
+    expect(res.getStatus()).to.equal(422);
+    expect(res.body.mensaje).to.include("Zona «Mala»");
+  });
+}

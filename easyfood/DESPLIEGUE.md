@@ -176,7 +176,7 @@ dcp exec app php artisan db:seed --class=InitialDataSeeder --force
 dcp exec app php artisan easylunch:crear-admin tu-correo@tu-dominio.com --nombre="Tu Nombre"
 ```
 
-**Zonas de entrega** (sin zonas no se pueden registrar empresas, repartidores ni direcciones con cobertura). Prepara un archivo GeoJSON por zona (puedes dibujarlas en https://geojson.io y guardar como `zapopan.geojson`; las coordenadas van como `[longitud, latitud]`):
+**Zonas de entrega** (sin zonas no se pueden registrar empresas, repartidores ni direcciones con cobertura). Lo más cómodo: entra al panel como administrador → **Zonas** → **Importar varias** con un solo archivo GeoJSON (un polígono por zona, con su nombre en `properties.nombre`). También se puede por comando; prepara un archivo GeoJSON por zona (puedes dibujarlas en https://geojson.io y guardar como `zapopan.geojson`; las coordenadas van como `[longitud, latitud]`):
 
 ```bash
 dcp exec -T app php artisan easylunch:cargar-zona "Zapopan" - < ./zapopan.geojson

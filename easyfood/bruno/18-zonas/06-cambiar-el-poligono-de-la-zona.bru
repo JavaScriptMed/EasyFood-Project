@@ -1,0 +1,62 @@
+meta {
+  name: Cambiar el polígono de la zona
+  type: http
+  seq: 6
+}
+
+put {
+  url: {{baseUrl}}/api/v1/admin/zonas/{{zonaNuevaId}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+body:json {
+  {
+    "nombre": "Este nombre se ignora",
+    "geojson": {
+      "type": "Polygon",
+      "coordinates": [
+        [
+          [
+            -100.36,
+            25.62
+          ],
+          [
+            -100.26,
+            25.62
+          ],
+          [
+            -100.26,
+            25.72
+          ],
+          [
+            -100.36,
+            25.72
+          ],
+          [
+            -100.36,
+            25.62
+          ]
+        ]
+      ]
+    }
+  }
+}
+
+tests {
+  test("responde 200", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("el nombre no cambia", function () {
+    expect(res.body.nombre).to.equal(bru.getVar("nombreZona"));
+  });
+}
+
+docs {
+  Solo cambia el polígono: el nombre ya está escrito en empresas, comedores, repartidores y direcciones.
+}

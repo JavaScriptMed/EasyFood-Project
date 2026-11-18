@@ -1,0 +1,73 @@
+meta {
+  name: Crear una zona
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/api/v1/admin/zonas
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+body:json {
+  {
+    "nombre": "{{nombreZona}}",
+    "geojson": {
+      "type": "Polygon",
+      "coordinates": [
+        [
+          [
+            -100.34,
+            25.64
+          ],
+          [
+            -100.28,
+            25.64
+          ],
+          [
+            -100.28,
+            25.7
+          ],
+          [
+            -100.34,
+            25.7
+          ],
+          [
+            -100.34,
+            25.64
+          ]
+        ]
+      ]
+    }
+  }
+}
+
+script:pre-request {
+  bru.setVar("nombreZona", "Zona de Bruno " + Date.now());
+}
+
+script:post-response {
+  if (res.status === 201) bru.setVar("zonaNuevaId", res.body.id);
+}
+
+tests {
+  test("responde 201", function () {
+    expect(res.getStatus()).to.equal(201);
+  });
+
+  test("trae su polígono y su área", function () {
+    expect(res.body.activo).to.equal(true);
+    expect(res.body.area_km2).to.be.greaterThan(0);
+    expect(res.body.geojson.type).to.equal("Feature");
+    expect(res.body.geojson.geometry.type).to.equal("MultiPolygon");
+  });
+}
+
+docs {
+  GeoJSON: Polygon, MultiPolygon, Feature o FeatureCollection de un solo polígono. Se valida antes de guardar y al guardar se recalcula la zona de todas las direcciones.
+}

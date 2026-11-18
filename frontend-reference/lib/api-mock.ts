@@ -14,7 +14,7 @@ import * as ind from './mock-indicadores'
 import type {
   CalendarioServicio, CambioDisponibilidad, CandidatoReasignacion, ContratoPorVencer, FiltroBitacora, IncidenciaDetalle, TipoIncidencia, Comedor, ComedorDetalle, ConfiguracionOperacion, Corte, DiaSinServicio, EntregaEmpresa, VistaPreviaCorte, DashboardAdmin, DisponibilidadConPlatillo, EleccionEmpleado, Empleado, EmpleadoDetalle, Empresa, EmpresaDetalle,
   CalificacionPendiente, CalificarEntrega, CalificarPlatillo, CostoOperativo, IndicadoresEmpresa, NuevoCostoOperativo, ProgramarPrecio, EdicionComedor, EdicionEmpleado, EdicionEmpresa, EdicionPlan, EdicionRepartidor, EdicionUsuarioAcceso, EntregaDetalle, EstadoContrato, FacturaConEmpresa, FacturaDetalle, FacturaMensual, FilaReporteProveedor, GuardarPlatillo, HistorialPrecio,
-  LiquidacionComedor, LiquidacionConComedor, MenuSemanalDia, MensajeTicket, NuevaEmpresa, NuevoComedor, NuevoPlan, NuevoRepartidor, OrdenProduccionDetalle, PedidoDetalle,
+  LiquidacionComedor, LiquidacionConComedor, MenuSemanalDia, MensajeTicket, NuevaEmpresa, NuevoComedor, ResultadoImportarZonas, ZonaDetalle, NuevoPlan, NuevoRepartidor, OrdenProduccionDetalle, PedidoDetalle,
   PedidosMananaEmpresa, Plan, Platillo, PlatilloDetalle, RegistroAuditoriaDetalle, RepartidorDetalle, ResultadoAltaEmpleados, ResultadoCorte, RutaDetalle,
   MensajeContacto, NuevoMensajeContacto, ClienteDetalle, ClienteResumen, ConsumoDiario, EstadoInvitacion, Incidencia, MiEleccion, MiMenu, OpcionMenu, InvitacionDetalle, InvitacionPublica, Invitacion, NuevaInvitacion, Portal, ResultadoAceptacion, SolicitudRestablecimiento, TipoOrganizacion, UsuarioAcceso, ValidacionToken, RegistroAuditoria, Repartidor, Ruta, TicketDetalle, TicketResumen, TiempoComida, TipoVehiculo, Usuario, UsuarioResumen,
 } from './types'
@@ -1037,6 +1037,67 @@ export const subirImagenPlatillo = (platillo_id: string, archivo: File) => llama
   existente.foto_url = URL.createObjectURL(archivo)
   auditar('actualizar', 'platillo', existente.id, `Cambió la foto de ${existente.nombre}`)
   return conComedor(existente)
+})
+
+// ---------------------------------------------------------------- zonas de entrega (en la maqueta no hay mapa: solo se valida la forma del GeoJSON)
+const zonasMock: ZonaDetalle[] = [
+  { id: 'ZON-001', nombre: 'Centro', activo: true, area_km2: 42.1, direcciones: 18, empresas: 1, comedores: 1, repartidores: 1 },
+  { id: 'ZON-002', nombre: 'Zapopan', activo: true, area_km2: 115.4, direcciones: 9, empresas: 1, comedores: 1, repartidores: 1 },
+]
+const geometriaDe = (g: any): any => (g?.type === 'FeatureCollection' ? g.features?.[0]?.geometry : g?.type === 'Feature' ? g.geometry : g)
+function exigirPoligono(g: unknown) {
+  const geometria = geometriaDe(g)
+  if (!geometria || !['Polygon', 'MultiPolygon'].includes(geometria.type)) throw new Error('El GeoJSON no trae un polígono (Polygon o MultiPolygon).')
+}
+
+export const listarZonas = () => llamar<ZonaDetalle[]>(() => [...zonasMock].sort((a, b) => a.nombre.localeCompare(b.nombre)))
+
+export const crearZona = (nombre: string, geojson: unknown) => llamar<ZonaDetalle>(() => {
+  if (!nombre.trim()) throw new Error('Escribe el nombre de la zona.')
+  exigirPoligono(geojson)
+  if (zonasMock.some((z) => z.nombre.toLowerCase() === nombre.trim().toLowerCase())) throw new Error(`Ya hay una zona llamada «${nombre.trim()}»: edítala en lugar de crearla de nuevo.`)
+  const zona: ZonaDetalle = { id: siguienteId('ZON-', zonasMock.map((z) => z.id)), nombre: nombre.trim(), activo: true, area_km2: 10, direcciones: 0, empresas: 0, comedores: 0, repartidores: 0 }
+  zonasMock.push(zona)
+  auditar('crear', 'zona', zona.id, `Creó la zona ${zona.nombre}`)
+  return zona
+})
+
+export const reemplazarPoligonoZona = (zona_id: string, geojson: unknown) => llamar<ZonaDetalle>(() => {
+  const zona = zonasMock.find((z) => z.id === zona_id)
+  if (!zona) throw new Error('La zona no existe.')
+  exigirPoligono(geojson)
+  auditar('actualizar', 'zona', zona.id, `Cambió el polígono de la zona ${zona.nombre}`)
+  return zona
+})
+
+export const importarZonas = (coleccion: any) => llamar<ResultadoImportarZonas>(() => {
+  if (coleccion?.type !== 'FeatureCollection' || !coleccion.features?.length) throw new Error('Manda un FeatureCollection con una zona por polígono, cada una con su nombre en properties.nombre.')
+  const nombres = new Set<string>()
+  for (const f of coleccion.features) {
+    const nombre = String(f.properties?.nombre ?? f.properties?.name ?? '').trim()
+    if (!nombre) throw new Error('Hay una zona sin nombre: ponlo en properties.nombre.')
+    if (nombres.has(nombre.toLowerCase())) throw new Error(`El nombre «${nombre}» viene dos veces en el archivo.`)
+    nombres.add(nombre.toLowerCase())
+    exigirPoligono(f)
+  }
+  const zonas = coleccion.features.map((f: any) => {
+    const nombre = String(f.properties?.nombre ?? f.properties?.name).trim()
+    const existente = zonasMock.find((z) => z.nombre.toLowerCase() === nombre.toLowerCase())
+    if (existente) return { id: existente.id, nombre: existente.nombre, creada: false, area_km2: existente.area_km2 }
+    const zona: ZonaDetalle = { id: siguienteId('ZON-', zonasMock.map((z) => z.id)), nombre, activo: true, area_km2: 10, direcciones: 0, empresas: 0, comedores: 0, repartidores: 0 }
+    zonasMock.push(zona)
+    return { id: zona.id, nombre, creada: true, area_km2: 10 }
+  })
+  return { creadas: zonas.filter((z: any) => z.creada).length, actualizadas: zonas.filter((z: any) => !z.creada).length, zonas }
+})
+
+export const cambiarEstadoZona = (zona_id: string, activo: boolean) => llamar<ZonaDetalle>(() => {
+  const zona = zonasMock.find((z) => z.id === zona_id)
+  if (!zona) throw new Error('La zona no existe.')
+  if (!activo && zona.empresas + zona.comedores + zona.repartidores > 0) throw new Error(`La zona «${zona.nombre}» la usan ${zona.empresas} empresa(s), ${zona.comedores} comedor(es) y ${zona.repartidores} repartidor(es) activos: cámbiales la zona antes de desactivarla.`)
+  zona.activo = activo
+  auditar(activo ? 'activar' : 'desactivar', 'zona', zona.id, `${activo ? 'Reactivó' : 'Desactivó'} la zona ${zona.nombre}`)
+  return zona
 })
 
 export const listarHistorialPrecios = (platillo_id: string) =>
