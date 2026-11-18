@@ -3,9 +3,11 @@
 namespace App\Services;
 
 use App\Exceptions\ReglaDeNegocioException;
+use App\Models\ContratoComedor;
 use App\Models\ContratoEmpresa;
 use App\Models\Empleado;
 use App\Models\Empresa;
+use App\Models\Provider;
 use App\Models\Repartidor;
 use App\Models\User;
 use App\Models\UserProfile;
@@ -14,7 +16,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 /**
- * Las altas: empresa (con su contacto de RR. HH. y su contrato), repartidor y empleados de una empresa.
+ * Las altas: empresa y comedor (cada uno con su contacto, su invitación y su contrato), repartidor y empleados de una empresa.
  *
  * Cada alta es una sola transacción (si algo falla, no queda nada a medias) y las cuentas nacen inactivas con una invitación: la persona
  * elige su contraseña al aceptar. Los correos salen cuando ya se guardó todo.
@@ -62,6 +64,52 @@ class AltaDeCuentas
         $this->invitaciones->enviar($invitacion->refresh(), $token);
 
         return $empresa;
+    }
+
+    // ------------------------------------------------------------------ comedor
+
+    /**
+     * Da de alta un comedor: su contacto (que recibe la invitación para entrar al portal de comedores), el comedor y su contrato de
+     * 6 meses con el precio por platillo y el mínimo mensual acordados. No toca el modelo `Provider`: solo lo usa.
+     *
+     * @param  array{nombre: string, razon_social?: ?string, rfc?: ?string, contacto_nombre: string, contacto_correo: string, telefono: string, direccion: string, codigo_postal?: ?string, zona: string, capacidad_diaria?: ?int, vigencia_inicio: string, precio_por_platillo: float|int|string, compra_minima_mensual: int}  $d
+     */
+    public function crearComedor(User $admin, array $d): Provider
+    {
+        $nombre = trim($d['nombre']);
+        $razon = trim((string) ($d['razon_social'] ?? '')) ?: $nombre;
+        $rfc = ! empty($d['rfc']) ? Str::upper(trim($d['rfc'])) : null;
+        if (Provider::query()->where(fn ($q) => $q->whereRaw('lower(business_name) = ?', [Str::lower($razon)])->orWhereRaw('lower(commercial_name) = ?', [Str::lower($nombre)]))->exists()) {
+            throw new ReglaDeNegocioException('comedor_repetido', 'Ya hay un comedor con ese nombre.');
+        }
+        if ($rfc && Provider::withTrashed()->where('rfc', $rfc)->exists()) {
+            throw new ReglaDeNegocioException('rfc_repetido', 'Ya hay un comedor con ese RFC.');
+        }
+        $zona = $this->zonaExistente($d['zona']);
+        $correo = Str::lower(trim($d['contacto_correo']));
+        $inicio = CarbonImmutable::parse($d['vigencia_inicio']);
+
+        [$comedor, $invitacion, $token] = DB::transaction(function () use ($admin, $d, $nombre, $razon, $rfc, $zona, $correo, $inicio) {
+            $contacto = $this->invitaciones->prepararCuenta($d['contacto_nombre'], $correo, 'comedor');
+            UserProfile::query()->where('user_id', $contacto->id)->update(['phone' => $d['telefono']]);
+
+            $comedor = Provider::create([
+                'user_id' => $contacto->id, 'business_name' => $razon, 'commercial_name' => $nombre, 'rfc' => $rfc, 'phone' => $d['telefono'], 'email' => $correo,
+                'address' => trim($d['direccion']), 'postal_code' => $d['codigo_postal'] ?? null, 'zona' => $zona, 'daily_capacity' => $d['capacidad_diaria'] ?? 100,
+            ]);
+            ContratoComedor::create([
+                'comedor_id' => $comedor->id, 'precio_por_platillo' => $d['precio_por_platillo'], 'compra_minima_mensual' => $d['compra_minima_mensual'],
+                'vigencia_inicio' => $inicio->toDateString(), 'vigencia_fin' => $inicio->addMonthsNoOverflow((int) config('easylunch.meses_de_contrato'))->subDay()->toDateString(),
+            ]);
+            [$invitacion, $token] = $this->invitaciones->crearInvitacion($contacto, 'comedor', $comedor->id, 'comedor');
+            Bitacora::registrar($admin, 'crear', 'comedores', $comedor->id, "Dio de alta el comedor {$nombre} (contacto: {$contacto->email}).");
+
+            return [$comedor, $invitacion, $token];
+        });
+
+        $this->invitaciones->enviar($invitacion->refresh(), $token);
+
+        return $comedor->refresh();
     }
 
     // ------------------------------------------------------------------ repartidor

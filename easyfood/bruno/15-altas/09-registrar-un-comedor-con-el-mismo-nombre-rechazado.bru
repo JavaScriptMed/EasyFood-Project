@@ -1,0 +1,38 @@
+meta {
+  name: Registrar un comedor con el mismo nombre (rechazado)
+  type: http
+  seq: 9
+}
+
+post {
+  url: {{baseUrl}}/api/v1/admin/comedores
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+body:json {
+  {
+    "nombre": "{{nombreComedor}}",
+    "razon_social": "Alimentos de Bruno SA",
+    "contacto_nombre": "Contacto de Bruno",
+    "contacto_correo": "otro.{{correoComedorNuevo}}",
+    "telefono": "33 1111 2222",
+    "direccion": "Calle Hidalgo 45, Zapopan",
+    "zona": "zapopan",
+    "capacidad_diaria": 150,
+    "vigencia_inicio": "{{hoy}}",
+    "precio_por_platillo": 52.5,
+    "compra_minima_mensual": 300
+  }
+}
+
+tests {
+  test("responde 422 comedor_repetido", function () {
+    expect(res.getStatus()).to.equal(422);
+    expect(res.body.codigo).to.equal("comedor_repetido");
+  });
+}

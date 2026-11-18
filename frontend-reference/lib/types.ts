@@ -257,6 +257,7 @@ export interface MensajeTicket {
 
 export interface Plan {
   id: string
+  dias?: number // 1, 2 o 6; solo puede haber un plan activo por cada duración
   nombre: string
   descuento_porcentaje: number
   detalle: string
@@ -588,6 +589,30 @@ export interface NuevaEmpresa {
   direccion_entrega: string
   zona?: string // nombre de una zona cargada (el backend exige que exista)
   horario_entrega: string // "12:30–13:15"
+}
+
+export interface NuevoComedor {
+  nombre: string
+  razon_social?: string
+  rfc?: string
+  contacto_nombre: string
+  contacto_correo: string
+  telefono: string
+  direccion: string
+  codigo_postal?: string
+  zona: string // nombre de una zona cargada
+  capacidad_diaria?: number
+  vigencia_inicio: string // YYYY-MM-DD; el contrato dura 6 meses
+  precio_por_platillo: number
+  compra_minima_mensual: number
+}
+
+export interface NuevoPlan {
+  nombre: string
+  dias: 1 | 2 | 6
+  descuento_porcentaje: number
+  detalle: string
+  destacado: boolean
 }
 
 export interface NuevoRepartidor {

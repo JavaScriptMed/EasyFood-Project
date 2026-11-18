@@ -43,7 +43,7 @@ Las pantallas no cambiaron: siguen llamando a las mismas funciones de `@/lib/api
 
 ## Qué ya es real y qué falta
 
-Las altas, la foto y el historial de precios de los platillos, regenerar rutas, reasignar incidencias y editar o desactivar empresas, empleados, planes, repartidores, límite del auto y personas con acceso ya son reales. Todo funciona con el backend **excepto** lo que el backend todavía no construye. Esas funciones avisan con un mensaje claro («… todavía no está disponible en el servidor») o muestran su pantalla vacía:
+Las altas (incluidos comedores y planes), la foto y el historial de precios de los platillos, regenerar rutas, reasignar incidencias y editar o desactivar empresas, empleados, planes, repartidores, límite del auto y personas con acceso ya son reales. Todo funciona con el backend **excepto** lo que el backend todavía no construye. Esas funciones avisan con un mensaje claro («… todavía no está disponible en el servidor») o muestran su pantalla vacía:
 
 - **Datos:** el dashboard es real (resumen, alertas y los 10 indicadores), el historial de precios también y las fotos de los platillos se suben de verdad (JPG, PNG o WebP, hasta 2 MB).
 
@@ -54,10 +54,10 @@ Las ventanas viven en `components/ventanas.tsx` (formulario, confirmación y pan
 | Entidad | Crear | Editar | Desactivar | Ver detalle |
 |---|---|---|---|---|
 | Empresas (admin) | sí | sí | sí | sí |
-| Comedores (admin) | — | sí | sí | sí |
+| Comedores (admin) | sí | sí | sí | sí |
 | Platillos (admin y comedor) | sí | sí | sí | sí |
 | Precio de un platillo | programar | — | — | historial |
-| Planes | — | sí | — | sí |
+| Planes | sí | sí | sí | sí |
 | Repartidores | sí | sí | sí | sí |
 | Límites por vehículo | — | sí | — | sí |
 | Empleados (empresa) | sí | sí | sí | sí |

@@ -13,7 +13,7 @@ import { Switch } from "@/components/ui/switch"
 import { toast } from "sonner"
 import { BloqueEstado } from "@/components/estados"
 import { CampoLista, CampoParrafo, CampoTexto, VentanaConfirmar, VentanaFormulario } from "@/components/ventanas"
-import { cambiarEstadoPlatillo, editarPlan, guardarPlatillo, subirImagenPlatillo, listarComedores, listarHistorialPrecios, listarPlanes, listarPlatillos, obtenerMenuSemanal, programarPrecioPlatillo } from "@/lib/api"
+import { cambiarEstadoPlan, cambiarEstadoPlatillo, crearPlan, editarPlan, guardarPlatillo, subirImagenPlatillo, listarComedores, listarHistorialPrecios, listarPlanes, listarPlatillos, obtenerMenuSemanal, programarPrecioPlatillo } from "@/lib/api"
 import { FECHA_MANANA } from "@/lib/config"
 import { BotonCambiarFoto, motivoDeFotoInvalida, TIPOS_DE_FOTO } from "@/components/subir-foto"
 import { etiquetasTiempoComida } from "@/lib/etiquetas"
@@ -107,7 +107,23 @@ function WeeklyMenu() {
 function Plans() {
   const planes = useAsync(listarPlanes)
   const [editandoPlan, setEditandoPlan] = useState<Plan | null>(null)
-  return <><BloqueEstado variante="tarjetas" cantidad={3} cargando={planes.loading} error={planes.error} vacio={!planes.data?.length} mensajeVacio="Todavía no hay planes configurados." onReintentar={planes.reload} /><div className="grid gap-5 md:grid-cols-3">{planes.data?.map((plan) => <Card key={plan.id} className={plan.destacado ? "border-primary shadow-lg" : ""}><CardHeader><Badge className="w-fit">{plan.destacado ? "Más elegido" : "Plan flexible"}</Badge><CardTitle className="font-display text-2xl">{plan.nombre}</CardTitle></CardHeader><CardContent><p className="mb-5 text-sm text-muted-foreground">{plan.detalle}</p><div className="mb-5 text-4xl font-bold text-primary">{plan.descuento_porcentaje}%<small className="text-sm text-muted-foreground"> descuento</small></div><Button variant="outline" className="w-full" onClick={() => setEditandoPlan(plan)}><Pencil /> Editar plan</Button></CardContent></Card>)}</div>{editandoPlan && <EditarPlan plan={editandoPlan} onCerrar={() => setEditandoPlan(null)} onGuardado={() => { setEditandoPlan(null); planes.reload({ silent: true }) }} />}</>
+  const [creandoPlan, setCreandoPlan] = useState(false)
+  const [desactivandoPlan, setDesactivandoPlan] = useState<Plan | null>(null)
+  const [cambiando, setCambiando] = useState(false)
+  async function desactivar(plan: Plan) {
+    setCambiando(true)
+    try {
+      await cambiarEstadoPlan(plan.id, false)
+      toast.success(`${plan.nombre} dejó de ofrecerse`, { description: "Los pedidos que ya lo contrataron no cambian." })
+      setDesactivandoPlan(null)
+      planes.reload({ silent: true })
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "No se pudo desactivar el plan")
+    } finally {
+      setCambiando(false)
+    }
+  }
+  return <><div className="mb-4 flex justify-end"><Button onClick={() => setCreandoPlan(true)}><Plus /> Nuevo plan</Button></div><BloqueEstado variante="tarjetas" cantidad={3} cargando={planes.loading} error={planes.error} vacio={!planes.data?.length} mensajeVacio="Todavía no hay planes configurados." onReintentar={planes.reload} /><div className="grid gap-5 md:grid-cols-3">{planes.data?.map((plan) => <Card key={plan.id} className={plan.destacado ? "border-primary shadow-lg" : ""}><CardHeader><Badge className="w-fit">{plan.destacado ? "Más elegido" : "Plan flexible"}</Badge><CardTitle className="font-display text-2xl">{plan.nombre}</CardTitle></CardHeader><CardContent><p className="mb-5 text-sm text-muted-foreground">{plan.detalle}</p><div className="mb-5 text-4xl font-bold text-primary">{plan.descuento_porcentaje}%<small className="text-sm text-muted-foreground"> descuento</small></div><Button variant="outline" className="w-full" onClick={() => setEditandoPlan(plan)}><Pencil /> Editar plan</Button><Button variant="ghost" className="mt-2 w-full text-destructive hover:bg-destructive/10" onClick={() => setDesactivandoPlan(plan)}><Power /> Desactivar</Button></CardContent></Card>)}</div>{creandoPlan && <NuevoPlan onCerrar={() => setCreandoPlan(false)} onCreado={() => { setCreandoPlan(false); planes.reload({ silent: true }) }} />}{desactivandoPlan && <VentanaConfirmar titulo={`¿Desactivar ${desactivandoPlan.nombre}?`} descripcion="Dejará de ofrecerse a los clientes. Los pedidos que ya lo contrataron no cambian y puedes crear otro plan de esa duración." textoConfirmar="Desactivar" trabajando={cambiando} onCerrar={() => setDesactivandoPlan(null)} onConfirmar={() => desactivar(desactivandoPlan)} />}{editandoPlan && <EditarPlan plan={editandoPlan} onCerrar={() => setEditandoPlan(null)} onGuardado={() => { setEditandoPlan(null); planes.reload({ silent: true }) }} />}</>
 }
 
 /** Editar un platillo desde el panel del administrador. Conserva su estado de revisión. */
@@ -162,6 +178,32 @@ function ProgramarPrecio({ platillo, onCerrar, onProgramado }: { platillo: Plati
 }
 
 /** Editar el nombre, el descuento y la descripción de un plan (paquete). */
+/** Crear un plan para clientes individuales. Solo hay planes de 1, 2 o 6 días y uno activo por cada duración. */
+function NuevoPlan({ onCerrar, onCreado }: { onCerrar: () => void; onCreado: () => void }) {
+  const [form, setForm] = useState({ nombre: "", dias: "6", descuento_porcentaje: "10", detalle: "", destacado: false })
+  const [guardando, setGuardando] = useState(false)
+  const descuento = Number(form.descuento_porcentaje)
+  async function guardar() {
+    setGuardando(true)
+    try {
+      await crearPlan({ ...form, dias: Number(form.dias) as 1 | 2 | 6, descuento_porcentaje: descuento })
+      toast.success("Plan creado")
+      onCreado()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "No se pudo crear el plan")
+    } finally {
+      setGuardando(false)
+    }
+  }
+  return <VentanaFormulario titulo="Nuevo plan" descripcion="Solo puede haber un plan activo por duración: si ya existe uno de esos días, edítalo o desactívalo primero." textoEnviar="Crear plan" trabajando={guardando} deshabilitarEnvio={!form.nombre.trim() || form.descuento_porcentaje === "" || descuento < 0 || descuento > 100} onCerrar={onCerrar} onEnviar={guardar}>
+    <CampoTexto etiqueta="Nombre del plan" required autoFocus value={form.nombre} onChange={(e) => setForm((f) => ({ ...f, nombre: e.target.value }))} />
+    <label className="text-sm font-medium">Duración<select className="mt-1 w-full rounded-md border bg-background p-2 text-sm" value={form.dias} onChange={(e) => setForm((f) => ({ ...f, dias: e.target.value }))}><option value="1">1 día</option><option value="2">2 días</option><option value="6">6 días (semana)</option></select></label>
+    <CampoTexto etiqueta="Descuento (%)" type="number" min={0} max={100} value={form.descuento_porcentaje} onChange={(e) => setForm((f) => ({ ...f, descuento_porcentaje: e.target.value }))} />
+    <CampoParrafo etiqueta="Descripción" value={form.detalle} onChange={(e) => setForm((f) => ({ ...f, detalle: e.target.value }))} />
+    <label className="flex items-center gap-2 text-sm font-medium"><input type="checkbox" checked={form.destacado} onChange={(e) => setForm((f) => ({ ...f, destacado: e.target.checked }))} /> Mostrar como «Más elegido»</label>
+  </VentanaFormulario>
+}
+
 function EditarPlan({ plan, onCerrar, onGuardado }: { plan: Plan; onCerrar: () => void; onGuardado: () => void }) {
   const [form, setForm] = useState({ nombre: plan.nombre, descuento_porcentaje: String(plan.descuento_porcentaje), detalle: plan.detalle, destacado: plan.destacado })
   const [guardando, setGuardando] = useState(false)

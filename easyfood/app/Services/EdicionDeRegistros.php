@@ -146,6 +146,42 @@ class EdicionDeRegistros
 
     // ------------------------------------------------------------------ planes (paquetes)
 
+    /**
+     * Crea un plan para clientes individuales. Solo hay planes de 1, 2 o 6 días y un solo plan activo por cada duración: para
+     * cambiar el de una duración que ya existe, se edita o se desactiva primero.
+     */
+    public function crearPaquete(User $actor, string $nombre, int $dias, float|int|string $descuento, ?string $detalle, bool $destacado): Paquete
+    {
+        $nombre = trim($nombre);
+        if (Paquete::query()->whereRaw('lower(nombre) = ?', [Str::lower($nombre)])->exists()) {
+            throw new ReglaDeNegocioException('plan_repetido', 'Ya hay un plan con ese nombre.');
+        }
+        if (Paquete::query()->activos()->where('dias', $dias)->exists()) {
+            throw new ReglaDeNegocioException('plan_de_esos_dias_activo', "Ya hay un plan activo de {$dias} ".($dias === 1 ? 'día' : 'días').': edítalo o desactívalo para crear otro.');
+        }
+
+        $paquete = Paquete::create(['nombre' => $nombre, 'dias' => $dias, 'descuento_porcentaje' => $descuento, 'detalle' => $detalle !== null && trim($detalle) !== '' ? trim($detalle) : null, 'destacado' => $destacado]);
+        Bitacora::registrar($actor, 'crear', 'paquetes', $paquete->id, "Creó el plan {$paquete->nombre} ({$dias} días, descuento {$descuento} %).");
+
+        return $paquete->refresh();
+    }
+
+    /** Desactiva (deja de ofrecerse; los pedidos que ya lo usan no cambian) o reactiva un plan. */
+    public function cambiarEstadoDePaquete(User $actor, Paquete $paquete, bool $activo): Paquete
+    {
+        if ($paquete->activo === $activo) {
+            return $paquete;
+        }
+        if ($activo && Paquete::query()->activos()->where('dias', $paquete->dias)->exists()) {
+            throw new ReglaDeNegocioException('plan_de_esos_dias_activo', "Ya hay otro plan activo de {$paquete->dias} días: desactívalo antes de reactivar este.");
+        }
+
+        $activo ? $paquete->reactivar() : $paquete->desactivar();
+        Bitacora::registrar($actor, $activo ? 'reactivar' : 'desactivar', 'paquetes', $paquete->id, ($activo ? 'Reactivó' : 'Desactivó')." el plan {$paquete->nombre}.");
+
+        return $paquete->refresh();
+    }
+
     public function editarPaquete(User $actor, Paquete $paquete, string $nombre, float|int|string $descuento, ?string $detalle, bool $destacado): Paquete
     {
         $nombre = trim($nombre);

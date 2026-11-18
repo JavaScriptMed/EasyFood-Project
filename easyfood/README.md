@@ -68,7 +68,7 @@ Cada portal solo ve lo suyo: la empresa, el comedor o el empleado se resuelven d
 
 ## Probar la API a mano (Bruno) y datos de ejemplo
 
-La carpeta [`bruno/`](bruno/README.md) es una colección de [Bruno](https://www.usebruno.com/) con 191 peticiones y 316 pruebas automáticas que cubren toda la API v1 (incluidos los pendientes, que deben responder 501). `DatosDeEjemploSeeder` carga empresas, comedores, empleados, platillos, historial, clientes y pedidos de ejemplo (solo desarrollo; la contraseña de las cuentas sale de `SEED_PASSWORD` en tu `.env`):
+La carpeta [`bruno/`](bruno/README.md) es una colección de [Bruno](https://www.usebruno.com/) con 198 peticiones y 325 pruebas automáticas que cubren toda la API v1 (incluidos los pendientes, que deben responder 501). `DatosDeEjemploSeeder` carga empresas, comedores, empleados, platillos, historial, clientes y pedidos de ejemplo (solo desarrollo; la contraseña de las cuentas sale de `SEED_PASSWORD` en tu `.env`):
 
 ```bash
 docker compose exec app php artisan db:seed --class=DatosDeEjemploSeeder
@@ -115,8 +115,10 @@ Sin ellas, el pago y el webhook responden `503 pagos_no_configurados`. Después 
 
 **Reglas.** Se compara contra la hora del cargo, no la del webhook. Un pedido vencido no se puede empezar a pagar (`422 pedido_vencido`), pero el pago no lo cancela: lo cancela el corte. Si Stripe cobra algo que ya no se puede aplicar, el pedido no cambia y el cobro se reembolsa (ver Reembolsos). Las pruebas usan una pasarela falsa (`tests/Support/PasarelaFalsa.php`): ninguna llama a la red.
 
-## Altas: empresa, repartidor y empleados
+## Altas: empresa, comedor, repartidor, empleados y planes
 
+- **Comedor** (`POST /admin/comedores`): crea el contacto (cuenta inactiva con invitación al portal de comedores), el comedor y su contrato de 6 meses con el precio por platillo y el mínimo mensual acordados. Razón social y RFC son opcionales (el RFC no se repite); la `zona` debe existir y el nombre no puede repetirse. No modifica el modelo `Provider`.
+- **Plan** (`POST /admin/paquetes`, `PATCH /admin/paquetes/{id}/estado`): solo hay planes de 1, 2 o 6 días y **un solo plan activo por duración**; para cambiar el de una duración que ya existe se edita, o se desactiva y se crea otro. Un plan desactivado deja de ofrecerse y no se puede pedir; los pedidos que ya lo contrataron no cambian.
 - **Empresa** (`POST /admin/empresas`): crea el contacto de RR. HH. (cuenta inactiva con invitación), la empresa y su contrato de 6 meses (`precio_por_platillo` $130 si no se manda). El nombre debe ser único y la `zona` debe existir en `zonas`; si no, el error lista las disponibles.
 - **Repartidor** (`POST /admin/repartidores`): cuenta con invitación, `numero_empleado` automático (`R-001`…), placas obligatorias (solo se reparte en automóvil) y `zona_base` existente.
 - **Empleados** (`POST /empresa/empleados`, hasta 500): cada persona queda inactiva hasta aceptar su invitación; sin correo se arma con el nombre y el dominio de la empresa; los correos repetidos o ya registrados se omiten y se devuelven en `omitidos`.
@@ -135,7 +137,7 @@ Nada se borra: «eliminar» es **desactivar** (`activo = false`, con su fecha) y
 |---|---|---|---|
 | Empresa | `PUT /admin/empresas/{id}`, `PATCH …/estado` | `admin` | nombre único, ventana de entrega válida, necesita un contrato activo; el precio por platillo acordado no cambia y lo ya elegido conserva su precio y subsidio |
 | Empleado | `PUT /empresa/empleados/{id}` | `company` (los suyos) | nombre y departamento |
-| Plan | `PUT /admin/paquetes/{id}` | `admin` | nombre único, descuento de 0 a 100; los días no cambian |
+| Plan | `PUT /admin/paquetes/{id}` (también se crea y se desactiva: ver Altas) | `admin` | nombre único, descuento de 0 a 100; los días no cambian |
 | Repartidor | `PUT /admin/repartidores/{id}`, `PATCH …/estado` | `admin` | solo automóvil con placas, zona existente, número de empleado único; no se desactiva con rutas por hacer (`repartidor_con_rutas`) |
 | Capacidad del auto | `PUT /admin/repartidores/capacidades { automovil }` | `admin` | las rutas ya creadas conservan la suya |
 | Persona con acceso | `PUT /cuentas/usuarios-acceso/{id}`, `PATCH …/estado` | `admin`, y cada empresa o comedor con la suya | el rol debe corresponder a la organización; nadie cambia ni desactiva su propia cuenta; el titular de una empresa o comedor no cambia de rol; no se activa a quien no aceptó su invitación; al desactivar o cambiar de rol se cierran sus sesiones |

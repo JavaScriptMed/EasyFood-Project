@@ -177,6 +177,7 @@ const real: typeof mock = {
   // ---- comedores
   listarComedores: async () => leer<ComedorDetalle[]>('/api/v1/admin/comedores'),
   obtenerComedor: async (id) => leer<ComedorDetalle>(esRol('comedor') ? '/api/v1/comedor/perfil' : `/api/v1/admin/comedores/${id}`),
+  crearComedor: async (datos) => ids(await post<ComedorDetalle>('/api/v1/admin/comedores', datos)),
   editarComedor: async () => { throw pendiente('Editar un comedor') },
   cambiarEstadoComedor: async () => { throw pendiente('Desactivar un comedor') },
 
@@ -204,6 +205,8 @@ const real: typeof mock = {
   revisarPlatillo: async (id, decision, motivo) => platillo(ids(await post<PlatilloDetalle>(`/api/v1/admin/platillos/${id}/revision`, { decision, motivo }))),
   listarHistorialPrecios: async (id) => leer<HistorialPrecio[]>(`/api/v1/admin/platillos/${id}/historial-precios`),
   cambiarEstadoPlatillo: async () => { throw pendiente('Desactivar un platillo') },
+  crearPlan: async (datos) => ids(await post<Plan>('/api/v1/admin/paquetes', datos)),
+  cambiarEstadoPlan: async (id, activo) => ids(await patch<Plan>(`/api/v1/admin/paquetes/${id}/estado`, { activo })),
   editarPlan: async (id, datos) => ids(await put<Plan>(`/api/v1/admin/paquetes/${id}`, datos)),
   programarPrecioPlatillo: async (id, datos) => ids(await post<HistorialPrecio>(`/api/v1/admin/platillos/${id}/precios`, datos)),
   subirImagenPlatillo: async (id, archivo) => {
@@ -350,6 +353,9 @@ export const editarEmpleado = elegir('editarEmpleado')
 export const quitarMiEleccion = elegir('quitarMiEleccion')
 export const cambiarEstadoPlatillo = elegir('cambiarEstadoPlatillo')
 export const editarPlan = elegir('editarPlan')
+export const crearPlan = elegir('crearPlan')
+export const cambiarEstadoPlan = elegir('cambiarEstadoPlan')
+export const crearComedor = elegir('crearComedor')
 export const programarPrecioPlatillo = elegir('programarPrecioPlatillo')
 export const subirImagenPlatillo = elegir('subirImagenPlatillo')
 export const editarRepartidor = elegir('editarRepartidor')

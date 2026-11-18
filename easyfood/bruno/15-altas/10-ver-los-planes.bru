@@ -1,0 +1,25 @@
+meta {
+  name: Ver los planes
+  type: http
+  seq: 10
+}
+
+get {
+  url: {{baseUrl}}/api/v1/paquetes
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenCliente}}
+}
+
+script:post-response {
+  if (res.status === 200) { const p = res.body.find(x => x.dias === 6); if (p) { bru.setVar("planSemanaId", p.id); bru.setVar("planSemanaNombre", p.nombre); } }
+}
+
+tests {
+  test("responde 200", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+}

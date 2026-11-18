@@ -54,7 +54,7 @@ Clic derecho en la colección → **Run**, o corre carpeta por carpeta. **Empiez
 | 06 | **Corte y reparto** | **Ejecutar el corte**: cierra elecciones, órdenes de producción, entregas por empresa, rutas por zona e incidencias |
 | 07 | Administración · dinero | Facturas a empresas y liquidaciones a comedores (total, partes y diferencia por mínimo) |
 | 08 | Portal de empresas | Empleados (activar/desactivar) y facturas propias |
-| 15 | Altas (empresa, repartidor y empleados) | Dar de alta una empresa con su contrato, un repartidor y empleados; cada persona recibe su invitación |
+| 15 | Altas (empresa, comedor, repartidor, empleados y planes) | Dar de alta una empresa y un comedor con su contrato, un repartidor, empleados y planes; cada persona recibe su invitación |
 | 16 | Editar y desactivar | Editar y desactivar empresas, repartidores, planes, empleados y personas con acceso; capacidad del auto (usa lo creado en la 15) |
 | 17 | Platillos · fotos y precios | Subir la foto de un platillo (admin y comedor), historial de precios y programar un precio |
 | 14 | Cuentas (invitaciones y contraseña) | Invitar, reenviar y aceptar una invitación, y restablecer la contraseña; los enlaces salen en `storage/logs/enlaces.log` |

@@ -71,12 +71,15 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('empresas', [Admin\EmpresaController::class, 'index'])->name('empresas.index');
             Route::put('empresas/{id}', [Admin\EmpresaEdicionController::class, 'update'])->name('empresas.update');
             Route::patch('empresas/{id}/estado', [Admin\EmpresaEdicionController::class, 'estado'])->name('empresas.estado');
+            Route::post('paquetes', [Admin\PaqueteController::class, 'store'])->name('paquetes.store');
             Route::put('paquetes/{id}', [Admin\PaqueteController::class, 'update'])->name('paquetes.update');
+            Route::patch('paquetes/{id}/estado', [Admin\PaqueteController::class, 'estado'])->name('paquetes.estado');
             Route::get('empresas/{id}', [Admin\EmpresaController::class, 'show'])->name('empresas.show');
             Route::post('empresas', [Admin\EmpresaAltaController::class, 'store'])->name('empresas.store');
             Route::get('empresas/{id}/consumo', [Admin\EmpresaController::class, 'consumo'])->name('empresas.consumo');
             Route::post('empresas/{id}/renovar-contrato', [Admin\ContratoController::class, 'renovarEmpresa'])->name('empresas.renovar');
             Route::get('comedores', [Admin\ComedorController::class, 'index'])->name('comedores.index');
+            Route::post('comedores', [Admin\ComedorAltaController::class, 'store'])->name('comedores.store');
             Route::get('comedores/{id}', [Admin\ComedorController::class, 'show'])->name('comedores.show');
             Route::post('comedores/{id}/renovar-contrato', [Admin\ContratoController::class, 'renovarComedor'])->name('comedores.renovar');
             Route::get('contratos/por-vencer', [Admin\ContratoController::class, 'porVencer'])->name('contratos.por-vencer');
