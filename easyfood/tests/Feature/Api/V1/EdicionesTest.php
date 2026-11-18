@@ -326,4 +326,99 @@ class EdicionesTest extends TestCase
             $this->patchJson('/api/v1/cuentas/usuarios-acceso/1/estado', ['activo' => false])->assertStatus(403);
         }
     }
+
+    // ------------------------------------------------------------------ corregir el correo de quien aún no acepta
+
+    public function test_la_empresa_corrige_el_correo_de_un_empleado_que_no_ha_aceptado_y_se_le_manda_otra_invitacion(): void
+    {
+        $empresa = $this->comoEmpresa();
+        $this->postJson('/api/v1/empresa/empleados', ['personas' => [['nombre' => 'José Pérez']]])->assertCreated();
+        $empleado = \App\Models\Empleado::where('empresa_id', $empresa->id)->latest('id')->firstOrFail();
+        $viejoToken = Invitacion::where('usuario_id', $empleado->usuario_id)->value('token_hash');
+        Mail::fake();
+
+        $this->putJson("/api/v1/empresa/empleados/{$empleado->id}", ['nombre' => 'José Pérez', 'correo' => 'Jose.Perez@Nexo.mx'])->assertOk()->assertJsonPath('correo', 'jose.perez@nexo.mx');
+
+        $this->assertSame('jose.perez@nexo.mx', $empleado->usuario->fresh()->email);
+        $invitacion = Invitacion::where('usuario_id', $empleado->usuario_id)->sole();
+        $this->assertSame('jose.perez@nexo.mx', $invitacion->correo);
+        $this->assertNotSame($viejoToken, $invitacion->token_hash, 'el enlace anterior deja de servir');
+        Mail::assertSent(\App\Mail\InvitacionDeAcceso::class, fn ($m) => $m->hasTo('jose.perez@nexo.mx'));
+        $this->assertSame('corregir_correo', RegistroAuditoria::where('accion', 'corregir_correo')->sole()->accion);
+    }
+
+    public function test_el_listado_de_empleados_dice_quien_ya_acepto_su_invitacion(): void
+    {
+        $empresa = $this->comoEmpresa();
+        $this->postJson('/api/v1/empresa/empleados', ['personas' => [['nombre' => 'Pendiente Uno']]])->assertCreated();
+        $this->empleadoDe($empresa); // sin invitación (cuenta de ejemplo)
+
+        $filas = $this->getJson('/api/v1/empresa/empleados')->assertOk()->json();
+
+        $this->assertSame(['enviada', null], [$filas[0]['invitacion']['estado'], $filas[1]['invitacion']]);
+    }
+
+    public function test_no_cambia_el_correo_de_quien_ya_acepto_ni_uno_que_ya_existe(): void
+    {
+        $empresa = $this->comoEmpresa();
+        $this->postJson('/api/v1/empresa/empleados', ['personas' => [['nombre' => 'Ana Nueva'], ['nombre' => 'Beto Nuevo']]])->assertCreated();
+        [$ana, $beto] = \App\Models\Empleado::where('empresa_id', $empresa->id)->latest('id')->take(2)->get()->reverse()->values()->all();
+        Invitacion::where('usuario_id', $ana->usuario_id)->update(['aceptada_en' => now()]);
+
+        $this->putJson("/api/v1/empresa/empleados/{$ana->id}", ['nombre' => 'Ana Nueva', 'correo' => 'otro@nexo.mx'])->assertStatus(422)->assertJsonPath('codigo', 'correo_no_editable');
+        $this->putJson("/api/v1/empresa/empleados/{$beto->id}", ['nombre' => 'Beto Nuevo', 'correo' => $ana->usuario->email])->assertStatus(422)->assertJsonPath('codigo', 'correo_en_uso');
+        $this->putJson("/api/v1/empresa/empleados/{$beto->id}", ['nombre' => 'Beto Nuevo', 'correo' => 'no-es-correo'])->assertStatus(422)->assertJsonStructure(['errores' => ['correo']]);
+
+        $this->assertNotSame('otro@nexo.mx', $ana->usuario->fresh()->email);
+        $this->putJson("/api/v1/empresa/empleados/{$ana->id}", ['nombre' => 'Ana Renombrada', 'correo' => $ana->usuario->email])->assertOk()->assertJsonPath('nombre', 'Ana Renombrada'); // mismo correo: no es un cambio
+    }
+
+    public function test_un_rechazo_de_correo_no_deja_el_nombre_a_medias(): void
+    {
+        $empresa = $this->comoEmpresa();
+        $existente = $this->empleadoDe($empresa);
+        $this->postJson('/api/v1/empresa/empleados', ['personas' => [['nombre' => 'Carla Nueva']]])->assertCreated();
+        $carla = \App\Models\Empleado::where('empresa_id', $empresa->id)->latest('id')->firstOrFail();
+
+        $this->putJson("/api/v1/empresa/empleados/{$carla->id}", ['nombre' => 'Nombre que no debe quedar', 'correo' => $existente->usuario->email])->assertStatus(422);
+
+        $this->assertSame('Carla Nueva', $carla->usuario->fresh()->name);
+    }
+
+    public function test_el_administrador_corrige_el_correo_del_contacto_de_una_empresa_nueva(): void
+    {
+        $this->comoRol('admin');
+        $this->zonaDePruebas('Zapopan', -103.55, 20.72, 0.05);
+        $id = $this->postJson('/api/v1/admin/empresas', ['nombre' => 'Empresa Nueva', 'contacto_nombre' => 'Rosa', 'contacto_correo' => 'rosa@mal-escrito.mx', 'direccion_entrega' => 'Calle 1', 'zona' => 'Zapopan',
+            'vigencia_inicio' => '2026-12-01', 'compra_minima_mensual' => 100, 'porcentaje_subsidio' => 50, 'ventana_entrega_inicio' => '12:00', 'ventana_entrega_fin' => '12:30'])->assertCreated()->json('id');
+
+        $this->putJson("/api/v1/admin/empresas/{$id}", $this->datosDeEmpresa(['nombre' => 'Empresa Nueva', 'contacto_correo' => 'rosa@bien-escrito.mx']))->assertOk()->assertJsonPath('contacto.correo', 'rosa@bien-escrito.mx');
+
+        $contacto = User::where('email', 'rosa@bien-escrito.mx')->firstOrFail();
+        $this->assertSame('inactive', $contacto->status);
+        $this->assertSame('rosa@bien-escrito.mx', Invitacion::where('usuario_id', $contacto->id)->value('correo'));
+    }
+
+    public function test_una_persona_con_acceso_corrige_su_correo_solo_si_no_acepto_y_el_titular_aparece_una_sola_vez(): void
+    {
+        $admin = $this->comoRol('admin');
+        $empresa = $this->empresaConContrato();
+        $pendiente = $this->invitadaDeEmpresa($admin, $empresa->id, 'Pendiente Acceso', false);
+        $aceptada = $this->invitadaDeEmpresa($admin, $empresa->id, 'Aceptada Acceso');
+
+        $this->putJson("/api/v1/cuentas/usuarios-acceso/{$pendiente->id}", ['nombre' => 'Pendiente Acceso', 'rol' => 'empresa', 'correo' => 'nuevo@ejemplo.mx'])->assertOk()->assertJsonPath('correo', 'nuevo@ejemplo.mx');
+        $this->putJson("/api/v1/cuentas/usuarios-acceso/{$aceptada->id}", ['nombre' => 'Aceptada Acceso', 'rol' => 'empresa', 'correo' => 'otro@ejemplo.mx'])->assertStatus(422)->assertJsonPath('codigo', 'correo_no_editable');
+
+        // El contacto de una empresa dada de alta tiene invitación pero es el titular: una sola fila, con su invitación.
+        $contacto = User::findOrFail($empresa->usuario_id);
+        $contacto->update(['role_id' => self::ROLES_API['company']]);
+        Invitacion::create(['usuario_id' => $contacto->id, 'correo' => $contacto->email, 'rol_id' => $contacto->role_id, 'organizacion_tipo' => 'empresa', 'empresa_id' => $empresa->id,
+            'token_hash' => hash('sha256', 'x'), 'enviada_en' => now(), 'vence_en' => now()->addDays(7)]);
+        $filas = $this->getJson("/api/v1/cuentas/usuarios-acceso?tipo=empresa&id={$empresa->id}")->assertOk()->json();
+
+        $this->assertSame(count($filas), count(array_unique(array_column($filas, 'usuario_id'))), 'ningún usuario sale dos veces');
+        $fila = collect($filas)->firstWhere('usuario_id', $contacto->id);
+        $this->assertSame([true, 'enviada'], [$fila['es_principal'], $fila['invitacion']['estado']]);
+        $this->putJson("/api/v1/cuentas/usuarios-acceso/{$contacto->id}", ['nombre' => 'Titular', 'rol' => 'comedor'])->assertStatus(422)->assertJsonPath('codigo', 'rol_no_corresponde');
+    }
 }

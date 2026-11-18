@@ -156,6 +156,46 @@ class Invitaciones
         return [$invitacion, $token];
     }
 
+    // ------------------------------------------------------------------ corregir el correo de quien aún no acepta
+
+    /**
+     * Revisa si se puede cambiar el correo de una persona (sin escribir nada). El correo es el acceso de la cuenta: solo se corrige
+     * mientras la persona NO haya aceptado su invitación (típico: un correo mal escrito o armado por el sistema al subir un CSV).
+     * Quien ya entró es dueño de su cuenta y no se le redirige a otro correo desde aquí.
+     *
+     * @return Invitacion|null la invitación pendiente que se va a reenviar; null si el correo es el mismo (no hay nada que cambiar)
+     */
+    public function validarCambioDeCorreo(User $usuario, string $correo): ?Invitacion
+    {
+        $correo = Str::lower(trim($correo));
+        if ($correo === Str::lower($usuario->email)) {
+            return null;
+        }
+        $invitacion = Invitacion::query()->where('usuario_id', $usuario->id)->first();
+        if (! $invitacion || $invitacion->aceptada_en) {
+            throw new ReglaDeNegocioException('correo_no_editable', 'Esa persona ya entró a su cuenta: su correo es su acceso y no se cambia aquí.');
+        }
+        if (User::query()->whereRaw('lower(email) = ?', [$correo])->where('id', '<>', $usuario->id)->exists()) {
+            throw new ReglaDeNegocioException('correo_en_uso', 'Ese correo ya tiene una cuenta o una invitación.');
+        }
+
+        return $invitacion;
+    }
+
+    /** Cambia el correo (de la cuenta y de su invitación) y manda la invitación, con un enlace nuevo, al correo corregido. */
+    public function aplicarCambioDeCorreo(User $actor, User $usuario, Invitacion $invitacion, string $correo): void
+    {
+        $correo = Str::lower(trim($correo));
+        $anterior = $usuario->email;
+        DB::transaction(function () use ($usuario, $invitacion, $correo) {
+            $usuario->update(['email' => $correo]);
+            $invitacion->update(['correo' => $correo]);
+        });
+        Bitacora::registrar($actor, 'corregir_correo', 'usuarios', $usuario->id, "Cambió el correo de {$usuario->name} de {$anterior} a {$correo} (aún no aceptaba su invitación).");
+
+        $this->reenviar($actor, $invitacion->id);
+    }
+
     // ------------------------------------------------------------------ el enlace del correo (público)
 
     /** Lo que se ve al abrir el enlace: de quién es, a qué organización y si todavía sirve. `invalida` si el enlace no existe. */
@@ -221,8 +261,11 @@ class Invitaciones
             ->when($tipo === 'comedor', fn ($q) => $q->where('comedor_id', $organizacionId))->when($tipo === 'empresa', fn ($q) => $q->where('empresa_id', $organizacionId))
             ->whereHas('rol', fn ($q) => $q->where('name', '<>', 'employee'))->orderByDesc('enviada_en')->orderByDesc('id')->get();
 
-        $filas = $titulares->load('role')->map(fn (User $u) => $this->fila($u, null, true, $ahora));
-        foreach ($invitaciones as $i) {
+        // El contacto de una empresa o comedor dado de alta desde el panel también tiene una invitación (para crear su contraseña):
+        // sigue siendo UNA sola fila, la del titular, con el estado de su invitación.
+        $delTitular = $invitaciones->keyBy('usuario_id');
+        $filas = $titulares->load('role')->map(fn (User $u) => $this->fila($u, $delTitular->get($u->id), true, $ahora));
+        foreach ($invitaciones->reject(fn ($i) => $titulares->contains('id', $i->usuario_id)) as $i) {
             $filas->push($this->fila($i->usuario->load('role'), $i, false, $ahora));
         }
 

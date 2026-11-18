@@ -21,9 +21,9 @@ class UsuarioAccesoController extends Controller
     /** Cambia el nombre y el rol de una persona con acceso (el titular no cambia de rol; nadie cambia el suyo). */
     public function update(Request $request, int $id, EdicionDeRegistros $ediciones): JsonResponse
     {
-        $d = $request->validate(['nombre' => 'required|string|min:2|max:120', 'rol' => 'required|in:administrador,soporte,empresa,comedor']);
+        $d = $request->validate(['nombre' => 'required|string|min:2|max:120', 'rol' => 'required|in:administrador,soporte,empresa,comedor', 'correo' => 'nullable|email|max:190']);
 
-        return response()->json($ediciones->editarUsuarioDeAcceso($request->user(), $id, $d['nombre'], $d['rol']));
+        return response()->json($ediciones->editarUsuarioDeAcceso($request->user(), $id, $d['nombre'], $d['rol'], $d['correo'] ?? null));
     }
 
     /** Desactiva o reactiva a una persona con acceso. Al desactivarla se cierran sus sesiones. */

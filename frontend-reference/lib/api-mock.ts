@@ -373,6 +373,10 @@ export const editarUsuarioAcceso = (usuario_id: string, datos: EdicionUsuarioAcc
   if (!datos.nombre.trim()) throw new Error('Escribe el nombre de la persona.')
   usuario.nombre = datos.nombre.trim()
   usuario.rol = datos.rol
+  if (datos.correo && datos.correo.trim().toLowerCase() !== usuario.correo) {
+    if (!datos.correo.includes('@')) throw new Error('Escribe un correo válido.')
+    usuario.correo = datos.correo.trim().toLowerCase()
+  }
   auditar('actualizar', 'usuario', usuario_id, `Editó al usuario ${usuario.nombre}`)
   return filaDeUsuario(usuario)
 })
@@ -539,7 +543,10 @@ export const editarEmpleado = (empleado_id: string, datos: EdicionEmpleado) => l
   if (!empleado) throw new Error('El empleado no existe.')
   if (!datos.nombre.trim()) throw new Error('Escribe el nombre del empleado.')
   const usuario = buscarUsuario(empleado.usuario_id)
-  if (usuario) usuario.nombre = datos.nombre.trim()
+  if (usuario) {
+    usuario.nombre = datos.nombre.trim()
+    if (datos.correo && datos.correo.includes('@')) usuario.correo = datos.correo.trim().toLowerCase()
+  }
   empleado.departamento = datos.departamento.trim() || null
   auditar('actualizar', 'empleado', empleado_id, `Editó al empleado ${datos.nombre.trim()}`)
   return empleado

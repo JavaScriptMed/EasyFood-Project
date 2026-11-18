@@ -36,7 +36,7 @@ class EdicionDeRegistros
      * Cambia los datos de la empresa, de su contacto y de su contrato vigente. Lo ya elegido conserva el precio y el subsidio con que se
      * eligió (se congelan al elegir): el cambio vale para lo que se elija desde ahora.
      *
-     * @param  array{nombre: string, direccion_entrega: string, contacto_nombre?: ?string, contacto_telefono?: ?string, porcentaje_subsidio: float|int|string, compra_minima_mensual: int, ventana_entrega_inicio: string, ventana_entrega_fin: string}  $d
+     * @param  array{nombre: string, direccion_entrega: string, contacto_nombre?: ?string, contacto_correo?: ?string, contacto_telefono?: ?string, porcentaje_subsidio: float|int|string, compra_minima_mensual: int, ventana_entrega_inicio: string, ventana_entrega_fin: string}  $d
      */
     public function editarEmpresa(User $actor, Empresa $empresa, array $d): Empresa
     {
@@ -50,6 +50,8 @@ class EdicionDeRegistros
         $contrato = ContratoEmpresa::query()->activos()->where('empresa_id', $empresa->id)->orderByDesc('vigencia_inicio')->first()
             ?? throw new ReglaDeNegocioException('sin_contrato', 'La empresa no tiene un contrato activo que editar: renueva el contrato primero.');
 
+        $correoNuevo = ! empty($d['contacto_correo']) && $empresa->usuario ? $this->invitaciones->validarCambioDeCorreo($empresa->usuario, $d['contacto_correo']) : null;
+
         DB::transaction(function () use ($actor, $empresa, $contrato, $d, $nombre) {
             $empresa->update(['nombre' => $nombre, 'direccion_entrega' => trim($d['direccion_entrega'])]);
             $contrato->update([
@@ -59,6 +61,9 @@ class EdicionDeRegistros
             $this->renombrar($empresa->usuario, $d['contacto_nombre'] ?? null, $d['contacto_telefono'] ?? null);
             Bitacora::registrar($actor, 'actualizar', 'empresas', $empresa->id, "Editó la empresa {$empresa->nombre}.");
         });
+        if ($correoNuevo) {
+            $this->invitaciones->aplicarCambioDeCorreo($actor, $empresa->usuario, $correoNuevo, $d['contacto_correo']);
+        }
 
         return $empresa->refresh();
     }
@@ -76,13 +81,18 @@ class EdicionDeRegistros
     // ------------------------------------------------------------------ empleados
 
     /** La empresa cambia el nombre y el departamento de uno de sus empleados. */
-    public function editarEmpleado(User $actor, Empleado $empleado, string $nombre, ?string $departamento): Empleado
+    public function editarEmpleado(User $actor, Empleado $empleado, string $nombre, ?string $departamento, ?string $correo = null): Empleado
     {
+        $correoNuevo = $correo ? $this->invitaciones->validarCambioDeCorreo($empleado->usuario, $correo) : null;
+
         DB::transaction(function () use ($actor, $empleado, $nombre, $departamento) {
             $this->renombrar($empleado->usuario, $nombre, null);
             $empleado->update(['departamento' => $departamento !== null && trim($departamento) !== '' ? trim($departamento) : null]);
             Bitacora::registrar($actor, 'actualizar', 'empleados', $empleado->id, "Editó al empleado {$empleado->usuario->name}.");
         });
+        if ($correoNuevo) {
+            $this->invitaciones->aplicarCambioDeCorreo($actor, $empleado->usuario, $correoNuevo, $correo);
+        }
 
         return $empleado->refresh();
     }
@@ -197,9 +207,10 @@ class EdicionDeRegistros
     // ------------------------------------------------------------------ usuarios con acceso
 
     /** @return array<string, mixed> la fila del usuario como la ve la pantalla de accesos */
-    public function editarUsuarioDeAcceso(User $actor, int $usuarioId, string $nombre, string $rolDelFront): array
+    public function editarUsuarioDeAcceso(User $actor, int $usuarioId, string $nombre, string $rolDelFront, ?string $correo = null): array
     {
         [$usuario, $tipo, $organizacion, $invitacion] = $this->usuarioDeAcceso($actor, $usuarioId);
+        $correoNuevo = $correo ? $this->invitaciones->validarCambioDeCorreo($usuario, $correo) : null;
         $principal = $this->esTitular($usuario, $tipo, $organizacion);
         $rolBase = RolesDeApi::base($rolDelFront);
         $cambiaElRol = $usuario->role->name !== $rolBase;
@@ -227,6 +238,10 @@ class EdicionDeRegistros
             }
             Bitacora::registrar($actor, 'actualizar', 'users', $usuario->id, "Editó al usuario {$usuario->name}".($cambiaElRol ? " (ahora {$rol->name})." : '.'));
         });
+
+        if ($correoNuevo) {
+            $this->invitaciones->aplicarCambioDeCorreo($actor, $usuario, $correoNuevo, $correo);
+        }
 
         return $this->invitaciones->fila($usuario->refresh()->load('role'), $invitacion?->refresh(), $principal, null);
     }
@@ -290,9 +305,14 @@ class EdicionDeRegistros
         return [$usuario, $tipo, $organizacion, $invitacion];
     }
 
+    /** El titular de una empresa o comedor es su contacto (aunque haya entrado por invitación); en la plataforma, quien no llegó por una. */
     private function esTitular(User $usuario, string $tipo, ?int $organizacion): bool
     {
-        return ! Invitacion::query()->where('usuario_id', $usuario->id)->exists();
+        return match ($tipo) {
+            'empresa' => Empresa::query()->whereKey($organizacion)->value('usuario_id') === $usuario->id,
+            'comedor' => Provider::query()->whereKey($organizacion)->value('user_id') === $usuario->id,
+            default => ! Invitacion::query()->where('usuario_id', $usuario->id)->exists(),
+        };
     }
 
     /** Cambia el nombre (y el teléfono, si viene) de la cuenta y de su perfil; si la cuenta no tiene perfil todavía, se lo crea. */

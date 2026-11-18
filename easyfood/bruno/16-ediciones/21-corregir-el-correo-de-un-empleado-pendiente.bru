@@ -1,0 +1,37 @@
+meta {
+  name: Corregir el correo de un empleado pendiente
+  type: http
+  seq: 21
+}
+
+put {
+  url: {{baseUrl}}/api/v1/empresa/empleados/{{empleadoPendienteId}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenEmpresa}}
+}
+
+body:json {
+  {
+    "nombre": "{{empleadoPendienteNombre}}",
+    "correo": "{{correoCorregido}}"
+  }
+}
+
+script:pre-request {
+  bru.setVar("correoCorregido", "corregido." + Date.now() + "@nexo.test");
+}
+
+tests {
+  test("responde 200 con el correo nuevo", function () {
+    expect(res.getStatus()).to.equal(200);
+    expect(res.body.correo).to.equal(bru.getVar("correoCorregido"));
+  });
+}
+
+docs {
+  Le manda una invitación nueva al correo corregido; el enlace anterior deja de servir.
+}

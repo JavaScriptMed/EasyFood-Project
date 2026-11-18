@@ -36,13 +36,16 @@ class EmpleadoController extends Controller
         $porMes = DB::table('elecciones_empleado')->whereIn('empleado_id', $empleados->pluck('id'))
             ->selectRaw("empleado_id, to_char(fecha, 'YYYY-MM') as mes, count(*) as total")->groupBy('empleado_id', 'mes')->get()->groupBy('empleado_id');
         $elecciones = EleccionEmpleado::query()->with('menu')->whereIn('empleado_id', $empleados->pluck('id'))->whereDate('fecha', $manana)->get()->keyBy('empleado_id');
+        // La invitación (si todavía la tiene o la aceptó) dice si su correo se puede corregir: solo mientras no la acepte.
+        $invitaciones = \App\Models\Invitacion::query()->with('rol')->whereIn('usuario_id', $empleados->pluck('usuario_id'))->get()->keyBy('usuario_id');
+        $vista = app(\App\Services\Invitaciones::class);
 
-        return $empleados->map(function (Empleado $e) use ($porMes, $elecciones) {
+        return $empleados->map(function (Empleado $e) use ($porMes, $elecciones, $invitaciones, $vista) {
             $eleccion = $elecciones->get($e->id);
 
             return Vistas::empleado($e) + [
                 'platillos_por_mes' => ($porMes->get($e->id) ?? collect())->pluck('total', 'mes')->map(fn ($n) => (int) $n)->all(),
-                'invitacion' => null,
+                'invitacion' => ($i = $invitaciones->get($e->usuario_id)) ? $vista->vista($i) : null,
                 'eleccion_manana' => $eleccion ? ['platillo_id' => $eleccion->menu_id, 'platillo_nombre' => $eleccion->menu->name, 'origen' => $eleccion->origen] : null,
             ];
         })->values()->all();
@@ -65,9 +68,9 @@ class EmpleadoController extends Controller
     /** Cambia el nombre y el departamento de un empleado de la propia empresa. */
     public function update(Request $request, int $id, EdicionDeRegistros $ediciones): JsonResponse
     {
-        $d = $request->validate(['nombre' => 'required|string|min:2|max:120', 'departamento' => 'nullable|string|max:100']);
+        $d = $request->validate(['nombre' => 'required|string|min:2|max:120', 'departamento' => 'nullable|string|max:100', 'correo' => 'nullable|email|max:190']);
         $empleado = Empleado::query()->with('usuario.profile')->where('empresa_id', ContextoDelUsuario::empresa($request)->id)->findOrFail($id);
 
-        return response()->json(Vistas::empleado($ediciones->editarEmpleado($request->user(), $empleado, $d['nombre'], $d['departamento'] ?? null)->load('usuario.profile')));
+        return response()->json(Vistas::empleado($ediciones->editarEmpleado($request->user(), $empleado, $d['nombre'], $d['departamento'] ?? null, $d['correo'] ?? null)->load('usuario.profile')));
     }
 }

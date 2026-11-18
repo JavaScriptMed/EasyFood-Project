@@ -631,6 +631,7 @@ export interface EdicionEmpresa {
   nombre: string
   direccion_entrega: string
   contacto_nombre: string
+  contacto_correo?: string // solo se cambia mientras el contacto no acepte su invitación
   contacto_telefono: string
   porcentaje_subsidio: number
   compra_minima_mensual: number
@@ -659,6 +660,7 @@ export interface EdicionRepartidor {
 export interface EdicionEmpleado {
   nombre: string
   departamento: string
+  correo?: string // solo se cambia mientras el empleado no acepte su invitación
 }
 
 export interface EdicionPlan {
@@ -671,6 +673,7 @@ export interface EdicionPlan {
 export interface EdicionUsuarioAcceso {
   nombre: string
   rol: Rol
+  correo?: string // solo se cambia mientras la persona no acepte su invitación
 }
 
 export interface ProgramarPrecio {
