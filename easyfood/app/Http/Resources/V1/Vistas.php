@@ -166,6 +166,14 @@ final class Vistas
         ];
     }
 
+    public static function precioDePlatillo(\App\Models\PrecioDePlatillo $p): array
+    {
+        return [
+            'id' => $p->id, 'platillo_id' => $p->menu_id, 'vigente_desde' => $p->vigente_desde->toDateString(), 'vigente_hasta' => $p->vigente_hasta?->toDateString(),
+            'precio_venta' => self::dinero($p->precio_venta), 'costo' => self::dinero($p->costo),
+        ];
+    }
+
     public static function disponibilidad(DisponibilidadDia $d): array
     {
         return [

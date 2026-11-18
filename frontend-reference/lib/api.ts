@@ -13,7 +13,7 @@ import * as mock from './api-mock'
 import type {
   BloqueHorario, CalificacionPendiente, CostoOperativo, IndicadoresEmpresa, InvitacionDetalle, InvitacionPublica, ResultadoAceptacion, SolicitudRestablecimiento,
   ResultadoAltaEmpleados, UsuarioAcceso, ValidacionToken, CalendarioServicio, ClienteDetalle, ClienteResumen, ComedorDetalle, ConfiguracionOperacion, ConsumoDiario, ContratoPorVencer, Corte,
-  DashboardAdmin, DiaSinServicio, DisponibilidadConPlatillo, EleccionEmpleado, Empleado, EmpleadoDetalle, EmpresaDetalle, EntregaDetalle, FacturaConEmpresa,
+  DashboardAdmin, DiaSinServicio, DisponibilidadConPlatillo, EleccionEmpleado, Empleado, EmpleadoDetalle, EmpresaDetalle, EntregaDetalle, FacturaConEmpresa, HistorialPrecio,
   FacturaDetalle, FacturaMensual, FilaReporteProveedor, IncidenciaDetalle, LiquidacionComedor, LiquidacionConComedor, MensajeContacto, MensajeTicket,
   MenuSemanalDia, MiEleccion, MiMenu, OrdenProduccionDetalle, PedidoDetalle, PedidosMananaEmpresa, Plan, PlatilloDetalle, RegistroAuditoriaDetalle,
   RepartidorDetalle, ResultadoCorte, Rol, RutaDetalle, TicketDetalle, TicketResumen, TipoVehiculo, VistaPreviaCorte,
@@ -202,10 +202,15 @@ const real: typeof mock = {
     return platillo(ids(await post<PlatilloDetalle>(`/api/v1/${propio ? 'comedor' : 'admin'}/platillos`, cuerpo)))
   },
   revisarPlatillo: async (id, decision, motivo) => platillo(ids(await post<PlatilloDetalle>(`/api/v1/admin/platillos/${id}/revision`, { decision, motivo }))),
-  listarHistorialPrecios: async () => [], // el backend todavía no guarda historial de precios
+  listarHistorialPrecios: async (id) => leer<HistorialPrecio[]>(`/api/v1/admin/platillos/${id}/historial-precios`),
   cambiarEstadoPlatillo: async () => { throw pendiente('Desactivar un platillo') },
   editarPlan: async (id, datos) => ids(await put<Plan>(`/api/v1/admin/paquetes/${id}`, datos)),
-  programarPrecioPlatillo: async () => { throw pendiente('Programar un precio') },
+  programarPrecioPlatillo: async (id, datos) => ids(await post<HistorialPrecio>(`/api/v1/admin/platillos/${id}/precios`, datos)),
+  subirImagenPlatillo: async (id, archivo) => {
+    const formulario = new FormData()
+    formulario.append('imagen', archivo)
+    return platillo(ids(await http<PlatilloDetalle>('POST', `/api/v1/${esRol('comedor') ? 'comedor' : 'admin'}/platillos/${id}/imagen`, { cuerpo: {}, formulario })))
+  },
   listarPlanes: async () => leer<Plan[]>('/api/v1/paquetes'),
   obtenerMenuSemanal: async (fecha_inicio) => leer<MenuSemanalDia[]>('/api/v1/admin/menu-semanal', { fecha_inicio }),
   listarDisponibilidad: async (_comedor, desde, hasta) => leer<DisponibilidadConPlatillo[]>('/api/v1/comedor/disponibilidad', { desde, hasta }),
@@ -346,6 +351,7 @@ export const quitarMiEleccion = elegir('quitarMiEleccion')
 export const cambiarEstadoPlatillo = elegir('cambiarEstadoPlatillo')
 export const editarPlan = elegir('editarPlan')
 export const programarPrecioPlatillo = elegir('programarPrecioPlatillo')
+export const subirImagenPlatillo = elegir('subirImagenPlatillo')
 export const editarRepartidor = elegir('editarRepartidor')
 export const cambiarEstadoRepartidor = elegir('cambiarEstadoRepartidor')
 export const guardarCapacidadesVehiculo = elegir('guardarCapacidadesVehiculo')

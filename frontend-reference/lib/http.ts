@@ -16,6 +16,8 @@ export class ErrorApi extends Error {
 type Metodo = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
 type Opciones = {
   cuerpo?: unknown
+  /** Archivos: se manda como multipart (el navegador pone el Content-Type con su frontera). */
+  formulario?: FormData
   query?: Record<string, unknown>
   /** true = ruta pública (login, contacto): no manda token y un 401 no cierra la sesión. */
   publico?: boolean
@@ -50,7 +52,7 @@ function mensajeDe(estado: number, cuerpo: any): string {
 
 export async function http<T>(metodo: Metodo, ruta: string, opciones: Opciones = {}): Promise<T> {
   const encabezados: Record<string, string> = { Accept: 'application/json' }
-  if (opciones.cuerpo !== undefined) encabezados['Content-Type'] = 'application/json'
+  if (opciones.cuerpo !== undefined && !opciones.formulario) encabezados['Content-Type'] = 'application/json'
   const token = opciones.publico ? null : leerToken()
   if (token) encabezados.Authorization = `Bearer ${token}`
 
@@ -59,7 +61,7 @@ export async function http<T>(metodo: Metodo, ruta: string, opciones: Opciones =
     respuesta = await fetch(`${API_URL}${conQuery(ruta, opciones.query)}`, {
       method: metodo,
       headers: encabezados,
-      body: opciones.cuerpo === undefined ? undefined : JSON.stringify(opciones.cuerpo),
+      body: opciones.formulario ?? (opciones.cuerpo === undefined ? undefined : JSON.stringify(opciones.cuerpo)),
     })
   } catch {
     throw new ErrorApi('No se pudo conectar con el servidor. Revisa que el backend esté encendido.', 0, 'sin_conexion')

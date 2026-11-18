@@ -1006,6 +1006,15 @@ export const editarPlan = (plan_id: string, datos: EdicionPlan) => llamar<Plan>(
   return plan
 })
 
+/** En la maqueta la foto solo vive en el navegador (URL temporal del archivo elegido). */
+export const subirImagenPlatillo = (platillo_id: string, archivo: File) => llamar<PlatilloDetalle>(() => {
+  const existente = db.platillos.find((p) => p.id === platillo_id)
+  if (!existente) throw new Error('El platillo no existe.')
+  existente.foto_url = URL.createObjectURL(archivo)
+  auditar('actualizar', 'platillo', existente.id, `Cambió la foto de ${existente.nombre}`)
+  return conComedor(existente)
+})
+
 export const listarHistorialPrecios = (platillo_id: string) =>
   llamar<HistorialPrecio[]>(() => db.historial_precios.filter((h) => h.platillo_id === platillo_id).sort((a, b) => b.vigente_desde.localeCompare(a.vigente_desde)))
 

@@ -12,7 +12,7 @@ use Tests\TestCase;
 
 /**
  * El mapa de la API v1: toda ruta existe con su nombre y su rol, y las que todavía no se construyen (las más complejas,
- * el dashboard y las imágenes) responden 501 con un mensaje claro en lugar de un 404.
+ * el dashboard y las imágenes) respondían 501 con un mensaje claro en lugar de un 404; hoy ya no queda ninguno.
  */
 class RutasDeLaApiTest extends TestCase
 {
@@ -63,13 +63,11 @@ class RutasDeLaApiTest extends TestCase
         $this->assertSame(count($rutas), count(array_unique(array_map(fn ($r) => $r->getName(), $rutas))), 'los nombres no se repiten');
     }
 
-    public function test_los_endpoints_pendientes_son_los_complejos_el_dashboard_y_las_imagenes(): void
+    public function test_ya_no_queda_ningun_endpoint_pendiente_de_construir(): void
     {
         $pendientes = collect($this->rutasV1())->filter(fn ($r) => $this->pendiente($r))->map(fn ($r) => $r->getName())->sort()->values()->all();
 
-        $this->assertSame([
-            'v1.admin.platillos.historial-precios', 'v1.admin.platillos.imagen', 'v1.comedor.platillos.imagen',
-        ], $pendientes);
+        $this->assertSame([], $pendientes);
     }
 
     public function test_sin_iniciar_sesion_todo_lo_privado_responde_401_con_mensaje_en_espanol(): void
@@ -101,34 +99,6 @@ class RutasDeLaApiTest extends TestCase
         }
 
         $this->assertSame([], $sinNegar, 'estas rutas debían negarle el paso a un cliente');
-    }
-
-    public function test_los_pendientes_responden_501_para_quien_tiene_el_rol_correcto(): void
-    {
-        foreach ($this->rutasV1() as $ruta) {
-            if (! $this->pendiente($ruta) || ! ($rol = $this->rolDe($ruta))) {
-                continue;
-            }
-            $this->comoRol($rol);
-
-            $respuesta = $this->json($ruta->methods()[0], $this->direccion($ruta));
-
-            $respuesta->assertStatus(501)->assertJson(['codigo' => 'no_implementado']);
-            $this->assertStringContainsString('todavía no está construido', $respuesta->json('mensaje'));
-        }
-    }
-
-    public function test_los_pendientes_publicos_tambien_responden_501(): void
-    {
-        $publicos = 0;
-        foreach ($this->rutasV1() as $ruta) {
-            if ($this->pendiente($ruta) && ! in_array('auth:sanctum', $ruta->gatherMiddleware(), true)) {
-                $this->json($ruta->methods()[0], $this->direccion($ruta))->assertStatus(501);
-                $publicos++;
-            }
-        }
-        // Las cuentas (aceptar invitación, restablecer contraseña) ya son reales: no queda ninguna ruta pública pendiente.
-        $this->assertSame(0, $publicos);
     }
 
     public function test_el_soporte_atiende_clientes_tickets_y_incidencias_pero_no_el_dinero(): void

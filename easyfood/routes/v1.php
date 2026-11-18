@@ -8,8 +8,8 @@
 | Autenticación: token Bearer de Sanctum (POST /api/auth/login). Cada grupo exige su rol (middleware `role:`):
 |   admin · support · provider (comedor) · company (empresa) · employee (empleado) · customer (cliente).
 |
-| Los endpoints marcados «PENDIENTE» ya tienen su ruta, su rol y su nombre, pero apuntan a NoImplementadoController
-| (responden 501) porque todavía no se construyen: los más complejos, el dashboard y las imágenes.
+| Ya están construidos todos los endpoints. Un endpoint nuevo puede declararse antes de construirlo apuntando a
+| NoImplementadoController: responde 501 con un mensaje claro (RutasDeLaApiTest lleva la cuenta de los pendientes).
 */
 
 use App\Http\Controllers\Api\V1\Admin;
@@ -21,7 +21,6 @@ use App\Http\Controllers\Api\V1\ContactoController;
 use App\Http\Controllers\Api\V1\Empleado;
 use App\Http\Controllers\Api\V1\Empresa;
 use App\Http\Controllers\Api\V1\MenuSemanalController;
-use App\Http\Controllers\Api\V1\NoImplementadoController as Pendiente;
 use App\Http\Controllers\Api\V1\Webhooks;
 use Illuminate\Support\Facades\Route;
 
@@ -86,8 +85,9 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::post('platillos', [Admin\PlatilloController::class, 'store'])->name('platillos.store');
             Route::put('platillos/{id}', [Admin\PlatilloController::class, 'update'])->name('platillos.update');
             Route::post('platillos/{id}/revision', [Admin\PlatilloController::class, 'revision'])->name('platillos.revision');
-            Route::get('platillos/{id}/historial-precios', Pendiente::class)->name('platillos.historial-precios'); // PENDIENTE · no hay tabla de historial
-            Route::post('platillos/{id}/imagen', Pendiente::class)->name('platillos.imagen');              // PENDIENTE · imágenes
+            Route::get('platillos/{id}/historial-precios', [Admin\PlatilloExtrasController::class, 'historial'])->name('platillos.historial-precios');
+            Route::post('platillos/{id}/precios', [Admin\PlatilloExtrasController::class, 'programarPrecio'])->name('platillos.programar-precio');
+            Route::post('platillos/{id}/imagen', [Admin\PlatilloExtrasController::class, 'imagen'])->name('platillos.imagen');
 
             Route::get('configuracion', [Admin\ConfiguracionController::class, 'show'])->name('configuracion.show');
             Route::put('configuracion', [Admin\ConfiguracionController::class, 'update'])->name('configuracion.update');
@@ -168,7 +168,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('platillos', [Comedor\PlatilloController::class, 'index'])->name('platillos.index');
         Route::post('platillos', [Comedor\PlatilloController::class, 'store'])->name('platillos.store');
         Route::put('platillos/{id}', [Comedor\PlatilloController::class, 'update'])->name('platillos.update');
-        Route::post('platillos/{id}/imagen', Pendiente::class)->name('platillos.imagen');                  // PENDIENTE · imágenes
+        Route::post('platillos/{id}/imagen', [Comedor\PlatilloImagenController::class, 'store'])->name('platillos.imagen');
         Route::get('disponibilidad', [Comedor\DisponibilidadController::class, 'index'])->name('disponibilidad.index');
         Route::put('disponibilidad', [Comedor\DisponibilidadController::class, 'guardar'])->name('disponibilidad.guardar');
         Route::get('produccion', [Comedor\ProduccionController::class, 'index'])->name('produccion.index');

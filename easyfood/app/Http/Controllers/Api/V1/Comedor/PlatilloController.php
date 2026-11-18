@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\V1\Admin\PlatilloController as PlatilloAdmin;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\V1\Vistas;
 use App\Models\Menu;
+use App\Services\HistorialDePrecios;
 use App\Support\Api\ContextoDelUsuario;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -20,12 +21,13 @@ class PlatilloController extends Controller
     }
 
     /** Crea un platillo del propio comedor (borrador o en revisión). Publicarlo lo decide el administrador. */
-    public function store(Request $request): JsonResponse
+    public function store(Request $request, HistorialDePrecios $historial): JsonResponse
     {
         $comedor = ContextoDelUsuario::comedor($request);
         $datos = $request->validate(PlatilloAdmin::reglas(crear: true));
 
         $platillo = Menu::create(PlatilloAdmin::atributos($datos) + ['provider_id' => $comedor->id]);
+        $historial->sincronizar($platillo);
 
         return response()->json(Vistas::platillo($platillo->refresh()->load('provider')), 201);
     }
@@ -34,7 +36,7 @@ class PlatilloController extends Controller
      * Edita un platillo del propio comedor. Un platillo publicado o rechazado que se edita vuelve a revisión (o a borrador
      * si se pide), para que el administrador vea los cambios antes de que lleguen a los empleados.
      */
-    public function update(Request $request, int $id): JsonResponse
+    public function update(Request $request, int $id, HistorialDePrecios $historial): JsonResponse
     {
         $comedor = ContextoDelUsuario::comedor($request);
         $platillo = Menu::query()->where('provider_id', $comedor->id)->findOrFail($id);
@@ -45,7 +47,9 @@ class PlatilloController extends Controller
             $cambios['estado_revision'] = $datos['estado_revision'] ?? 'en_revision';
             $cambios['motivo_rechazo'] = null;
         }
+        $historial->asegurarPunto($platillo);
         $platillo->update($cambios);
+        $historial->sincronizar($platillo);
 
         return response()->json(Vistas::platillo($platillo->refresh()->load('provider')));
     }

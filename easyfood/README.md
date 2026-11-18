@@ -52,7 +52,7 @@ Rutas en `routes/v1.php` (prefijo `/api/v1`), JSON en español y token Bearer de
 
 | Grupo (rol) | Prefijo | Construido | Solo ruta (501) |
 |---|---|---|---|
-| Panel de administración (`admin`; `support` en clientes, pedidos, tickets e incidencias) | `/admin` | empresas y comedores (lectura), **alta de empresa** (`POST /admin/empresas`), **alta de repartidor** (`POST /admin/repartidores`), renovar contratos, contratos por vencer, platillos (crear, editar, revisar), configuración, calendario, corte (y su vista previa), repartidores, rutas (listar, **generar**, aprobar), entregas, incidencias (listar, resolver, **candidatos y reasignar**), facturas, liquidaciones, reporte de proveedor, menú semanal, consumo de una empresa, clientes, pedidos, tickets, bitácora, **dashboard con 10 indicadores en tiempo real** (`GET /admin/dashboard`, solo `admin`) y costos operativos (listar, registrar, anular) | historial de precios, imágenes |
+| Panel de administración (`admin`; `support` en clientes, pedidos, tickets e incidencias) | `/admin` | empresas y comedores (lectura), **alta de empresa** (`POST /admin/empresas`), **alta de repartidor** (`POST /admin/repartidores`), renovar contratos, contratos por vencer, platillos (crear, editar, revisar), configuración, calendario, corte (y su vista previa), repartidores, rutas (listar, **generar**, aprobar), entregas, incidencias (listar, resolver, **candidatos y reasignar**), facturas, liquidaciones, reporte de proveedor, menú semanal, consumo de una empresa, clientes, pedidos, tickets, bitácora, **dashboard con 10 indicadores en tiempo real** (`GET /admin/dashboard`, solo `admin`) y costos operativos (listar, registrar, anular) | ninguno: todos los endpoints de la API v1 están construidos |
 | Portal de empresas (`company`) | `/empresa` | perfil, empleados (ver, **agregar**, activar/desactivar), pedidos de mañana, consumo, vista previa del mes en curso, facturas, indicadores de RR. HH. (`GET /empresa/indicadores`) | |
 | Portal de comedores (`provider`) | `/comedor` | perfil, platillos, disponibilidad, producción, pagos | imágenes |
 | Portal de empleados (`employee`) | `/empleado` | menú, elegir/quitar platillo, historial, calificar la entrega y el platillo que recibió | |
@@ -68,7 +68,7 @@ Cada portal solo ve lo suyo: la empresa, el comedor o el empleado se resuelven d
 
 ## Probar la API a mano (Bruno) y datos de ejemplo
 
-La carpeta [`bruno/`](bruno/README.md) es una colección de [Bruno](https://www.usebruno.com/) con 182 peticiones y 304 pruebas automáticas que cubren toda la API v1 (incluidos los pendientes, que deben responder 501). `DatosDeEjemploSeeder` carga empresas, comedores, empleados, platillos, historial, clientes y pedidos de ejemplo (solo desarrollo; la contraseña de las cuentas sale de `SEED_PASSWORD` en tu `.env`):
+La carpeta [`bruno/`](bruno/README.md) es una colección de [Bruno](https://www.usebruno.com/) con 191 peticiones y 316 pruebas automáticas que cubren toda la API v1 (incluidos los pendientes, que deben responder 501). `DatosDeEjemploSeeder` carga empresas, comedores, empleados, platillos, historial, clientes y pedidos de ejemplo (solo desarrollo; la contraseña de las cuentas sale de `SEED_PASSWORD` en tu `.env`):
 
 ```bash
 docker compose exec app php artisan db:seed --class=DatosDeEjemploSeeder
@@ -120,6 +120,12 @@ Sin ellas, el pago y el webhook responden `503 pagos_no_configurados`. Después 
 - **Empresa** (`POST /admin/empresas`): crea el contacto de RR. HH. (cuenta inactiva con invitación), la empresa y su contrato de 6 meses (`precio_por_platillo` $130 si no se manda). El nombre debe ser único y la `zona` debe existir en `zonas`; si no, el error lista las disponibles.
 - **Repartidor** (`POST /admin/repartidores`): cuenta con invitación, `numero_empleado` automático (`R-001`…), placas obligatorias (solo se reparte en automóvil) y `zona_base` existente.
 - **Empleados** (`POST /empresa/empleados`, hasta 500): cada persona queda inactiva hasta aceptar su invitación; sin correo se arma con el nombre y el dominio de la empresa; los correos repetidos o ya registrados se omiten y se devuelven en `omitidos`.
+
+## Fotos y precios de los platillos
+
+- **Foto** (`POST /admin/platillos/{id}/imagen` y `POST /comedor/platillos/{id}/imagen`, multipart, campo `imagen`): JPG, PNG o WebP de hasta 2 MB (se rechazan SVG y cualquier otro archivo). Se guarda en `storage/app/public/platillos` con un nombre aleatorio y `foto_url` apunta a ella; la foto anterior se borra (las fotos externas no se tocan). El comedor solo cambia las de sus platillos, y un platillo publicado o rechazado vuelve a revisión, igual que al editarlo. Para servirlas hace falta `php artisan storage:link` una vez por instalación.
+- **Historial de precios** (`GET /admin/platillos/{id}/historial-precios`): tabla `precios_de_platillos`, un tramo por precio con su costo (lo que se paga al comedor) de ese momento. `menus.price` sigue siendo el precio de hoy; la base impide dos tramos abiertos por platillo. Los platillos que ya existían arrancan con su precio actual al migrar.
+- **Programar un precio** (`POST /admin/platillos/{id}/precios { precio_venta, vigente_desde }`, solo `admin`): desde mañana o después; el tramo de hoy queda vigente hasta el día anterior. Programar otro mientras hay uno pendiente lo reemplaza (nunca llegó a aplicarse). El comando `easylunch:aplicar-precios-programados` (00:05, ya en el programador de tareas) copia a `menus.price` el que entra en vigor. Editar el precio de un platillo (admin o comedor) también deja su tramo en el historial.
 
 ## Editar y desactivar
 

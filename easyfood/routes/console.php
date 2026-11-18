@@ -34,3 +34,8 @@ Schedule::command('easylunch:cancelar-pedidos-vencidos')
 Schedule::command('easylunch:avisos-de-contratos')
     ->dailyAt('08:00')
     ->withoutOverlapping(30);
+
+// Precios de platillos programados: cada madrugada entra en vigor el que toca ese día.
+Schedule::command('easylunch:aplicar-precios-programados')
+    ->dailyAt('00:05')
+    ->withoutOverlapping(30);
