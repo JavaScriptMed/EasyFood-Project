@@ -1,0 +1,28 @@
+meta {
+  name: Activar a quien no aceptó su invitación (rechazado)
+  type: http
+  seq: 18
+}
+
+patch {
+  url: {{baseUrl}}/api/v1/cuentas/usuarios-acceso/{{usuarioInvitadoId}}/estado
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+body:json {
+  {
+    "activo": true
+  }
+}
+
+tests {
+  test("responde 422 invitacion_pendiente", function () {
+    expect(res.getStatus()).to.equal(422);
+    expect(res.body.codigo).to.equal("invitacion_pendiente");
+  });
+}

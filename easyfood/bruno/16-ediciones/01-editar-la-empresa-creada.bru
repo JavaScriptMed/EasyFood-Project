@@ -1,0 +1,48 @@
+meta {
+  name: Editar la empresa creada
+  type: http
+  seq: 1
+}
+
+put {
+  url: {{baseUrl}}/api/v1/admin/empresas/{{empresaNuevaId}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+body:json {
+  {
+    "nombre": "{{nombreEmpresaEditada}}",
+    "direccion_entrega": "Av. Nueva 99",
+    "contacto_nombre": "Contacto Editado",
+    "contacto_telefono": "33 5555 0000",
+    "porcentaje_subsidio": 40,
+    "compra_minima_mensual": 300,
+    "ventana_entrega_inicio": "12:00",
+    "ventana_entrega_fin": "12:45"
+  }
+}
+
+script:pre-request {
+  bru.setVar("nombreEmpresaEditada", "Empresa editada " + Date.now());
+}
+
+tests {
+  test("responde 200", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("cambió la empresa y su contrato", function () {
+    expect(res.body.direccion_entrega).to.equal("Av. Nueva 99");
+    expect(res.body.contacto.nombre).to.equal("Contacto Editado");
+    expect(res.body.contrato.compra_minima_mensual).to.equal(300);
+  });
+}
+
+docs {
+  Cambia la empresa, su contacto y su contrato vigente. El precio por platillo acordado no cambia.
+}

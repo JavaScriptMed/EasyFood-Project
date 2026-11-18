@@ -54,6 +54,8 @@ Route::middleware('auth:sanctum')->group(function () {
     // Invitar y reenviar: los usa el administrador, la empresa y el comedor, cada uno dentro de lo suyo.
     Route::middleware('role:admin,company,provider')->group(function () {
         Route::get('cuentas/usuarios-acceso', [Cuentas\UsuarioAccesoController::class, 'index'])->name('v1.cuentas.usuarios-acceso');              // listarUsuariosAcceso
+        Route::put('cuentas/usuarios-acceso/{id}', [Cuentas\UsuarioAccesoController::class, 'update'])->name('v1.cuentas.usuarios-acceso.update');
+        Route::patch('cuentas/usuarios-acceso/{id}/estado', [Cuentas\UsuarioAccesoController::class, 'estado'])->name('v1.cuentas.usuarios-acceso.estado');
         Route::post('cuentas/invitaciones', [Cuentas\InvitacionController::class, 'store'])->name('v1.cuentas.invitaciones.crear');               // invitarUsuario
         Route::post('cuentas/invitaciones/{id}/reenviar', [Cuentas\InvitacionController::class, 'reenviar'])->name('v1.cuentas.invitaciones.reenviar'); // reenviarInvitacion
     });
@@ -68,6 +70,9 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::post('costos-operativos/{id}/anular', [Admin\CostoOperativoController::class, 'anular'])->name('costos-operativos.anular');
 
             Route::get('empresas', [Admin\EmpresaController::class, 'index'])->name('empresas.index');
+            Route::put('empresas/{id}', [Admin\EmpresaEdicionController::class, 'update'])->name('empresas.update');
+            Route::patch('empresas/{id}/estado', [Admin\EmpresaEdicionController::class, 'estado'])->name('empresas.estado');
+            Route::put('paquetes/{id}', [Admin\PaqueteController::class, 'update'])->name('paquetes.update');
             Route::get('empresas/{id}', [Admin\EmpresaController::class, 'show'])->name('empresas.show');
             Route::post('empresas', [Admin\EmpresaAltaController::class, 'store'])->name('empresas.store');
             Route::get('empresas/{id}/consumo', [Admin\EmpresaController::class, 'consumo'])->name('empresas.consumo');
@@ -99,6 +104,9 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('repartidores', [Admin\RepartidorController::class, 'index'])->name('repartidores.index');
             Route::post('repartidores', [Admin\RepartidorController::class, 'store'])->name('repartidores.store');
             Route::get('repartidores/capacidades', [Admin\RepartidorController::class, 'capacidades'])->name('repartidores.capacidades');
+            Route::put('repartidores/capacidades', [Admin\RepartidorController::class, 'guardarCapacidades'])->name('repartidores.guardar-capacidades');
+            Route::put('repartidores/{id}', [Admin\RepartidorController::class, 'update'])->name('repartidores.update');
+            Route::patch('repartidores/{id}/estado', [Admin\RepartidorController::class, 'estado'])->name('repartidores.estado');
             Route::patch('repartidores/{id}/disponibilidad', [Admin\RepartidorController::class, 'disponibilidad'])->name('repartidores.disponibilidad');
 
             Route::get('rutas', [Admin\RutaController::class, 'index'])->name('rutas.index');
@@ -144,6 +152,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('perfil', [Empresa\PerfilController::class, 'show'])->name('perfil');
         Route::get('empleados', [Empresa\EmpleadoController::class, 'index'])->name('empleados.index');
         Route::post('empleados', [Empresa\EmpleadoAltaController::class, 'store'])->name('empleados.store');
+        Route::put('empleados/{id}', [Empresa\EmpleadoController::class, 'update'])->name('empleados.update');
         Route::patch('empleados/{id}/estado', [Empresa\EmpleadoController::class, 'estado'])->name('empleados.estado');
         Route::get('pedidos-de-manana', [Empresa\PedidosMananaController::class, 'index'])->name('pedidos-de-manana');
         Route::get('indicadores', [Empresa\IndicadoresController::class, 'show'])->name('indicadores');

@@ -1,0 +1,25 @@
+meta {
+  name: Ver mis empleados
+  type: http
+  seq: 14
+}
+
+get {
+  url: {{baseUrl}}/api/v1/empresa/empleados
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenEmpresa}}
+}
+
+script:post-response {
+  if (res.status === 200 && res.body.length) { bru.setVar("empleadoId", res.body[0].id); bru.setVar("empleadoNombre", res.body[0].nombre); }
+}
+
+tests {
+  test("responde 200", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+}

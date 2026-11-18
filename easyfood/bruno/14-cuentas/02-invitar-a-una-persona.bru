@@ -29,6 +29,7 @@ script:pre-request {
 
 script:post-response {
   if (res.status === 201) bru.setVar("invitacionId", res.body.invitacion.id);
+  if (res.status === 201) bru.setVar("usuarioInvitadoId", res.body.invitacion.usuario_id);
 }
 
 tests {

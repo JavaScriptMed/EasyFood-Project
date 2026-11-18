@@ -9,6 +9,7 @@ use App\Models\Repartidor;
 use App\Services\AltaDeCuentas;
 use App\Services\Bitacora;
 use App\Services\CalendarioDeServicio;
+use App\Services\EdicionDeRegistros;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -64,5 +65,34 @@ class RepartidorController extends Controller
         Bitacora::registrar($request->user(), 'repartidor.disponibilidad', 'repartidores', $repartidor->id, "{$repartidor->usuario?->name} pasó a «{$nuevo}».");
 
         return response()->json(Vistas::repartidor($repartidor->refresh()->load('usuario')));
+    }
+
+    public function update(Request $request, int $id, EdicionDeRegistros $ediciones): JsonResponse
+    {
+        $d = $request->validate([
+            'nombre' => 'required|string|min:2|max:120', 'telefono' => 'nullable|string|max:20', 'numero_empleado' => 'nullable|string|max:20',
+            'tipo_vehiculo' => 'nullable|string', 'placas' => 'required|string|min:3|max:15', 'zona_base' => 'required|string|max:100',
+        ]);
+        $repartidor = $ediciones->editarRepartidor($request->user(), Repartidor::query()->with('usuario')->findOrFail($id), $d);
+
+        return response()->json(Vistas::repartidor($repartidor->load('usuario')));
+    }
+
+    /** Desactiva o reactiva a un repartidor (no se puede desactivar con rutas por hacer). */
+    public function estado(Request $request, int $id, EdicionDeRegistros $ediciones): JsonResponse
+    {
+        $activo = $request->validate(['activo' => 'required|boolean'])['activo'];
+        $repartidor = $ediciones->cambiarEstadoDeRepartidor($request->user(), Repartidor::query()->with('usuario')->findOrFail($id), $activo);
+
+        return response()->json(Vistas::repartidor($repartidor->load('usuario')));
+    }
+
+    /** Cuántas entregas caben en un auto. Solo cambia las rutas que se armen desde ahora. */
+    public function guardarCapacidades(Request $request, EdicionDeRegistros $ediciones, CalendarioDeServicio $calendario): JsonResponse
+    {
+        $d = $request->validate(['automovil' => 'required|integer|min:1|max:500']);
+        $ediciones->guardarCapacidadDelAuto($request->user(), (int) $d['automovil']);
+
+        return $this->capacidades($calendario);
     }
 }

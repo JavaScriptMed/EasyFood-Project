@@ -8,6 +8,7 @@ use App\Models\EleccionEmpleado;
 use App\Models\Empleado;
 use App\Services\Bitacora;
 use App\Services\CalendarioDeServicio;
+use App\Services\EdicionDeRegistros;
 use App\Support\Api\ContextoDelUsuario;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -49,5 +50,14 @@ class EmpleadoController extends Controller
         }
 
         return response()->json(Vistas::empleado($empleado->refresh()));
+    }
+
+    /** Cambia el nombre y el departamento de un empleado de la propia empresa. */
+    public function update(Request $request, int $id, EdicionDeRegistros $ediciones): JsonResponse
+    {
+        $d = $request->validate(['nombre' => 'required|string|min:2|max:120', 'departamento' => 'nullable|string|max:100']);
+        $empleado = Empleado::query()->with('usuario.profile')->where('empresa_id', ContextoDelUsuario::empresa($request)->id)->findOrFail($id);
+
+        return response()->json(Vistas::empleado($ediciones->editarEmpleado($request->user(), $empleado, $d['nombre'], $d['departamento'] ?? null)->load('usuario.profile')));
     }
 }

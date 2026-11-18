@@ -68,7 +68,7 @@ Cada portal solo ve lo suyo: la empresa, el comedor o el empleado se resuelven d
 
 ## Probar la API a mano (Bruno) y datos de ejemplo
 
-La carpeta [`bruno/`](bruno/README.md) es una colección de [Bruno](https://www.usebruno.com/) con 163 peticiones y 275 pruebas automáticas que cubren toda la API v1 (incluidos los pendientes, que deben responder 501). `DatosDeEjemploSeeder` carga empresas, comedores, empleados, platillos, historial, clientes y pedidos de ejemplo (solo desarrollo; la contraseña de las cuentas sale de `SEED_PASSWORD` en tu `.env`):
+La carpeta [`bruno/`](bruno/README.md) es una colección de [Bruno](https://www.usebruno.com/) con 182 peticiones y 304 pruebas automáticas que cubren toda la API v1 (incluidos los pendientes, que deben responder 501). `DatosDeEjemploSeeder` carga empresas, comedores, empleados, platillos, historial, clientes y pedidos de ejemplo (solo desarrollo; la contraseña de las cuentas sale de `SEED_PASSWORD` en tu `.env`):
 
 ```bash
 docker compose exec app php artisan db:seed --class=DatosDeEjemploSeeder
@@ -120,6 +120,21 @@ Sin ellas, el pago y el webhook responden `503 pagos_no_configurados`. Después 
 - **Empresa** (`POST /admin/empresas`): crea el contacto de RR. HH. (cuenta inactiva con invitación), la empresa y su contrato de 6 meses (`precio_por_platillo` $130 si no se manda). El nombre debe ser único y la `zona` debe existir en `zonas`; si no, el error lista las disponibles.
 - **Repartidor** (`POST /admin/repartidores`): cuenta con invitación, `numero_empleado` automático (`R-001`…), placas obligatorias (solo se reparte en automóvil) y `zona_base` existente.
 - **Empleados** (`POST /empresa/empleados`, hasta 500): cada persona queda inactiva hasta aceptar su invitación; sin correo se arma con el nombre y el dominio de la empresa; los correos repetidos o ya registrados se omiten y se devuelven en `omitidos`.
+
+## Editar y desactivar
+
+Nada se borra: «eliminar» es **desactivar** (`activo = false`, con su fecha) y se puede reactivar. Cada cambio queda en la bitácora.
+
+| Qué | Endpoint | Quién | Reglas |
+|---|---|---|---|
+| Empresa | `PUT /admin/empresas/{id}`, `PATCH …/estado` | `admin` | nombre único, ventana de entrega válida, necesita un contrato activo; el precio por platillo acordado no cambia y lo ya elegido conserva su precio y subsidio |
+| Empleado | `PUT /empresa/empleados/{id}` | `company` (los suyos) | nombre y departamento |
+| Plan | `PUT /admin/paquetes/{id}` | `admin` | nombre único, descuento de 0 a 100; los días no cambian |
+| Repartidor | `PUT /admin/repartidores/{id}`, `PATCH …/estado` | `admin` | solo automóvil con placas, zona existente, número de empleado único; no se desactiva con rutas por hacer (`repartidor_con_rutas`) |
+| Capacidad del auto | `PUT /admin/repartidores/capacidades { automovil }` | `admin` | las rutas ya creadas conservan la suya |
+| Persona con acceso | `PUT /cuentas/usuarios-acceso/{id}`, `PATCH …/estado` | `admin`, y cada empresa o comedor con la suya | el rol debe corresponder a la organización; nadie cambia ni desactiva su propia cuenta; el titular de una empresa o comedor no cambia de rol; no se activa a quien no aceptó su invitación; al desactivar o cambiar de rol se cierran sus sesiones |
+
+Pendiente (son del equipo de comedores y platillos): editar y desactivar comedores, desactivar platillos y programar precios.
 
 ## Rutas e incidencias
 

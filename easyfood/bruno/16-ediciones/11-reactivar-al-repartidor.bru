@@ -1,0 +1,32 @@
+meta {
+  name: Reactivar al repartidor
+  type: http
+  seq: 11
+}
+
+patch {
+  url: {{baseUrl}}/api/v1/admin/repartidores/{{repartidorNuevoId}}/estado
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+body:json {
+  {
+    "activo": true
+  }
+}
+
+tests {
+  test("responde 200", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("vuelve a estar libre", function () {
+    expect(res.body.activo).to.equal(true);
+    expect(res.body.estado).to.equal("libre");
+  });
+}

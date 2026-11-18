@@ -43,7 +43,7 @@ Las pantallas no cambiaron: siguen llamando a las mismas funciones de `@/lib/api
 
 ## Qué ya es real y qué falta
 
-Las altas (empresa con su contrato, repartidor y empleados), regenerar rutas y reasignar incidencias (con sus candidatos) ya son reales. Todo funciona con el backend **excepto** lo que el backend todavía no construye. Esas funciones avisan con un mensaje claro («… todavía no está disponible en el servidor») o muestran su pantalla vacía:
+Las altas, regenerar rutas, reasignar incidencias y editar o desactivar empresas, empleados, planes, repartidores, límite del auto y personas con acceso ya son reales. Todo funciona con el backend **excepto** lo que el backend todavía no construye. Esas funciones avisan con un mensaje claro («… todavía no está disponible en el servidor») o muestran su pantalla vacía:
 
 - **Datos sin tabla todavía:** historial de precios (vacío). El dashboard ya es real (resumen, alertas y los 10 indicadores).
 
@@ -65,7 +65,7 @@ Las ventanas viven en `components/ventanas.tsx` (formulario, confirmación y pan
 | Facturas, pedidos de mañana, pagos al comedor | — | — | — | sí |
 | Elección del empleado | sí | sí | quitar | sí |
 
-**Ventanas listas, rutas del backend pendientes** (devuelven «… todavía no está disponible en el servidor»; las funciones ya existen en `lib/api.ts` y en la maqueta): `editarEmpresa`, `cambiarEstadoEmpresa`, `editarComedor`, `cambiarEstadoComedor`, `editarEmpleado`, `cambiarEstadoPlatillo`, `editarPlan`, `programarPrecioPlatillo`, `editarRepartidor`, `cambiarEstadoRepartidor`, `guardarCapacidadesVehiculo`, `editarUsuarioAcceso` y `cambiarEstadoUsuarioAcceso`. Ya son reales: editar platillo (`PUT …/platillos/{id}`) y quitar la elección (`DELETE /empleado/elecciones`).
+**Ventanas listas, rutas del backend pendientes** (devuelven «… todavía no está disponible en el servidor»; las funciones ya existen en `lib/api.ts` y en la maqueta): `editarComedor`, `cambiarEstadoComedor`, `cambiarEstadoPlatillo` y `programarPrecioPlatillo`. Ya son reales: editar platillo (`PUT …/platillos/{id}`) y quitar la elección (`DELETE /empleado/elecciones`).
 
 ## Dashboard e indicadores
 

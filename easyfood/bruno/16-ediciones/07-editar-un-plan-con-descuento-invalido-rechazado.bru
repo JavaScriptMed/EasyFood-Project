@@ -1,0 +1,30 @@
+meta {
+  name: Editar un plan con descuento inválido (rechazado)
+  type: http
+  seq: 7
+}
+
+put {
+  url: {{baseUrl}}/api/v1/admin/paquetes/{{planId}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+body:json {
+  {
+    "nombre": "{{planNombre}}",
+    "descuento_porcentaje": 150,
+    "destacado": false
+  }
+}
+
+tests {
+  test("responde 422", function () {
+    expect(res.getStatus()).to.equal(422);
+    expect(res.body.errores).to.have.property("descuento_porcentaje");
+  });
+}

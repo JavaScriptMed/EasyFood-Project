@@ -141,7 +141,7 @@ class AltaDeCuentas
     // ------------------------------------------------------------------ apoyo
 
     /** El nombre de la zona tal como está cargada. Sin zona cargada nadie podría pedir ni se podrían armar rutas. */
-    private function zonaExistente(string $zona): string
+    public function zonaExistente(string $zona): string
     {
         $existente = DB::table('zonas')->whereRaw('lower(nombre) = ?', [Str::lower(trim($zona))])->value('nombre');
         if ($existente) {

@@ -1,0 +1,35 @@
+meta {
+  name: Editar el repartidor creado
+  type: http
+  seq: 8
+}
+
+put {
+  url: {{baseUrl}}/api/v1/admin/repartidores/{{repartidorNuevoId}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+body:json {
+  {
+    "nombre": "Repartidor Editado",
+    "telefono": "33 2222 3333",
+    "placas": "jal-888-c",
+    "zona_base": "centro"
+  }
+}
+
+tests {
+  test("responde 200", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("placas en mayúsculas y zona con su nombre", function () {
+    expect(res.body.placas).to.equal("JAL-888-C");
+    expect(res.body.zona_base).to.equal("Centro");
+  });
+}

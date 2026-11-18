@@ -1,0 +1,28 @@
+meta {
+  name: Capacidad del auto en cero (rechazada)
+  type: http
+  seq: 13
+}
+
+put {
+  url: {{baseUrl}}/api/v1/admin/repartidores/capacidades
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+body:json {
+  {
+    "automovil": 0
+  }
+}
+
+tests {
+  test("responde 422", function () {
+    expect(res.getStatus()).to.equal(422);
+    expect(res.body.errores).to.have.property("automovil");
+  });
+}

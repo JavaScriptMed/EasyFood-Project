@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1\Cuentas;
 
 use App\Http\Controllers\Controller;
+use App\Services\EdicionDeRegistros;
 use App\Services\Invitaciones;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -15,5 +16,21 @@ class UsuarioAccesoController extends Controller
         $d = $request->validate(['tipo' => 'required|in:comedor,empresa,plataforma', 'id' => 'nullable|integer|required_unless:tipo,plataforma']);
 
         return response()->json($invitaciones->accesoDe($request->user(), $d['tipo'], $d['tipo'] === 'plataforma' ? null : (int) $d['id']));
+    }
+
+    /** Cambia el nombre y el rol de una persona con acceso (el titular no cambia de rol; nadie cambia el suyo). */
+    public function update(Request $request, int $id, EdicionDeRegistros $ediciones): JsonResponse
+    {
+        $d = $request->validate(['nombre' => 'required|string|min:2|max:120', 'rol' => 'required|in:administrador,soporte,empresa,comedor']);
+
+        return response()->json($ediciones->editarUsuarioDeAcceso($request->user(), $id, $d['nombre'], $d['rol']));
+    }
+
+    /** Desactiva o reactiva a una persona con acceso. Al desactivarla se cierran sus sesiones. */
+    public function estado(Request $request, int $id, EdicionDeRegistros $ediciones): JsonResponse
+    {
+        $activo = $request->validate(['activo' => 'required|boolean'])['activo'];
+
+        return response()->json($ediciones->cambiarEstadoDeUsuarioDeAcceso($request->user(), $id, $activo));
     }
 }
