@@ -151,14 +151,14 @@ class EjecutorDelCorte
         ))->groupBy('empleado_id')->map(fn ($filas) => $filas->pluck('menu_id', 'tiempo_comida'));
 
         $disponibilidad = DisponibilidadDia::query()->whereDate('fecha', $fecha)->orderBy('id')->lockForUpdate()->get()->keyBy('menu_id');
-        $menus = Menu::query()->whereIn('id', $disponibilidad->keys())->get()->keyBy('id');
+        $menus = Menu::query()->with('provider')->whereIn('id', $disponibilidad->keys())->get()->keyBy('id');
         $tomadas = [];
 
         $hayPorcion = function (?int $menuId, string $tiempo) use ($disponibilidad, $menus, &$tomadas): bool {
             $menu = $menuId ? $menus->get($menuId) : null;
             $disp = $menuId ? $disponibilidad->get($menuId) : null;
 
-            return $menu && $disp && $menu->estado_revision === 'publicado' && $menu->is_available && $menu->tiempo_comida === $tiempo
+            return $menu && $disp && $menu->estado_revision === 'publicado' && $menu->is_available && $menu->provider?->is_active && $menu->tiempo_comida === $tiempo
                 && $disp->porciones_tomadas + ($tomadas[$menuId] ?? 0) < $disp->porciones_maximas;
         };
 
@@ -271,7 +271,7 @@ class EjecutorDelCorte
         $candidatos = [];
         foreach ($disponibilidad as $menuId => $disp) {
             $menu = $menus->get($menuId);
-            if ($disp->es_platillo_del_dia && $menu && $menu->estado_revision === 'publicado' && $menu->is_available
+            if ($disp->es_platillo_del_dia && $menu && $menu->estado_revision === 'publicado' && $menu->is_available && $menu->provider?->is_active
                 && $menu->tiempo_comida === $tiempo && isset($avance[$menu->provider_id])) {
                 $candidatos[] = ['menu' => $menuId, 'comedor' => $menu->provider_id] + $avance[$menu->provider_id];
             }

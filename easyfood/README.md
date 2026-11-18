@@ -52,7 +52,7 @@ Rutas en `routes/v1.php` (prefijo `/api/v1`), JSON en español y token Bearer de
 
 | Grupo (rol) | Prefijo | Construido | Solo ruta (501) |
 |---|---|---|---|
-| Panel de administración (`admin`; `support` en clientes, pedidos, tickets e incidencias) | `/admin` | empresas y comedores (lectura), **alta de empresa** (`POST /admin/empresas`), **alta de repartidor** (`POST /admin/repartidores`), renovar contratos, contratos por vencer, platillos (crear, editar, revisar), configuración, calendario, corte (y su vista previa), repartidores, rutas (listar, **generar**, aprobar), entregas, incidencias (listar, resolver, **candidatos y reasignar**), facturas, liquidaciones, reporte de proveedor, menú semanal, consumo de una empresa, clientes, pedidos, tickets, bitácora, **dashboard con 10 indicadores en tiempo real** (`GET /admin/dashboard`, solo `admin`) y costos operativos (listar, registrar, anular) | ninguno: todos los endpoints de la API v1 están construidos |
+| Panel de administración (`admin`; `support` en clientes, pedidos, tickets e incidencias) | `/admin` | empresas y comedores (lectura), **alta de empresa** (`POST /admin/empresas`), **alta de repartidor** (`POST /admin/repartidores`), renovar contratos, contratos por vencer, platillos (crear, editar, revisar), configuración, calendario, corte (y su vista previa), repartidores, rutas (listar, **generar**, aprobar), entregas, incidencias (listar, resolver, **candidatos y reasignar**), facturas, liquidaciones, reporte de proveedor, menú semanal, consumo de una empresa, clientes, pedidos, tickets, bitácora, **dashboard con 10 indicadores en tiempo real** (`GET /admin/dashboard`, solo `admin`) y costos operativos (listar, registrar, anular) | ninguno: todos los endpoints de la API v1 están construidos (ninguna ruta apunta a un controlador provisional; `RutasDeLaApiTest` lo comprueba) |
 | Portal de empresas (`company`) | `/empresa` | perfil, empleados (ver, **agregar**, activar/desactivar), pedidos de mañana, consumo, vista previa del mes en curso, facturas, indicadores de RR. HH. (`GET /empresa/indicadores`) | |
 | Portal de comedores (`provider`) | `/comedor` | perfil, platillos, disponibilidad, producción, pagos | imágenes |
 | Portal de empleados (`employee`) | `/empleado` | menú, elegir/quitar platillo, historial, calificar la entrega y el platillo que recibió | |
@@ -68,7 +68,7 @@ Cada portal solo ve lo suyo: la empresa, el comedor o el empleado se resuelven d
 
 ## Probar la API a mano (Bruno) y datos de ejemplo
 
-La carpeta [`bruno/`](bruno/README.md) es una colección de [Bruno](https://www.usebruno.com/) con 204 peticiones y 332 pruebas automáticas que cubren toda la API v1 (incluidos los pendientes, que deben responder 501). `DatosDeEjemploSeeder` carga empresas, comedores, empleados, platillos, historial, clientes y pedidos de ejemplo (solo desarrollo; la contraseña de las cuentas sale de `SEED_PASSWORD` en tu `.env`):
+La carpeta [`bruno/`](bruno/README.md) es una colección de [Bruno](https://www.usebruno.com/) con 211 peticiones y 345 pruebas automáticas que cubren toda la API v1 (incluidos los pendientes, que deben responder 501). `DatosDeEjemploSeeder` carga empresas, comedores, empleados, platillos, historial, clientes y pedidos de ejemplo (solo desarrollo; la contraseña de las cuentas sale de `SEED_PASSWORD` en tu `.env`):
 
 ```bash
 docker compose exec app php artisan db:seed --class=DatosDeEjemploSeeder
@@ -146,7 +146,10 @@ Nada se borra: «eliminar» es **desactivar** (`activo = false`, con su fecha) y
 | Capacidad del auto | `PUT /admin/repartidores/capacidades { automovil }` | `admin` | las rutas ya creadas conservan la suya |
 | Persona con acceso | `PUT /cuentas/usuarios-acceso/{id}`, `PATCH …/estado` | `admin`, y cada empresa o comedor con la suya | el rol debe corresponder a la organización; nadie cambia ni desactiva su propia cuenta; el titular de una empresa o comedor no cambia de rol; no se activa a quien no aceptó su invitación; al desactivar o cambiar de rol se cierran sus sesiones |
 
-Pendiente (son del equipo de comedores y platillos): editar y desactivar comedores, desactivar platillos y programar precios.
+| Comedor | `PUT /admin/comedores/{id}`, `PATCH …/estado` | `admin` | nombre único, zona existente, necesita contrato activo; precio y mínimo > 0 (el precio nuevo aplica a lo que se entregue desde ahora); el correo del contacto se corrige solo mientras no acepte su invitación; **desactivar** deja de ofrecer TODOS sus platillos sin cambiar el estado de cada uno (al reactivar vuelve todo) y no se puede con platillos por entregar (`comedor_con_pedidos`) |
+| Platillo | `PATCH /admin/platillos/{id}/estado`, `PATCH /comedor/platillos/{id}/estado` | `admin`; el comedor solo los suyos | quita o vuelve a poner el platillo en la oferta (`is_available`); no se quita con elecciones o pedidos por entregar (`platillo_con_pedidos`) |
+
+No se modificaron las clases `Provider` ni `Menu`: las reglas viven en `EdicionDeRegistros`.
 
 ## Corregir el correo
 

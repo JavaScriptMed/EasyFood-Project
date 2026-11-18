@@ -79,7 +79,7 @@ class ContratacionDePaquetes
                     $lineas[] = [$porDia[$i]['extra']->tiempo_comida, $porDia[$i]['extra'], true];
                 }
                 foreach ($lineas as [$tiempo, $menu, $esExtra]) {
-                    if ($menu->estado_revision !== 'publicado' || ! $menu->is_available) {
+                    if ($menu->estado_revision !== 'publicado' || ! $menu->is_available || ! $menu->provider?->is_active) {
                         throw new ReglaDeNegocioException('platillo_no_disponible', "El platillo de {$tiempo} del día {$fecha->toDateString()} no está disponible.");
                     }
                     $disponibilidad = DisponibilidadDia::query()->where('menu_id', $menu->id)->whereDate('fecha', $fecha->toDateString())->lockForUpdate()->first();

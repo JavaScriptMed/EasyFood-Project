@@ -643,6 +643,7 @@ export interface EdicionComedor {
   nombre: string
   zona: string
   contacto_nombre: string
+  contacto_correo?: string // solo se cambia mientras el contacto no acepte su invitación
   contacto_telefono: string
   precio_por_platillo: number
   compra_minima_mensual: number

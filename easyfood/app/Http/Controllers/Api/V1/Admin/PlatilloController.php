@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\V1\Vistas;
 use App\Models\Menu;
 use App\Services\Bitacora;
+use App\Services\EdicionDeRegistros;
 use App\Services\HistorialDePrecios;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -49,6 +50,15 @@ class PlatilloController extends Controller
         $historial->sincronizar($platillo);
 
         return response()->json(Vistas::platillo($platillo->refresh()->load('provider')));
+    }
+
+    /** Pone o quita un platillo de la oferta (desactivar no borra nada). */
+    public function estado(Request $request, int $id, EdicionDeRegistros $ediciones): JsonResponse
+    {
+        $activo = $request->validate(['activo' => 'required|boolean'])['activo'];
+        $platillo = $ediciones->cambiarEstadoDePlatillo($request->user(), Menu::query()->findOrFail($id), $activo);
+
+        return response()->json(Vistas::platillo($platillo->load('provider')));
     }
 
     /** El administrador aprueba (publica) o rechaza (con motivo) un platillo que está en revisión. */

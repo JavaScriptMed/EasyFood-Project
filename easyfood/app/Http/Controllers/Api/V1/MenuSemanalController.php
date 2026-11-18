@@ -23,7 +23,7 @@ class MenuSemanalController extends Controller
             $fecha = $inicio->addDays($i);
             $celdas = [];
             $disponibles = DisponibilidadDia::query()->with('menu')->whereDate('fecha', $fecha->toDateString())
-                ->whereHas('menu', fn ($q) => $q->where('estado_revision', 'publicado')->where('is_available', true))->orderBy('menu_id')->get();
+                ->whereHas('menu', fn ($q) => $q->where('estado_revision', 'publicado')->where('is_available', true)->whereHas('provider', fn ($p) => $p->where('is_active', true)))->orderBy('menu_id')->get();
             foreach ($disponibles as $d) {
                 $celdas[$d->menu->tiempo_comida] ??= [
                     'platillo_id' => $d->menu_id, 'platillo_nombre' => $d->menu->name, 'precio_venta' => round((float) $d->menu->price, 2), 'porciones_maximas' => $d->porciones_maximas,

@@ -33,7 +33,7 @@ class MenuController extends Controller
         $cubre = $contrato ? (int) round($precio * (float) $contrato->porcentaje_subsidio / 100) : 0;
 
         $opciones = $cerradoPorEmpresa ? collect() : DisponibilidadDia::query()->with('menu.provider')->whereDate('fecha', $fecha->toDateString())
-            ->whereHas('menu', fn ($q) => $q->where('estado_revision', 'publicado')->where('is_available', true)->where('tiempo_comida', $tiempo))
+            ->whereHas('menu', fn ($q) => $q->where('estado_revision', 'publicado')->where('is_available', true)->whereHas('provider', fn ($p) => $p->where('is_active', true))->where('tiempo_comida', $tiempo))
             ->orderBy('menu_id')->get();
         $eleccion = EleccionEmpleado::query()->with('menu')->where('empleado_id', $empleado->id)->whereDate('fecha', $fecha->toDateString())->where('tiempo_comida', $tiempo)->first();
 

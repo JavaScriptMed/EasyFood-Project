@@ -3,11 +3,13 @@
 namespace App\Services;
 
 use App\Exceptions\ReglaDeNegocioException;
+use App\Models\ContratoComedor;
 use App\Models\ContratoEmpresa;
 use App\Models\Configuracion;
 use App\Models\Empleado;
 use App\Models\Empresa;
 use App\Models\Invitacion;
+use App\Models\Menu;
 use App\Models\Paquete;
 use App\Models\Provider;
 use App\Models\Repartidor;
@@ -76,6 +78,96 @@ class EdicionDeRegistros
         }
 
         return $empresa->refresh();
+    }
+
+    // ------------------------------------------------------------------ comedores y platillos
+
+    /**
+     * Edita el comedor, su contacto y las condiciones de su contrato vigente (precio por platillo y mínimo mensual). El precio nuevo aplica
+     * a lo que se entregue desde ahora. No cambia las clases del equipo: solo lee y guarda con ellas.
+     *
+     * @param  array{nombre: string, zona: string, contacto_nombre?: ?string, contacto_correo?: ?string, contacto_telefono?: ?string, precio_por_platillo: float|int|string, compra_minima_mensual: int}  $d
+     */
+    public function editarComedor(User $actor, Provider $comedor, array $d): Provider
+    {
+        $nombre = trim($d['nombre']);
+        if (Provider::query()->where('id', '<>', $comedor->id)->where(fn ($q) => $q->whereRaw('lower(commercial_name) = ?', [Str::lower($nombre)])->orWhereRaw('lower(business_name) = ?', [Str::lower($nombre)]))->exists()) {
+            throw new ReglaDeNegocioException('comedor_repetido', 'Ya hay otro comedor con ese nombre.');
+        }
+        $zona = $this->altas->zonaExistente($d['zona']);
+        $contrato = ContratoComedor::query()->activos()->where('comedor_id', $comedor->id)->orderByDesc('vigencia_inicio')->first()
+            ?? throw new ReglaDeNegocioException('sin_contrato', 'El comedor no tiene un contrato activo que editar: renueva el contrato primero.');
+        $correoNuevo = ! empty($d['contacto_correo']) && $comedor->user ? $this->invitaciones->validarCambioDeCorreo($comedor->user, $d['contacto_correo']) : null;
+
+        DB::transaction(function () use ($actor, $comedor, $contrato, $d, $nombre, $zona, $correoNuevo) {
+            $comedor->update(array_filter([
+                'commercial_name' => $nombre, 'zona' => $zona,
+                'phone' => ! empty($d['contacto_telefono']) ? trim($d['contacto_telefono']) : null,
+                'email' => $correoNuevo ? Str::lower(trim($d['contacto_correo'])) : null,
+            ], fn ($v) => $v !== null));
+            $contrato->update(['precio_por_platillo' => $d['precio_por_platillo'], 'compra_minima_mensual' => $d['compra_minima_mensual']]);
+            $this->renombrar($comedor->user, $d['contacto_nombre'] ?? null, $d['contacto_telefono'] ?? null);
+            Bitacora::registrar($actor, 'actualizar', 'comedores', $comedor->id, "Editó el comedor {$nombre}.");
+        });
+        if ($correoNuevo) {
+            $this->invitaciones->aplicarCambioDeCorreo($actor, $comedor->user, $correoNuevo, $d['contacto_correo']);
+        }
+
+        return $comedor->refresh();
+    }
+
+    /**
+     * Desactiva o reactiva un comedor. Desactivado deja de ofrecer TODOS sus platillos (sin cambiar el estado de cada uno, así que al
+     * reactivarlo todo vuelve como estaba) y no entra a liquidaciones nuevas. No se puede desactivar con entregas por hacer.
+     */
+    public function cambiarEstadoDeComedor(User $actor, Provider $comedor, bool $activo): Provider
+    {
+        if ($comedor->is_active === $activo) {
+            return $comedor;
+        }
+        if (! $activo && ($pendientes = $this->pedidosPorEntregar(Menu::query()->where('provider_id', $comedor->id)->pluck('id')->all())) > 0) {
+            throw new ReglaDeNegocioException('comedor_con_pedidos', "Ese comedor tiene {$pendientes} platillo(s) por entregar: espera a que se entreguen antes de desactivarlo.");
+        }
+
+        $comedor->update(['is_active' => $activo]);
+        $nombre = $comedor->commercial_name ?: $comedor->business_name;
+        Bitacora::registrar($actor, $activo ? 'reactivar' : 'desactivar', 'comedores', $comedor->id, ($activo ? 'Reactivó' : 'Desactivó')." el comedor {$nombre}.");
+
+        return $comedor->refresh();
+    }
+
+    /**
+     * Pone o quita un platillo de la oferta (`is_available`): desactivado ya nadie lo elige ni lo pide, pero conserva su historial.
+     * No se puede quitar mientras tenga elecciones o pedidos por entregar.
+     */
+    public function cambiarEstadoDePlatillo(User $actor, Menu $platillo, bool $activo): Menu
+    {
+        if ($platillo->is_available === $activo) {
+            return $platillo;
+        }
+        if (! $activo && ($pendientes = $this->pedidosPorEntregar([$platillo->id])) > 0) {
+            throw new ReglaDeNegocioException('platillo_con_pedidos', "«{$platillo->name}» tiene {$pendientes} entrega(s) por hacer: espera a que se entreguen antes de desactivarlo.");
+        }
+
+        $platillo->update(['is_available' => $activo]);
+        Bitacora::registrar($actor, $activo ? 'platillo.reactivado' : 'platillo.desactivado', 'platillos', $platillo->id, ($activo ? 'Reactivó' : 'Desactivó')." el platillo «{$platillo->name}».");
+
+        return $platillo->refresh();
+    }
+
+    /** Platillos elegidos por empleados o pedidos por clientes, de hoy en adelante y aún por entregar. */
+    private function pedidosPorEntregar(array $menuIds): int
+    {
+        if ($menuIds === []) {
+            return 0;
+        }
+        $hoy = $this->calendario->ahora()->toDateString();
+
+        $empleados = DB::table('elecciones_empleado')->whereIn('menu_id', $menuIds)->whereDate('fecha', '>=', $hoy)->count();
+        $clientes = DB::table('pedido_dia_platillos as c')->join('pedido_dias as d', 'd.id', '=', 'c.pedido_dia_id')->join('pedidos as p', 'p.id', '=', 'd.pedido_id')
+            ->whereIn('c.menu_id', $menuIds)->whereDate('d.fecha', '>=', $hoy)->where('d.estado', 'programada')->whereIn('p.estado', ['pendiente_pago', 'recibido', 'activo'])->count();
+
+        return $empleados + $clientes;
     }
 
     // ------------------------------------------------------------------ empleados

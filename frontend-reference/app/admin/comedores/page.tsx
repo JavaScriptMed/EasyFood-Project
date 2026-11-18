@@ -64,7 +64,7 @@ export default function ComedoresPage() {
 /** Editar los datos del comedor y las condiciones de su contrato (precio por platillo y mínimo mensual). */
 function EditarComedor({ comedor, onCerrar, onGuardado }: { comedor: ComedorDetalle; onCerrar: () => void; onGuardado: () => void }) {
   const [form, setForm] = useState({
-    nombre: comedor.nombre, zona: comedor.zona, contacto_nombre: comedor.contacto.nombre, contacto_telefono: comedor.contacto.telefono ?? "",
+    nombre: comedor.nombre, zona: comedor.zona, contacto_nombre: comedor.contacto.nombre, contacto_correo: comedor.contacto.correo, contacto_telefono: comedor.contacto.telefono ?? "",
     precio_por_platillo: String(comedor.contrato.precio_por_platillo), compra_minima_mensual: String(comedor.contrato.compra_minima_mensual),
   })
   const [guardando, setGuardando] = useState(false)
@@ -85,7 +85,7 @@ function EditarComedor({ comedor, onCerrar, onGuardado }: { comedor: ComedorDeta
   return <VentanaFormulario titulo={`Editar ${comedor.nombre}`} descripcion="El precio por platillo aplica a lo que se entregue desde ahora." textoEnviar="Guardar cambios" trabajando={guardando} deshabilitarEnvio={invalido} onCerrar={onCerrar} onEnviar={guardar} ancho="max-w-lg">
     <CampoTexto etiqueta="Nombre del comedor" required autoFocus {...campo("nombre")} />
     <div className="grid gap-4 sm:grid-cols-2"><CampoTexto etiqueta="Zona" {...campo("zona")} /><CampoTexto etiqueta="Contacto" {...campo("contacto_nombre")} /></div>
-    <CampoTexto etiqueta="Teléfono de contacto" type="tel" {...campo("contacto_telefono")} />
+    <div className="grid gap-4 sm:grid-cols-2"><CampoTexto etiqueta="Teléfono de contacto" type="tel" {...campo("contacto_telefono")} /><CampoTexto etiqueta="Correo del contacto" type="email" ayuda="Se corrige mientras no acepte su invitación." {...campo("contacto_correo")} /></div>
     <div className="grid gap-4 sm:grid-cols-2"><CampoTexto etiqueta="Precio por platillo (MXN)" type="number" min={1} step="0.01" {...campo("precio_por_platillo")} /><CampoTexto etiqueta="Mínimo mensual (platillos)" type="number" min={0} {...campo("compra_minima_mensual")} /></div>
   </VentanaFormulario>
 }

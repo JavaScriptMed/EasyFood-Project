@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\V1\Admin\PlatilloController as PlatilloAdmin;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\V1\Vistas;
 use App\Models\Menu;
+use App\Services\EdicionDeRegistros;
 use App\Services\HistorialDePrecios;
 use App\Support\Api\ContextoDelUsuario;
 use Illuminate\Http\JsonResponse;
@@ -52,5 +53,14 @@ class PlatilloController extends Controller
         $historial->sincronizar($platillo);
 
         return response()->json(Vistas::platillo($platillo->refresh()->load('provider')));
+    }
+
+    /** El comedor quita de la oferta (o vuelve a ofrecer) uno de sus platillos. */
+    public function estado(Request $request, int $id, EdicionDeRegistros $ediciones): JsonResponse
+    {
+        $activo = $request->validate(['activo' => 'required|boolean'])['activo'];
+        $platillo = Menu::query()->where('provider_id', ContextoDelUsuario::comedor($request)->id)->findOrFail($id);
+
+        return response()->json(Vistas::platillo($ediciones->cambiarEstadoDePlatillo($request->user(), $platillo, $activo)->load('provider')));
     }
 }

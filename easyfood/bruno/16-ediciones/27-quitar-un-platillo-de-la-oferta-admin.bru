@@ -1,0 +1,35 @@
+meta {
+  name: Quitar un platillo de la oferta (admin)
+  type: http
+  seq: 27
+}
+
+patch {
+  url: {{baseUrl}}/api/v1/admin/platillos/{{platilloNuevoId}}/estado
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+body:json {
+  {
+    "activo": false
+  }
+}
+
+tests {
+  test("responde 200", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("queda inactivo", function () {
+    expect(res.body.activo).to.equal(false);
+  });
+}
+
+docs {
+  Nadie lo elige ni lo pide, pero conserva su historial. Con elecciones o pedidos por entregar responde 422 `platillo_con_pedidos`.
+}

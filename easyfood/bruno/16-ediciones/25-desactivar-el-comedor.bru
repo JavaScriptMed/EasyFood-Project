@@ -1,0 +1,35 @@
+meta {
+  name: Desactivar el comedor
+  type: http
+  seq: 25
+}
+
+patch {
+  url: {{baseUrl}}/api/v1/admin/comedores/{{comedorNuevoId}}/estado
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+body:json {
+  {
+    "activo": false
+  }
+}
+
+tests {
+  test("responde 200", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("queda inactivo", function () {
+    expect(res.body.activo).to.equal(false);
+  });
+}
+
+docs {
+  Deja de ofrecer todos sus platillos (sin cambiar el estado de cada uno). No se puede con entregas por hacer: `comedor_con_pedidos`.
+}

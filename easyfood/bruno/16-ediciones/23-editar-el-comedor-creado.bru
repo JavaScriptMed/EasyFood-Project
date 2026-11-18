@@ -1,0 +1,47 @@
+meta {
+  name: Editar el comedor creado
+  type: http
+  seq: 23
+}
+
+put {
+  url: {{baseUrl}}/api/v1/admin/comedores/{{comedorNuevoId}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+body:json {
+  {
+    "nombre": "{{nombreComedorEditado}}",
+    "zona": "centro",
+    "contacto_nombre": "Contacto Editado",
+    "contacto_telefono": "33 7777 8888",
+    "precio_por_platillo": 55.5,
+    "compra_minima_mensual": 350
+  }
+}
+
+script:pre-request {
+  bru.setVar("nombreComedorEditado", "Comedor editado " + Date.now());
+}
+
+tests {
+  test("responde 200", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("cambió el comedor y su contrato", function () {
+    expect(res.body.contacto.nombre).to.equal("Contacto Editado");
+    expect(res.body.contrato.precio_por_platillo).to.equal(55.5);
+    expect(res.body.contrato.compra_minima_mensual).to.equal(350);
+    expect(res.body.zona).to.equal("Centro");
+  });
+}
+
+docs {
+  Cambia el comedor, su contacto y el contrato vigente. El precio nuevo aplica a lo que se entregue desde ahora.
+}

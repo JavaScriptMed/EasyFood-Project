@@ -37,7 +37,7 @@ class EleccionDePlatillos
                 ?? throw new ReglaDeNegocioException('sin_contrato_vigente', 'La empresa no tiene un contrato vigente para ese día.');
 
             $platillo = Menu::query()->find($menu instanceof Menu ? $menu->id : $menu);
-            if (! $platillo || $platillo->estado_revision !== 'publicado' || ! $platillo->is_available || $platillo->tiempo_comida !== $tiempoComida) {
+            if (! $platillo || $platillo->estado_revision !== 'publicado' || ! $platillo->is_available || ! $platillo->provider?->is_active || $platillo->tiempo_comida !== $tiempoComida) {
                 throw new ReglaDeNegocioException('platillo_no_disponible', 'Ese platillo no está disponible para ese tiempo de comida.');
             }
 

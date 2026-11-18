@@ -1,0 +1,31 @@
+meta {
+  name: Editar comedor con zona inexistente (rechazado)
+  type: http
+  seq: 24
+}
+
+put {
+  url: {{baseUrl}}/api/v1/admin/comedores/{{comedorNuevoId}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+body:json {
+  {
+    "nombre": "Comedor X",
+    "zona": "Narnia",
+    "precio_por_platillo": 50,
+    "compra_minima_mensual": 200
+  }
+}
+
+tests {
+  test("responde 422 zona_inexistente", function () {
+    expect(res.getStatus()).to.equal(422);
+    expect(res.body.codigo).to.equal("zona_inexistente");
+  });
+}
