@@ -19,8 +19,40 @@ docker compose exec app php artisan migrate
 - Salud de la API y de la base de datos: http://localhost:8000/api/v1/salud
 - Base de datos desde tu equipo (DBeaver, TablePlus…): `127.0.0.1:5432`, con el usuario y la clave de tu `.env`.
 - Apagar: `docker compose down` (los datos se conservan en el volumen `pgdata`; `docker compose down -v` los borra).
-- Si ya tenías el volumen de la base de datos creado antes de esta configuración, crea la base de pruebas una vez:
-  `docker compose exec db psql -U <DB_USERNAME> -d postgres -c "CREATE DATABASE easylunch_pruebas"`
+- Las bases de demo y de pruebas se explican abajo, en «Bases de datos: desarrollo, demo y pruebas».
+
+## Bases de datos: desarrollo, demo y pruebas
+
+Son tres bases distintas en el mismo PostgreSQL, y **cada una tiene un solo uso**:
+
+| Base | Para qué | Quién la borra |
+|---|---|---|
+| `easylunch` | tu desarrollo diario (la de `DB_DATABASE` en `.env`) | nadie: solo `php artisan migrate` |
+| `easylunch_demo` | enseñar el sistema con datos de ejemplo | `scripts/demo.sh preparar` |
+| `easylunch_pruebas` | solo las pruebas (`php artisan test`) y Bruno | cada corrida de pruebas |
+
+En una instalación nueva las tres se crean solas (`docker/db/init`). Si el volumen de la base ya existía, créalas una vez:
+
+```bash
+docker compose exec db psql -U <DB_USERNAME> -d postgres -c "CREATE DATABASE easylunch_demo"
+docker compose exec db psql -U <DB_USERNAME> -d postgres -c "CREATE DATABASE easylunch_pruebas"
+```
+
+**Demo** (no toca tu base de desarrollo ni la de pruebas):
+
+```bash
+scripts/demo.sh preparar   # crea easylunch_demo si falta, migra desde cero, carga los datos de ejemplo y crea un admin
+scripts/demo.sh servir     # API de la demo en http://localhost:8001 (contenedor easylunch-demo)
+scripts/demo.sh detener
+```
+
+Admin rápido: `demo@easylunch.test` / `Admin1234` (`php artisan easylunch:admin-demo [correo] [contraseña]`; solo corre fuera de producción). Las demás cuentas de ejemplo usan la contraseña `Prueba1234`. Para el front: `NEXT_PUBLIC_API_URL=http://localhost:8001`.
+
+**Pruebas y Bruno** usan siempre `easylunch_pruebas`. Si necesitas lanzar un comando contra una base concreta, escribe el nombre tal cual en el comando (`-e DB_DATABASE=easylunch_pruebas`) y comprueba cuál es antes de un `migrate:fresh`:
+
+```bash
+docker compose exec -T -e DB_DATABASE=easylunch_pruebas app php artisan tinker --execute='echo DB::connection()->getDatabaseName();'
+```
 
 **El backend requiere PostgreSQL.** Las migraciones usan CHECK, índices parciales, triggers y PostGIS; SQLite ya no está configurado en el proyecto, y con cualquier otro motor la primera migración falla con un mensaje que lo explica.
 
