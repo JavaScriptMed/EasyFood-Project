@@ -19,7 +19,17 @@ class EmpleadoController extends Controller
     /** Empleados de la empresa de quien consulta, con lo que han elegido por mes y su elección de la próxima entrega. */
     public function index(Request $request, CalendarioDeServicio $calendario): JsonResponse
     {
-        $empresa = ContextoDelUsuario::empresa($request);
+        return response()->json(self::listado(ContextoDelUsuario::empresa($request), $calendario));
+    }
+
+    /**
+     * Los empleados de una empresa con lo que han elegido por mes y su elección de la próxima entrega. Lo usan el portal de la
+     * empresa (la suya) y el administrador (`GET /admin/empresas/{id}/empleados`).
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public static function listado(\App\Models\Empresa $empresa, CalendarioDeServicio $calendario): array
+    {
         $empleados = Empleado::query()->with('usuario.profile')->where('empresa_id', $empresa->id)->orderBy('id')->get();
         $manana = $calendario->fechaDeEntregaParaPedidoNuevo(null, $empresa->id)->toDateString();
 
@@ -27,7 +37,7 @@ class EmpleadoController extends Controller
             ->selectRaw("empleado_id, to_char(fecha, 'YYYY-MM') as mes, count(*) as total")->groupBy('empleado_id', 'mes')->get()->groupBy('empleado_id');
         $elecciones = EleccionEmpleado::query()->with('menu')->whereIn('empleado_id', $empleados->pluck('id'))->whereDate('fecha', $manana)->get()->keyBy('empleado_id');
 
-        return response()->json($empleados->map(function (Empleado $e) use ($porMes, $elecciones) {
+        return $empleados->map(function (Empleado $e) use ($porMes, $elecciones) {
             $eleccion = $elecciones->get($e->id);
 
             return Vistas::empleado($e) + [
@@ -35,7 +45,7 @@ class EmpleadoController extends Controller
                 'invitacion' => null,
                 'eleccion_manana' => $eleccion ? ['platillo_id' => $eleccion->menu_id, 'platillo_nombre' => $eleccion->menu->name, 'origen' => $eleccion->origen] : null,
             ];
-        })->values());
+        })->values()->all();
     }
 
     /** Activa o desactiva a un empleado de la propia empresa. Desactivado ya no puede elegir ni recibe platillo por defecto. */

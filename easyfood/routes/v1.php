@@ -69,6 +69,7 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::post('costos-operativos/{id}/anular', [Admin\CostoOperativoController::class, 'anular'])->name('costos-operativos.anular');
 
             Route::get('empresas', [Admin\EmpresaController::class, 'index'])->name('empresas.index');
+            Route::get('empresas/{id}/empleados', [Admin\EmpresaController::class, 'empleados'])->name('empresas.empleados');
             Route::put('empresas/{id}', [Admin\EmpresaEdicionController::class, 'update'])->name('empresas.update');
             Route::patch('empresas/{id}/estado', [Admin\EmpresaEdicionController::class, 'estado'])->name('empresas.estado');
             Route::post('paquetes', [Admin\PaqueteController::class, 'store'])->name('paquetes.store');

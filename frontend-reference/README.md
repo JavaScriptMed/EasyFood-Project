@@ -67,6 +67,10 @@ Las ventanas viven en `components/ventanas.tsx` (formulario, confirmación y pan
 
 **Ventanas listas, rutas del backend pendientes** (devuelven «… todavía no está disponible en el servidor»; las funciones ya existen en `lib/api.ts` y en la maqueta): `editarComedor`, `cambiarEstadoComedor` y `cambiarEstadoPlatillo`. Ya son reales la foto (`subirImagenPlatillo`), el historial y programar un precio. Ya son reales: editar platillo (`PUT …/platillos/{id}`) y quitar la elección (`DELETE /empleado/elecciones`).
 
+## Detalle de una empresa (administración)
+
+El panel de una empresa tiene cuatro pestañas: **Resumen** (contacto, entrega, consumo del mes, vigencia y usuarios con acceso), **Empleados** (quiénes son, estado, platillos del mes y su elección de mañana; `GET /admin/empresas/{id}/empleados`), **Consumo** (gráfica por día de cualquiera de los últimos 6 meses) y **Contrato** (precio, subsidio, mínimo, ventana, vigencia, renovar y calculadora de subsidio).
+
 ## Soporte: adjuntar archivos
 
 En el chat de un ticket (`/admin/soporte`) el clip abre el selector de archivos: foto (JPG, PNG, WebP) o PDF de hasta 5 MB. El archivo elegido se muestra sobre el cuadro de texto, con botón para quitarlo, y se puede enviar con o sin texto. Las fotos se ven dentro de la conversación y los PDF salen como enlace (`components/adjunto-de-ticket.tsx`).

@@ -68,7 +68,7 @@ Cada portal solo ve lo suyo: la empresa, el comedor o el empleado se resuelven d
 
 ## Probar la API a mano (Bruno) y datos de ejemplo
 
-La carpeta [`bruno/`](bruno/README.md) es una colección de [Bruno](https://www.usebruno.com/) con 200 peticiones y 327 pruebas automáticas que cubren toda la API v1 (incluidos los pendientes, que deben responder 501). `DatosDeEjemploSeeder` carga empresas, comedores, empleados, platillos, historial, clientes y pedidos de ejemplo (solo desarrollo; la contraseña de las cuentas sale de `SEED_PASSWORD` en tu `.env`):
+La carpeta [`bruno/`](bruno/README.md) es una colección de [Bruno](https://www.usebruno.com/) con 201 peticiones y 329 pruebas automáticas que cubren toda la API v1 (incluidos los pendientes, que deben responder 501). `DatosDeEjemploSeeder` carga empresas, comedores, empleados, platillos, historial, clientes y pedidos de ejemplo (solo desarrollo; la contraseña de las cuentas sale de `SEED_PASSWORD` en tu `.env`):
 
 ```bash
 docker compose exec app php artisan db:seed --class=DatosDeEjemploSeeder
