@@ -68,9 +68,7 @@ class RutasDeLaApiTest extends TestCase
         $pendientes = collect($this->rutasV1())->filter(fn ($r) => $this->pendiente($r))->map(fn ($r) => $r->getName())->sort()->values()->all();
 
         $this->assertSame([
-            'v1.admin.incidencias.candidatos', 'v1.admin.incidencias.reasignar',
-            'v1.admin.platillos.historial-precios', 'v1.admin.platillos.imagen', 'v1.admin.rutas.generar',
-            'v1.comedor.platillos.imagen',
+            'v1.admin.platillos.historial-precios', 'v1.admin.platillos.imagen', 'v1.comedor.platillos.imagen',
         ], $pendientes);
     }
 

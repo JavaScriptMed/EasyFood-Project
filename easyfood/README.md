@@ -52,7 +52,7 @@ Rutas en `routes/v1.php` (prefijo `/api/v1`), JSON en español y token Bearer de
 
 | Grupo (rol) | Prefijo | Construido | Solo ruta (501) |
 |---|---|---|---|
-| Panel de administración (`admin`; `support` en clientes, pedidos, tickets e incidencias) | `/admin` | empresas y comedores (lectura), **alta de empresa** (`POST /admin/empresas`), **alta de repartidor** (`POST /admin/repartidores`), renovar contratos, contratos por vencer, platillos (crear, editar, revisar), configuración, calendario, corte (y su vista previa), repartidores, rutas, entregas, incidencias, facturas, liquidaciones, reporte de proveedor, menú semanal, consumo de una empresa, clientes, pedidos, tickets, bitácora, **dashboard con 10 indicadores en tiempo real** (`GET /admin/dashboard`, solo `admin`) y costos operativos (listar, registrar, anular) | historial de precios, imágenes, generar rutas, reasignar incidencias |
+| Panel de administración (`admin`; `support` en clientes, pedidos, tickets e incidencias) | `/admin` | empresas y comedores (lectura), **alta de empresa** (`POST /admin/empresas`), **alta de repartidor** (`POST /admin/repartidores`), renovar contratos, contratos por vencer, platillos (crear, editar, revisar), configuración, calendario, corte (y su vista previa), repartidores, rutas (listar, **generar**, aprobar), entregas, incidencias (listar, resolver, **candidatos y reasignar**), facturas, liquidaciones, reporte de proveedor, menú semanal, consumo de una empresa, clientes, pedidos, tickets, bitácora, **dashboard con 10 indicadores en tiempo real** (`GET /admin/dashboard`, solo `admin`) y costos operativos (listar, registrar, anular) | historial de precios, imágenes |
 | Portal de empresas (`company`) | `/empresa` | perfil, empleados (ver, **agregar**, activar/desactivar), pedidos de mañana, consumo, vista previa del mes en curso, facturas, indicadores de RR. HH. (`GET /empresa/indicadores`) | |
 | Portal de comedores (`provider`) | `/comedor` | perfil, platillos, disponibilidad, producción, pagos | imágenes |
 | Portal de empleados (`employee`) | `/empleado` | menú, elegir/quitar platillo, historial, calificar la entrega y el platillo que recibió | |
@@ -68,7 +68,7 @@ Cada portal solo ve lo suyo: la empresa, el comedor o el empleado se resuelven d
 
 ## Probar la API a mano (Bruno) y datos de ejemplo
 
-La carpeta [`bruno/`](bruno/README.md) es una colección de [Bruno](https://www.usebruno.com/) con 159 peticiones y 273 pruebas automáticas que cubren toda la API v1 (incluidos los pendientes, que deben responder 501). `DatosDeEjemploSeeder` carga empresas, comedores, empleados, platillos, historial, clientes y pedidos de ejemplo (solo desarrollo; la contraseña de las cuentas sale de `SEED_PASSWORD` en tu `.env`):
+La carpeta [`bruno/`](bruno/README.md) es una colección de [Bruno](https://www.usebruno.com/) con 163 peticiones y 275 pruebas automáticas que cubren toda la API v1 (incluidos los pendientes, que deben responder 501). `DatosDeEjemploSeeder` carga empresas, comedores, empleados, platillos, historial, clientes y pedidos de ejemplo (solo desarrollo; la contraseña de las cuentas sale de `SEED_PASSWORD` en tu `.env`):
 
 ```bash
 docker compose exec app php artisan db:seed --class=DatosDeEjemploSeeder
@@ -120,6 +120,11 @@ Sin ellas, el pago y el webhook responden `503 pagos_no_configurados`. Después 
 - **Empresa** (`POST /admin/empresas`): crea el contacto de RR. HH. (cuenta inactiva con invitación), la empresa y su contrato de 6 meses (`precio_por_platillo` $130 si no se manda). El nombre debe ser único y la `zona` debe existir en `zonas`; si no, el error lista las disponibles.
 - **Repartidor** (`POST /admin/repartidores`): cuenta con invitación, `numero_empleado` automático (`R-001`…), placas obligatorias (solo se reparte en automóvil) y `zona_base` existente.
 - **Empleados** (`POST /empresa/empleados`, hasta 500): cada persona queda inactiva hasta aceptar su invitación; sin correo se arma con el nombre y el dominio de la empresa; los correos repetidos o ya registrados se omiten y se devuelven en `omitidos`.
+
+## Rutas e incidencias
+
+- **Generar rutas** (`POST /admin/rutas/generar { fecha }`, solo `admin`): completa las rutas de una fecha **ya cortada** con lo que quedó sin repartidor (por ejemplo, después de dar de alta a uno). Usa el mismo `GeneradorDeRutas` que el corte: por zona, primero empresas y luego clientes, sin pasar la capacidad del auto. Nunca toca una ruta existente (borrador o aprobada), no duplica incidencias abiertas y cierra solas las de «falta de repartidores» de lo que ya tiene ruta. Rechaza una fecha sin corte (`corte_pendiente`), pasada o sin servicio.
+- **Reasignar** (`GET /admin/incidencias/{id}/candidatos`, `POST /admin/incidencias/{id}/reasignar { repartidor_id, nota }`, admin y soporte): solo para una incidencia **abierta ligada a una ruta**. Es candidato el repartidor activo, disponible, distinto del actual y con capacidad libre ese día (auto menos lo que ya lleva); «alcanza» si le cabe toda la ruta. Al reasignar, la ruta cambia de repartidor (conserva su estado), la incidencia queda `reasignada` y se registra en la bitácora.
 
 ## Cuentas: invitaciones y contraseña
 

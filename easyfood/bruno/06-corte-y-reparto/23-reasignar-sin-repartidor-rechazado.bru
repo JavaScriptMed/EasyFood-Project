@@ -1,0 +1,26 @@
+meta {
+  name: Reasignar sin repartidor (rechazado)
+  type: http
+  seq: 23
+}
+
+post {
+  url: {{baseUrl}}/api/v1/admin/incidencias/{{incidenciaId}}/reasignar
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+body:json {
+  {}
+}
+
+tests {
+  test("responde 422 y pide el repartidor", function () {
+    expect(res.getStatus()).to.equal(422);
+    expect(res.body.errores).to.have.property("repartidor_id");
+  });
+}

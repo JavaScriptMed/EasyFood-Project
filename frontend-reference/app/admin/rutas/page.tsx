@@ -47,6 +47,7 @@ export default function RutasPage() {
     try {
       await generarRutas(date)
       rutas.reload({ silent: true })
+      faltantes.reload({ silent: true }) // las incidencias de falta de repartidor se cierran solas al asignarse
       setPlanned(true)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "No se pudieron generar las rutas")

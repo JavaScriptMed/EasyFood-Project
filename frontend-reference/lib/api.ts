@@ -82,8 +82,8 @@ const real: typeof mock = {
   listarEntregas: async () => (await leer<any[]>('/api/v1/admin/entregas', { fecha: FECHA_OPERACION })) as EntregaDetalle[],
   listarIncidencias: async (filtro = {}) => (await leer<IncidenciaDetalle[]>('/api/v1/admin/incidencias', { abiertas: filtro.abiertas, fecha: filtro.fecha, tipos: filtro.tipos })),
   resolverIncidencia: async (id, nota) => ids(await post<IncidenciaDetalle>(`/api/v1/admin/incidencias/${id}/resolver`, { nota })),
-  listarCandidatosReasignacion: async () => [],
-  reasignarIncidencia: async () => { throw pendiente('Reasignar una ruta') },
+  listarCandidatosReasignacion: async (id) => (await leer<any[]>(`/api/v1/admin/incidencias/${id}/candidatos`)).map((c) => ({ ...c, repartidor: repartidor(c.repartidor) })),
+  reasignarIncidencia: async (datos) => ids(await post<IncidenciaDetalle>(`/api/v1/admin/incidencias/${datos.id}/reasignar`, { repartidor_id: Number(datos.repartidor_id), nota: datos.nota || null })),
   listarAuditoria: async (entidad, entidad_id) => leer<RegistroAuditoriaDetalle[]>(`/api/v1/admin/auditoria/${encodeURIComponent(entidad)}/${encodeURIComponent(entidad_id)}`),
 
   // ---- empresas y contratos
@@ -225,7 +225,8 @@ const real: typeof mock = {
   cambiarEstadoRepartidor: async () => { throw pendiente('Desactivar un repartidor') },
   guardarCapacidadesVehiculo: async () => { throw pendiente('Cambiar los límites por vehículo') },
   listarRutas: async (fecha) => (await leer<any[]>('/api/v1/admin/rutas', { fecha })).map(ruta),
-  generarRutas: async () => { throw pendiente('Regenerar las rutas (las crea el corte)') },
+  // Completa las rutas con lo que quedó sin repartidor; no toca las que ya existen.
+  generarRutas: async (fecha) => (await post<{ rutas: any[] }>('/api/v1/admin/rutas/generar', { fecha })).rutas.map(ruta),
   aprobarRutas: async (fecha) => (await post<{ aprobadas: number }>('/api/v1/admin/rutas/aprobar', { fecha })).aprobadas,
 
   // ---- pedidos y soporte

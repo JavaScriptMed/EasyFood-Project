@@ -102,7 +102,7 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::patch('repartidores/{id}/disponibilidad', [Admin\RepartidorController::class, 'disponibilidad'])->name('repartidores.disponibilidad');
 
             Route::get('rutas', [Admin\RutaController::class, 'index'])->name('rutas.index');
-            Route::post('rutas/generar', Pendiente::class)->name('rutas.generar');                         // PENDIENTE · generarRutas
+            Route::post('rutas/generar', [Admin\RutaController::class, 'generar'])->name('rutas.generar');
             Route::post('rutas/aprobar', [Admin\RutaController::class, 'aprobar'])->name('rutas.aprobar');
             Route::get('entregas', [Admin\EntregaController::class, 'index'])->name('entregas.index');
             Route::get('reportes/proveedor', [Admin\ReporteController::class, 'proveedor'])->name('reportes.proveedor');
@@ -126,8 +126,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::middleware('role:admin,support')->group(function () {
             Route::get('incidencias', [Admin\IncidenciaController::class, 'index'])->name('incidencias.index');
             Route::post('incidencias/{id}/resolver', [Admin\IncidenciaController::class, 'resolver'])->name('incidencias.resolver');
-            Route::get('incidencias/{id}/candidatos', Pendiente::class)->name('incidencias.candidatos');   // PENDIENTE · listarCandidatosReasignacion
-            Route::post('incidencias/{id}/reasignar', Pendiente::class)->name('incidencias.reasignar');     // PENDIENTE · reasignarIncidencia
+            Route::get('incidencias/{id}/candidatos', [Admin\IncidenciaController::class, 'candidatos'])->name('incidencias.candidatos');
+            Route::post('incidencias/{id}/reasignar', [Admin\IncidenciaController::class, 'reasignar'])->name('incidencias.reasignar');
 
             Route::get('clientes', [Admin\ClienteController::class, 'index'])->name('clientes.index');
             Route::get('clientes/{id}', [Admin\ClienteController::class, 'show'])->name('clientes.show');

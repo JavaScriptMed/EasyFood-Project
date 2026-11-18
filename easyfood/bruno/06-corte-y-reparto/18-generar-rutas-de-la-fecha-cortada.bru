@@ -1,0 +1,38 @@
+meta {
+  name: Generar rutas de la fecha cortada
+  type: http
+  seq: 18
+}
+
+post {
+  url: {{baseUrl}}/api/v1/admin/rutas/generar
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+body:json {
+  {
+    "fecha": "{{fechaCortada}}"
+  }
+}
+
+tests {
+  test("responde 200 con las rutas de la fecha", function () {
+    expect(res.getStatus()).to.equal(200);
+    expect(res.body.rutas).to.be.an("array");
+    expect(res.body.creadas).to.be.at.least(0);
+  });
+
+  test("las rutas ya existentes no se duplican", function () {
+    const repartidores = res.body.rutas.map(r => r.repartidor_id);
+    expect(new Set(repartidores).size).to.equal(repartidores.length);
+  });
+}
+
+docs {
+  Completa las rutas de una fecha ya cortada con lo que quedó sin ruta (por ejemplo, tras dar de alta un repartidor). No toca las rutas que ya existen y cierra las incidencias de las entregas que ya tienen repartidor.
+}

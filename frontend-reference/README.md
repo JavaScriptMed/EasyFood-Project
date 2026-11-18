@@ -43,9 +43,8 @@ Las pantallas no cambiaron: siguen llamando a las mismas funciones de `@/lib/api
 
 ## Qué ya es real y qué falta
 
-Las altas (empresa con su contrato, repartidor y empleados) ya son reales. Todo funciona con el backend **excepto** lo que el backend todavía no construye. Esas funciones avisan con un mensaje claro («… todavía no está disponible en el servidor») o muestran su pantalla vacía:
+Las altas (empresa con su contrato, repartidor y empleados), regenerar rutas y reasignar incidencias (con sus candidatos) ya son reales. Todo funciona con el backend **excepto** lo que el backend todavía no construye. Esas funciones avisan con un mensaje claro («… todavía no está disponible en el servidor») o muestran su pantalla vacía:
 
-- **Operación:** reasignar una incidencia (y ver candidatos) y regenerar rutas (las crea el corte).
 - **Datos sin tabla todavía:** historial de precios (vacío). El dashboard ya es real (resumen, alertas y los 10 indicadores).
 
 ## Ventanas de crear, editar, eliminar y ver detalle
