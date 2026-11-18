@@ -79,6 +79,10 @@ Corren contra la base `easylunch_pruebas` (nunca contra la de desarrollo: se bor
 
 Todo esto lo cubren pruebas automáticas (`tests/Feature/Seguridad`). Para desplegar, ver [DESPLIEGUE.md](DESPLIEGUE.md).
 
+## Respaldos
+
+`scripts/respaldo-db.sh` hace un `pg_dump` comprimido (formato personalizado, nivel 9) de la base de `.env.production`, comprueba que no salga vacío y **rota a 7 días** (`DIAS_A_GUARDAR`). Con `--archivos` respalda también el volumen `storage` (fotos y adjuntos). La clave va por `PGPASSWORD`, nunca en la línea de comandos ni en pantalla; los archivos quedan en modo 600. **Si el respaldo de hoy falla, no se borra ninguno de los anteriores.** Cron diario y cómo restaurar: en [DESPLIEGUE.md](DESPLIEGUE.md). Lo cubren las pruebas de `tests/Feature/Scripts`.
+
 ## Mapa de tablas
 
 | Área | Tablas |
