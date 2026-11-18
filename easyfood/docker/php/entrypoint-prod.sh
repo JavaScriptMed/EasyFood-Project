@@ -15,6 +15,17 @@ if [ "${APP_ENV:-}" != "production" ] || [ "${APP_DEBUG:-false}" != "false" ]; t
   exit 1
 fi
 
+case "${CORS_ALLOWED_ORIGINS:-}" in
+  ""|*"*"*)
+    echo "CORS_ALLOWED_ORIGINS debe ser el dominio de tu front (https://...), no vacío ni «*»." >&2
+    exit 1
+    ;;
+esac
+if [ -z "${DB_PASSWORD:-}" ] || [ -z "${DB_DATABASE:-}" ]; then
+  echo "Faltan DB_DATABASE o DB_PASSWORD en .env.production." >&2
+  exit 1
+fi
+
 # La configuración se lee una sola vez, de las variables del contenedor (no hay archivo .env dentro de la imagen).
 php artisan config:cache --no-interaction >/dev/null
 php artisan route:cache --no-interaction >/dev/null

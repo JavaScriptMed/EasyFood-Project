@@ -35,7 +35,7 @@ Route::post('webhooks/stripe', [Webhooks\StripeController::class, 'recibir'])->m
 // Cuentas (públicas): aceptar una invitación y restablecer la contraseña. Los enlaces llegan por correo (en desarrollo, MAIL_MAILER=log
 // y además storage/logs/enlaces.log).
 Route::prefix('cuentas')->middleware('throttle:10,1')->name('v1.cuentas.')->group(function () {
-    Route::post('restablecer/solicitar', [Cuentas\RestablecimientoController::class, 'solicitar'])->name('restablecer.solicitar');   // solicitarRestablecimiento
+    Route::post('restablecer/solicitar', [Cuentas\RestablecimientoController::class, 'solicitar'])->middleware('throttle:recuperar')->name('restablecer.solicitar');   // solicitarRestablecimiento
     Route::get('restablecer/{token}', [Cuentas\RestablecimientoController::class, 'validar'])->name('restablecer.validar');           // validarTokenRestablecimiento
     Route::post('restablecer/{token}', [Cuentas\RestablecimientoController::class, 'aplicar'])->name('restablecer.aplicar');          // restablecerContrasena
     Route::get('invitaciones/{token}', [Cuentas\InvitacionController::class, 'mostrar'])->name('invitaciones.mostrar');               // obtenerInvitacionPublica

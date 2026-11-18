@@ -62,7 +62,7 @@ class AltaDeComedoresYPlanesTest extends TestCase
         $this->assertSame('ACH010101AB1', $comedor->rfc);
         $this->assertSame(150, $comedor->daily_capacity);
         $this->assertSame('33 1111 2222', $contacto->profile->phone);
-        Mail::assertSent(InvitacionDeAcceso::class, fn ($m) => $m->hasTo('marcela@chela.mx') && str_contains($m->url, '/comedores/aceptar-invitacion?token='));
+        Mail::assertQueued(InvitacionDeAcceso::class, fn ($m) => $m->hasTo('marcela@chela.mx') && str_contains($m->url, '/comedores/aceptar-invitacion?token='));
         $this->assertSame($admin->id, RegistroAuditoria::where('accion', 'crear')->where('entidad', 'comedores')->sole()->usuario_id);
     }
 
@@ -70,7 +70,7 @@ class AltaDeComedoresYPlanesTest extends TestCase
     {
         $this->comoRol('admin');
         $id = $this->postJson('/api/v1/admin/comedores', $this->nuevoComedor())->assertCreated()->json('id');
-        preg_match('/token=([A-Za-z0-9]+)/', Mail::sent(InvitacionDeAcceso::class)->last()->url, $m);
+        preg_match('/token=([A-Za-z0-9]+)/', Mail::queued(InvitacionDeAcceso::class)->last()->url, $m);
 
         $this->postJson("/api/v1/cuentas/invitaciones/{$m[1]}/aceptar", ['contrasena' => 'Clave1234'])->assertOk()->assertJsonPath('portal', 'comedores');
         Sanctum::actingAs(User::where('email', 'marcela@chela.mx')->firstOrFail());
@@ -104,7 +104,7 @@ class AltaDeComedoresYPlanesTest extends TestCase
         $this->postJson('/api/v1/admin/comedores', ['nombre' => 'Sin datos'])->assertStatus(422)->assertJsonStructure(['errores' => ['contacto_correo', 'telefono', 'zona', 'precio_por_platillo']]);
 
         $this->assertSame([1, 1, $usuarios], [Provider::count(), ContratoComedor::count(), User::count()], 'ningún intento dejó filas sueltas');
-        Mail::assertSent(InvitacionDeAcceso::class, 1);
+        Mail::assertQueued(InvitacionDeAcceso::class, 1);
     }
 
     public function test_el_comedor_nuevo_ya_aparece_en_el_listado_y_puede_tener_platillos(): void

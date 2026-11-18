@@ -64,6 +64,21 @@ docker compose exec app php artisan test
 
 Corren contra la base `easylunch_pruebas` (nunca contra la de desarrollo: se borra y se recrea en cada corrida). `ConcurrenciaTest` lanza procesos de PHP en paralelo y rehace esa base con `migrate:fresh` al terminar (tarda unos 15 s). Fuera de Docker, apunta `DB_HOST` a tu PostgreSQL.
 
+## Seguridad
+
+| Qué | Cómo está resuelto |
+|---|---|
+| **CORS** | Solo los orígenes de `CORS_ALLOWED_ORIGINS` (el dominio del front en Vercel, separados por coma). `CORS_ALLOWED_ORIGINS_PATTERNS` admite expresiones regulares para las vistas previas de Vercel. En producción el contenedor **no arranca** si está vacío o trae `*`. |
+| **Errores** | `APP_DEBUG=false` en producción (el contenedor no arranca si no): un error interno responde «Server Error» sin trazas, rutas ni claves. PHP además no incluye los argumentos de las funciones en las trazas (`zend.exception_ignore_args`). |
+| **Límite de intentos** | Login: 5 por minuto por cuenta e IP y 30 por IP. Crear cuenta: 10 por hora por IP. «Olvidé mi contraseña»: 3 por hora por correo y 10 por IP (la respuesta es igual exista o no el correo). Enlaces de invitación y de restablecer: 10 por minuto por IP. Responden 429 con `codigo: demasiados_intentos`. |
+| **IP real** | Detrás del proxy del servidor hay que fijar `TRUSTED_PROXIES` (`*` si solo el proxy llega a la app) para que los límites cuenten por IP real y no a todos como una sola. |
+| **Tokens de acceso** | `SANCTUM_EXPIRATION` (minutos; 10080 = 7 días en producción). `sanctum:prune-expired` corre a diario. Cerrar sesión, desactivar a alguien o cambiarle el rol revoca sus tokens. |
+| **Logs sin secretos** | Todo canal de logging pasa por `App\Logging\OcultarSecretos`: tacha claves de Stripe (`sk_`, `rk_`, `pk_`, `whsec_`), tokens (`Bearer …`, `12\|abc…`), contraseñas y los tokens de los enlaces. Nginx de producción tampoco registra los tokens que van en la ruta. Excepción a propósito: el canal `enlaces`, solo para ver los enlaces en desarrollo, que no escribe en producción. |
+| **Correos** | Van a la cola (`php artisan queue:work`, ya incluido en Docker) con 3 reintentos: si el servidor de correo falla, la petición no falla ni queda a medias. En la cola viajan **cifrados** con `APP_KEY` (el enlace lleva el token en claro). En desarrollo, `docker compose up -d` ya levanta el `worker`. |
+| **Archivos subidos** | Fotos de platillos y adjuntos de tickets: solo JPG, PNG, WebP o PDF con tipo verificado (no SVG), nombre aleatorio, y se sirven sin poder ejecutar nada (`Content-Security-Policy: sandbox`, `nosniff`). |
+
+Todo esto lo cubren pruebas automáticas (`tests/Feature/Seguridad`). Para desplegar, ver [DESPLIEGUE.md](DESPLIEGUE.md).
+
 ## Mapa de tablas
 
 | Área | Tablas |

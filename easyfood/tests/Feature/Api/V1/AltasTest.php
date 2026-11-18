@@ -65,7 +65,7 @@ class AltasTest extends TestCase
         $this->assertSame(['inactive', 'company'], [$contacto->status, $contacto->role->name]);
         $this->assertSame($contacto->id, Empresa::sole()->usuario_id);
         $this->assertSame('33 1234 5678', $contacto->profile->phone);
-        Mail::assertSent(InvitacionDeAcceso::class, fn ($m) => $m->hasTo('lucia@pacifico-textil.mx') && str_contains($m->url, '/empresas/aceptar-invitacion?token='));
+        Mail::assertQueued(InvitacionDeAcceso::class, fn ($m) => $m->hasTo('lucia@pacifico-textil.mx') && str_contains($m->url, '/empresas/aceptar-invitacion?token='));
         $this->assertSame($admin->id, RegistroAuditoria::where('accion', 'crear')->where('entidad', 'empresas')->sole()->usuario_id);
     }
 
@@ -73,7 +73,7 @@ class AltasTest extends TestCase
     {
         $this->comoRol('admin');
         $id = $this->postJson('/api/v1/admin/empresas', $this->nuevaEmpresa())->assertCreated()->json('id');
-        preg_match('/token=([A-Za-z0-9]+)/', Mail::sent(InvitacionDeAcceso::class)->last()->url, $m);
+        preg_match('/token=([A-Za-z0-9]+)/', Mail::queued(InvitacionDeAcceso::class)->last()->url, $m);
 
         $this->postJson("/api/v1/cuentas/invitaciones/{$m[1]}/aceptar", ['contrasena' => 'Clave1234'])->assertOk()->assertJsonPath('portal', 'empresas')->assertJsonPath('organizacion_nombre', 'Textiles del Pacífico');
         $this->postJson('/api/auth/login', ['email' => 'lucia@pacifico-textil.mx', 'password' => 'Clave1234'])->assertOk();
@@ -106,7 +106,7 @@ class AltasTest extends TestCase
         $this->postJson('/api/v1/admin/empresas', ['nombre' => 'Sin datos'])->assertStatus(422)->assertJsonStructure(['errores' => ['contacto_correo', 'zona', 'vigencia_inicio']]);
 
         $this->assertSame([1, 1, $usuarios], [Empresa::count(), DB::table('contratos_empresa')->count(), User::count()], 'ningún intento dejó filas sueltas');
-        Mail::assertSent(InvitacionDeAcceso::class, 1);
+        Mail::assertQueued(InvitacionDeAcceso::class, 1);
     }
 
     public function test_solo_el_administrador_da_de_alta_empresas_y_repartidores(): void
@@ -133,7 +133,7 @@ class AltasTest extends TestCase
         $this->assertSame(['inactive', 'driver'], [$usuario->status, $usuario->role->name]);
         $this->assertSame('33 9999 0000', $usuario->profile->phone);
         $this->assertSame(1, Invitacion::where('usuario_id', $usuario->id)->count());
-        Mail::assertSent(InvitacionDeAcceso::class, fn ($m) => $m->hasTo('hector@ejemplo.mx'));
+        Mail::assertQueued(InvitacionDeAcceso::class, fn ($m) => $m->hasTo('hector@ejemplo.mx'));
     }
 
     public function test_el_numero_de_empleado_se_asigna_el_siguiente_o_se_respeta_el_que_se_mande(): void
@@ -182,8 +182,8 @@ class AltasTest extends TestCase
         $this->assertEqualsCanonicalizing(['ana.ruiz@nexo.mx', 'jose.nunez@nexo.mx'], $empleados->pluck('usuario.email')->all(), 'sin correo se arma con el nombre y el dominio');
         $this->assertSame(['employee', 'inactive'], [$empleados[0]->usuario->role->name, $empleados[0]->usuario->status]);
         $this->assertTrue($empleados->every(fn ($e) => $e->activo));
-        Mail::assertSent(InvitacionDeAcceso::class, 2);
-        Mail::assertSent(InvitacionDeAcceso::class, fn ($m) => str_contains($m->url, '/empleados/aceptar-invitacion?token='));
+        Mail::assertQueued(InvitacionDeAcceso::class, 2);
+        Mail::assertQueued(InvitacionDeAcceso::class, fn ($m) => str_contains($m->url, '/empleados/aceptar-invitacion?token='));
         $this->assertSame(1, RegistroAuditoria::where('accion', 'crear')->where('entidad', 'empleados')->count());
     }
 
@@ -202,7 +202,7 @@ class AltasTest extends TestCase
     {
         $empresa = $this->comoEmpresa('Zapopan');
         $this->postJson('/api/v1/empresa/empleados', ['personas' => [['nombre' => 'Ana Ruiz', 'correo' => 'ana@nexo.mx']]])->assertCreated();
-        preg_match('/token=([A-Za-z0-9]+)/', Mail::sent(InvitacionDeAcceso::class)->last()->url, $m);
+        preg_match('/token=([A-Za-z0-9]+)/', Mail::queued(InvitacionDeAcceso::class)->last()->url, $m);
 
         $this->postJson("/api/v1/cuentas/invitaciones/{$m[1]}/aceptar", ['contrasena' => 'Clave1234'])->assertOk()->assertJsonPath('portal', 'empleados');
         $this->postJson('/api/auth/login', ['email' => 'ana@nexo.mx', 'password' => 'Clave1234'])->assertOk()->assertJsonPath('user.role', 'employee');

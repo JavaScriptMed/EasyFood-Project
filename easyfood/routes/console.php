@@ -35,6 +35,9 @@ Schedule::command('easylunch:avisos-de-contratos')
     ->dailyAt('08:00')
     ->withoutOverlapping(30);
 
+// Tokens de acceso vencidos (SANCTUM_EXPIRATION): se borran una vez al día.
+Schedule::command('sanctum:prune-expired --hours=24')->dailyAt('02:30');
+
 // Precios de platillos programados: cada madrugada entra en vigor el que toca ese día.
 Schedule::command('easylunch:aplicar-precios-programados')
     ->dailyAt('00:05')

@@ -52,7 +52,7 @@ class CuentasTest extends TestCase
     /** El token del enlace que viajó en el último correo de invitación. */
     private function tokenDeLaInvitacion(): string
     {
-        $mail = Mail::sent(InvitacionDeAcceso::class)->last();
+        $mail = Mail::queued(InvitacionDeAcceso::class)->last();
         preg_match('/token=([A-Za-z0-9]+)/', $mail->url, $m);
 
         return $m[1];
@@ -76,7 +76,7 @@ class CuentasTest extends TestCase
         $this->assertSame('', $r['invitacion']['token'], 'el enlace no se devuelve: solo viaja en el correo');
         $usuario = User::where('email', 'sofia@ejemplo.mx')->firstOrFail();
         $this->assertSame(['inactive', 'support'], [$usuario->status, $usuario->role->name]);
-        Mail::assertSent(InvitacionDeAcceso::class, fn ($m) => $m->hasTo('sofia@ejemplo.mx') && str_contains($m->url, '/admin/aceptar-invitacion?token='));
+        Mail::assertQueued(InvitacionDeAcceso::class, fn ($m) => $m->hasTo('sofia@ejemplo.mx') && str_contains($m->url, '/admin/aceptar-invitacion?token='));
         $this->assertSame(1, \App\Models\RegistroAuditoria::where('accion', 'invitar')->where('usuario_id', $admin->id)->count(), 'la bitácora dice quién invitó');
     }
 
@@ -100,7 +100,7 @@ class CuentasTest extends TestCase
         $this->invitar()->assertCreated();
 
         $this->assertFileDoesNotExist($this->log);
-        Mail::assertSent(InvitacionDeAcceso::class); // el correo sí sale
+        Mail::assertQueued(InvitacionDeAcceso::class); // el correo sí sale
     }
 
     public function test_el_enlace_va_al_portal_del_rol(): void
@@ -112,7 +112,7 @@ class CuentasTest extends TestCase
         $this->invitar(['organizacion_tipo' => 'empresa', 'organizacion_id' => $empresa->id, 'rol' => 'empresa', 'correo' => 'a@ejemplo.mx'])->assertCreated();
         $this->invitar(['organizacion_tipo' => 'comedor', 'organizacion_id' => $comedor->id, 'rol' => 'comedor', 'correo' => 'b@ejemplo.mx'])->assertCreated();
 
-        $urls = Mail::sent(InvitacionDeAcceso::class)->map(fn ($m) => parse_url($m->url, PHP_URL_PATH))->all();
+        $urls = Mail::queued(InvitacionDeAcceso::class)->map(fn ($m) => parse_url($m->url, PHP_URL_PATH))->all();
         $this->assertSame(['/empresas/aceptar-invitacion', '/comedores/aceptar-invitacion'], $urls);
     }
 
@@ -129,7 +129,7 @@ class CuentasTest extends TestCase
         $this->invitar(['organizacion_tipo' => 'empresa', 'organizacion_id' => 99999, 'rol' => 'empresa', 'correo' => 'w@ejemplo.mx'])->assertStatus(422)->assertJsonPath('codigo', 'organizacion_inexistente');
         $this->invitar(['organizacion_tipo' => 'empresa', 'rol' => 'empresa', 'correo' => 'v@ejemplo.mx'])->assertStatus(422)->assertJsonStructure(['errores' => ['organizacion_id']]);
         $this->assertSame(1, Invitacion::count());
-        Mail::assertSent(InvitacionDeAcceso::class, 1);
+        Mail::assertQueued(InvitacionDeAcceso::class, 1);
     }
 
     public function test_cada_quien_invita_solo_dentro_de_lo_suyo(): void
@@ -210,7 +210,7 @@ class CuentasTest extends TestCase
         $this->assertSame(['enviada', '2026-11-19'], [$r['estado'], substr($r['vence_en'], 0, 10)]);
         $nuevo = $this->tokenDeLaInvitacion();
         $this->assertNotSame($viejo, $nuevo);
-        Mail::assertSent(InvitacionDeAcceso::class, 2);
+        Mail::assertQueued(InvitacionDeAcceso::class, 2);
         $this->getJson("/api/v1/cuentas/invitaciones/{$viejo}")->assertOk()->assertJsonPath('estado', 'invalida');
         $this->getJson("/api/v1/cuentas/invitaciones/{$nuevo}")->assertOk()->assertJsonPath('estado', 'enviada');
     }
@@ -333,7 +333,7 @@ class CuentasTest extends TestCase
 
     private function tokenDelRestablecimiento(int $cual = -1): string
     {
-        $correos = Mail::sent(RestablecerContrasena::class);
+        $correos = Mail::queued(RestablecerContrasena::class);
         preg_match('/token=([A-Za-z0-9]+)/', $correos->values()[$cual < 0 ? $correos->count() - 1 : $cual]->url, $m);
 
         return $m[1];
@@ -345,7 +345,7 @@ class CuentasTest extends TestCase
 
         $this->postJson('/api/v1/cuentas/restablecer/solicitar', ['correo' => 'RITA@ejemplo.mx'])->assertOk()->assertExactJson(['enviado' => true, 'enlace_simulado' => null]);
 
-        Mail::assertSent(RestablecerContrasena::class, fn ($m) => $m->hasTo('rita@ejemplo.mx') && str_contains($m->url, '/empresas/restablecer-contrasena?token=') && $m->minutos === 60);
+        Mail::assertQueued(RestablecerContrasena::class, fn ($m) => $m->hasTo('rita@ejemplo.mx') && str_contains($m->url, '/empresas/restablecer-contrasena?token=') && $m->minutos === 60);
         $this->assertStringContainsString('RESTABLECER CONTRASEÑA para rita@ejemplo.mx', file_get_contents($this->log));
         $this->assertSame(hash('sha256', $this->tokenDelRestablecimiento()), Restablecimiento::sole()->makeVisible('token_hash')->token_hash);
     }
@@ -359,7 +359,7 @@ class CuentasTest extends TestCase
             $this->postJson('/api/v1/cuentas/restablecer/solicitar', ['correo' => $correo])->assertOk()->assertExactJson(['enviado' => true, 'enlace_simulado' => null]);
         }
 
-        Mail::assertNothingSent();
+        Mail::assertNothingQueued();
         $this->assertSame(0, Restablecimiento::count());
         $this->postJson('/api/v1/cuentas/restablecer/solicitar', ['correo' => 'no-es-correo'])->assertStatus(422);
     }
@@ -433,7 +433,8 @@ class CuentasTest extends TestCase
 
     public function test_pedir_demasiados_enlaces_se_frena(): void
     {
-        for ($i = 0; $i < 10; $i++) {
+        // Tres por hora para un mismo correo; a la cuarta se frena (ProteccionesTest cubre el detalle y el límite por IP).
+        for ($i = 0; $i < 3; $i++) {
             $this->postJson('/api/v1/cuentas/restablecer/solicitar', ['correo' => 'nadie@ejemplo.mx'])->assertOk();
         }
 

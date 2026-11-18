@@ -343,7 +343,7 @@ class EdicionesTest extends TestCase
         $invitacion = Invitacion::where('usuario_id', $empleado->usuario_id)->sole();
         $this->assertSame('jose.perez@nexo.mx', $invitacion->correo);
         $this->assertNotSame($viejoToken, $invitacion->token_hash, 'el enlace anterior deja de servir');
-        Mail::assertSent(\App\Mail\InvitacionDeAcceso::class, fn ($m) => $m->hasTo('jose.perez@nexo.mx'));
+        Mail::assertQueued(\App\Mail\InvitacionDeAcceso::class, fn ($m) => $m->hasTo('jose.perez@nexo.mx'));
         $this->assertSame('corregir_correo', RegistroAuditoria::where('accion', 'corregir_correo')->sole()->accion);
     }
 
