@@ -347,7 +347,10 @@ final class Vistas
 
     public static function mensajeTicket(MensajeTicket $m): array
     {
-        return ['id' => $m->id, 'ticket_id' => $m->ticket_id, 'autor' => $m->autor_tipo, 'autor_id' => $m->autor_id, 'texto' => $m->texto, 'enviado_en' => self::iso($m->enviado_en)];
+        return [
+            'id' => $m->id, 'ticket_id' => $m->ticket_id, 'autor' => $m->autor_tipo, 'autor_id' => $m->autor_id, 'texto' => $m->texto, 'enviado_en' => self::iso($m->enviado_en),
+            'adjunto' => $m->adjunto_ruta ? ['url' => app(\App\Services\AdjuntosDeTickets::class)->url($m->adjunto_ruta), 'nombre' => $m->adjunto_nombre, 'tipo' => $m->adjunto_tipo] : null,
+        ];
     }
 
     public static function registroAuditoria(RegistroAuditoria $r): array

@@ -1,0 +1,33 @@
+meta {
+  name: Responder el ticket con una foto
+  type: http
+  seq: 9
+}
+
+post {
+  url: {{baseUrl}}/api/v1/admin/tickets/{{ticketId}}/mensajes
+  body: multipartForm
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+body:multipart-form {
+  texto: Te comparto una foto
+  adjunto: @file(17-platillos-fotos-y-precios/plato.png)
+}
+
+tests {
+  test("responde 201 con el adjunto", function () {
+    expect(res.getStatus()).to.equal(201);
+    expect(res.body.adjunto.tipo).to.equal("image/png");
+    expect(res.body.adjunto.url).to.include("/storage/tickets/");
+    expect(res.body.autor).to.equal("agente");
+  });
+}
+
+docs {
+  El clip del chat de soporte: foto (JPG, PNG o WebP) o PDF de hasta 5 MB, con texto o sin él (campo `adjunto`). Para verlo en el navegador hace falta `php artisan storage:link`.
+}

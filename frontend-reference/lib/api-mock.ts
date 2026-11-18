@@ -1237,10 +1237,11 @@ export const obtenerTicket = (ticket_id: string) => llamar<TicketDetalle>(() => 
   }
 })
 
-export const enviarMensajeTicket = (ticket_id: string, texto: string) => llamar<MensajeTicket>(() => {
+export const enviarMensajeTicket = (ticket_id: string, texto: string, adjunto?: File) => llamar<MensajeTicket>(() => {
   const ticket = db.tickets.find((t) => t.id === ticket_id)
   if (!ticket) throw new Error('El ticket no existe.')
-  const mensaje: MensajeTicket = { id: `MSG-${Date.now()}`, ticket_id, autor: 'agente', texto: texto.trim(), enviado_en: ahora() }
+  if (!texto.trim() && !adjunto) throw new Error('Escribe un mensaje o adjunta un archivo.')
+  const mensaje: MensajeTicket = { id: `MSG-${Date.now()}`, ticket_id, autor: 'agente', texto: texto.trim(), enviado_en: ahora(), adjunto: adjunto ? { url: URL.createObjectURL(adjunto), nombre: adjunto.name, tipo: adjunto.type } : null }
   db.mensajes_ticket.push(mensaje)
   ticket.actualizado_en = mensaje.enviado_en
   ticket.mensajes_sin_leer = 0

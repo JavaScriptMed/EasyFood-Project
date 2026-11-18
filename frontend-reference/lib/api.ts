@@ -245,7 +245,13 @@ const real: typeof mock = {
     const t = await leer<any>(`/api/v1/admin/tickets/${id}`)
     return { ...ticket(t), mensajes: t.mensajes, resumen_pedido: t.resumen_pedido ?? { plan: '', proxima_entrega: '', zona: '', total: 0, direccion: '', referencias: '' } } as TicketDetalle
   },
-  enviarMensajeTicket: async (id, texto) => ids(await post<MensajeTicket>(`/api/v1/admin/tickets/${id}/mensajes`, { texto })),
+  enviarMensajeTicket: async (id, texto, adjunto) => {
+    if (!adjunto) return ids(await post<MensajeTicket>(`/api/v1/admin/tickets/${id}/mensajes`, { texto }))
+    const formulario = new FormData()
+    if (texto.trim()) formulario.append('texto', texto)
+    formulario.append('adjunto', adjunto)
+    return ids(await http<MensajeTicket>('POST', `/api/v1/admin/tickets/${id}/mensajes`, { cuerpo: {}, formulario }))
+  },
 
   // ---- portal del empleado
   obtenerMiMenu: async () => leer<MiMenu>('/api/v1/empleado/menu'),

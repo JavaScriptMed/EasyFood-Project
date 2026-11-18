@@ -251,8 +251,9 @@ export interface MensajeTicket {
   id: string
   ticket_id: string
   autor: 'cliente' | 'agente'
-  texto: string
+  texto: string // puede venir vacío si el mensaje solo lleva un archivo
   enviado_en: string
+  adjunto?: { url: string; nombre: string; tipo: string } | null
 }
 
 export interface Plan {

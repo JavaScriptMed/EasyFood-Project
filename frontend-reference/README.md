@@ -67,6 +67,10 @@ Las ventanas viven en `components/ventanas.tsx` (formulario, confirmación y pan
 
 **Ventanas listas, rutas del backend pendientes** (devuelven «… todavía no está disponible en el servidor»; las funciones ya existen en `lib/api.ts` y en la maqueta): `editarComedor`, `cambiarEstadoComedor` y `cambiarEstadoPlatillo`. Ya son reales la foto (`subirImagenPlatillo`), el historial y programar un precio. Ya son reales: editar platillo (`PUT …/platillos/{id}`) y quitar la elección (`DELETE /empleado/elecciones`).
 
+## Soporte: adjuntar archivos
+
+En el chat de un ticket (`/admin/soporte`) el clip abre el selector de archivos: foto (JPG, PNG, WebP) o PDF de hasta 5 MB. El archivo elegido se muestra sobre el cuadro de texto, con botón para quitarlo, y se puede enviar con o sin texto. Las fotos se ven dentro de la conversación y los PDF salen como enlace (`components/adjunto-de-ticket.tsx`).
+
 ## Dashboard e indicadores
 
 - **Administrador (`/admin`):** debajo del resumen del día, la sección «Indicadores de la operación» con los 10 indicadores (platillos entregados, calificación de la entrega y del menú, paquete más popular, ahorro por empleado, quejas, contratos nuevos, costo de maquila, balance de utilidad y semáforo de facturación). El balance es una gráfica de ingresos contra costos con su utilidad y un botón «Ver como tabla»; el semáforo y el límite de maquila llevan ícono y texto, no solo color. Componentes en `components/indicadores.tsx`.

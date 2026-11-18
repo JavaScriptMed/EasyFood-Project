@@ -68,7 +68,7 @@ Cada portal solo ve lo suyo: la empresa, el comedor o el empleado se resuelven d
 
 ## Probar la API a mano (Bruno) y datos de ejemplo
 
-La carpeta [`bruno/`](bruno/README.md) es una colección de [Bruno](https://www.usebruno.com/) con 198 peticiones y 325 pruebas automáticas que cubren toda la API v1 (incluidos los pendientes, que deben responder 501). `DatosDeEjemploSeeder` carga empresas, comedores, empleados, platillos, historial, clientes y pedidos de ejemplo (solo desarrollo; la contraseña de las cuentas sale de `SEED_PASSWORD` en tu `.env`):
+La carpeta [`bruno/`](bruno/README.md) es una colección de [Bruno](https://www.usebruno.com/) con 200 peticiones y 327 pruebas automáticas que cubren toda la API v1 (incluidos los pendientes, que deben responder 501). `DatosDeEjemploSeeder` carga empresas, comedores, empleados, platillos, historial, clientes y pedidos de ejemplo (solo desarrollo; la contraseña de las cuentas sale de `SEED_PASSWORD` en tu `.env`):
 
 ```bash
 docker compose exec app php artisan db:seed --class=DatosDeEjemploSeeder
@@ -122,6 +122,10 @@ Sin ellas, el pago y el webhook responden `503 pagos_no_configurados`. Después 
 - **Empresa** (`POST /admin/empresas`): crea el contacto de RR. HH. (cuenta inactiva con invitación), la empresa y su contrato de 6 meses (`precio_por_platillo` $130 si no se manda). El nombre debe ser único y la `zona` debe existir en `zonas`; si no, el error lista las disponibles.
 - **Repartidor** (`POST /admin/repartidores`): cuenta con invitación, `numero_empleado` automático (`R-001`…), placas obligatorias (solo se reparte en automóvil) y `zona_base` existente.
 - **Empleados** (`POST /empresa/empleados`, hasta 500): cada persona queda inactiva hasta aceptar su invitación; sin correo se arma con el nombre y el dominio de la empresa; los correos repetidos o ya registrados se omiten y se devuelven en `omitidos`.
+
+## Adjuntos en los tickets de soporte
+
+`POST /admin/tickets/{id}/mensajes` acepta `texto`, un archivo `adjunto` (foto JPG, PNG o WebP, o PDF, de hasta 5 MB) o ambos; sin ninguno responde 422. Se guarda en `storage/app/public/tickets` con un nombre aleatorio de 40 caracteres (el nombre original solo se conserva, limpio, para mostrarlo) y el mensaje trae `adjunto: { url, nombre, tipo }`. Se rechazan SVG, scripts y cualquier otro tipo. Hace falta `php artisan storage:link` y correr `php artisan migrate` (agrega las columnas `adjunto_*` a `mensajes_ticket`).
 
 ## Fotos y precios de los platillos
 
