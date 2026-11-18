@@ -242,6 +242,7 @@ Con certbot, agrega también `add_header Strict-Transport-Security "max-age=3153
 
 ## 9. Conectar el front de Vercel
 
+0. Al crear el proyecto en Vercel: **Root Directory = `frontend-reference`** (el front vive en esa carpeta del repositorio, con su propio `package.json`). Todo lo demás lo detecta solo.
 1. En Vercel → tu proyecto → **Settings → Environment Variables** (entorno Production):
    - `NEXT_PUBLIC_API_URL` = `https://api.tu-dominio.com`
    - `NEXT_PUBLIC_USAR_MOCK` = `false`
