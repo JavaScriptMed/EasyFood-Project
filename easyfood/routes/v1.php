@@ -8,8 +8,7 @@
 | Autenticación: token Bearer de Sanctum (POST /api/auth/login). Cada grupo exige su rol (middleware `role:`):
 |   admin · support · provider (comedor) · company (empresa) · employee (empleado) · customer (cliente).
 |
-| Ya están construidos todos los endpoints. Un endpoint nuevo puede declararse antes de construirlo apuntando a
-| NoImplementadoController: responde 501 con un mensaje claro (RutasDeLaApiTest lleva la cuenta de los pendientes).
+| Todos los endpoints están construidos: RutasDeLaApiTest comprueba que toda ruta apunte a un controlador y método que existen.
 */
 
 use App\Http\Controllers\Api\V1\Admin;
@@ -81,6 +80,8 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::post('empresas/{id}/renovar-contrato', [Admin\ContratoController::class, 'renovarEmpresa'])->name('empresas.renovar');
             Route::get('comedores', [Admin\ComedorController::class, 'index'])->name('comedores.index');
             Route::post('comedores', [Admin\ComedorAltaController::class, 'store'])->name('comedores.store');
+            Route::put('comedores/{id}', [Admin\ComedorEdicionController::class, 'update'])->name('comedores.update');
+            Route::patch('comedores/{id}/estado', [Admin\ComedorEdicionController::class, 'estado'])->name('comedores.estado');
             Route::get('comedores/{id}', [Admin\ComedorController::class, 'show'])->name('comedores.show');
             Route::post('comedores/{id}/renovar-contrato', [Admin\ContratoController::class, 'renovarComedor'])->name('comedores.renovar');
             Route::get('contratos/por-vencer', [Admin\ContratoController::class, 'porVencer'])->name('contratos.por-vencer');
@@ -88,6 +89,7 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('platillos', [Admin\PlatilloController::class, 'index'])->name('platillos.index');
             Route::post('platillos', [Admin\PlatilloController::class, 'store'])->name('platillos.store');
             Route::put('platillos/{id}', [Admin\PlatilloController::class, 'update'])->name('platillos.update');
+            Route::patch('platillos/{id}/estado', [Admin\PlatilloController::class, 'estado'])->name('platillos.estado');
             Route::post('platillos/{id}/revision', [Admin\PlatilloController::class, 'revision'])->name('platillos.revision');
             Route::get('platillos/{id}/historial-precios', [Admin\PlatilloExtrasController::class, 'historial'])->name('platillos.historial-precios');
             Route::post('platillos/{id}/precios', [Admin\PlatilloExtrasController::class, 'programarPrecio'])->name('platillos.programar-precio');
@@ -172,6 +174,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('platillos', [Comedor\PlatilloController::class, 'index'])->name('platillos.index');
         Route::post('platillos', [Comedor\PlatilloController::class, 'store'])->name('platillos.store');
         Route::put('platillos/{id}', [Comedor\PlatilloController::class, 'update'])->name('platillos.update');
+        Route::patch('platillos/{id}/estado', [Comedor\PlatilloController::class, 'estado'])->name('platillos.estado');
         Route::post('platillos/{id}/imagen', [Comedor\PlatilloImagenController::class, 'store'])->name('platillos.imagen');
         Route::get('disponibilidad', [Comedor\DisponibilidadController::class, 'index'])->name('disponibilidad.index');
         Route::put('disponibilidad', [Comedor\DisponibilidadController::class, 'guardar'])->name('disponibilidad.guardar');

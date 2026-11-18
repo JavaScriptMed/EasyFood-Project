@@ -36,7 +36,6 @@ function ids<T>(valor: T): T {
 const leer = async <T>(ruta: string, query?: Record<string, unknown>) => ids(await get<T>(ruta, query))
 const rolActual = (): Rol | null => { const s = leerSesion(); return s.estado === 'ninguna' ? null : s.rol }
 const esRol = (...roles: Rol[]) => { const r = rolActual(); return !!r && roles.includes(r) }
-const pendiente = (que: string) => new ErrorApi(`${que} todavía no está disponible en el servidor.`, 501, 'no_implementado')
 const ahoraIso = () => new Date().toISOString().slice(0, 19)
 
 /** La factura del backend usa el folio como id visible; el id numérico se recuerda para las acciones (emitir, pagar). */
@@ -179,8 +178,8 @@ const real: typeof mock = {
   listarComedores: async () => leer<ComedorDetalle[]>('/api/v1/admin/comedores'),
   obtenerComedor: async (id) => leer<ComedorDetalle>(esRol('comedor') ? '/api/v1/comedor/perfil' : `/api/v1/admin/comedores/${id}`),
   crearComedor: async (datos) => ids(await post<ComedorDetalle>('/api/v1/admin/comedores', datos)),
-  editarComedor: async () => { throw pendiente('Editar un comedor') },
-  cambiarEstadoComedor: async () => { throw pendiente('Desactivar un comedor') },
+  editarComedor: async (id, datos) => ids(await put<ComedorDetalle>(`/api/v1/admin/comedores/${id}`, datos)),
+  cambiarEstadoComedor: async (id, activo) => ids(await patch<ComedorDetalle>(`/api/v1/admin/comedores/${id}/estado`, { activo })),
 
   // ---- platillos, menús y disponibilidad
   listarPlatillos: async (filtro = {}) =>
@@ -205,7 +204,7 @@ const real: typeof mock = {
   },
   revisarPlatillo: async (id, decision, motivo) => platillo(ids(await post<PlatilloDetalle>(`/api/v1/admin/platillos/${id}/revision`, { decision, motivo }))),
   listarHistorialPrecios: async (id) => leer<HistorialPrecio[]>(`/api/v1/admin/platillos/${id}/historial-precios`),
-  cambiarEstadoPlatillo: async () => { throw pendiente('Desactivar un platillo') },
+  cambiarEstadoPlatillo: async (id, activo) => platillo(ids(await patch<PlatilloDetalle>(`/api/v1/${esRol('comedor') ? 'comedor' : 'admin'}/platillos/${id}/estado`, { activo }))),
   crearPlan: async (datos) => ids(await post<Plan>('/api/v1/admin/paquetes', datos)),
   cambiarEstadoPlan: async (id, activo) => ids(await patch<Plan>(`/api/v1/admin/paquetes/${id}/estado`, { activo })),
   editarPlan: async (id, datos) => ids(await put<Plan>(`/api/v1/admin/paquetes/${id}`, datos)),

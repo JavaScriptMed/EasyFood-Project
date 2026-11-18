@@ -41,11 +41,9 @@ Cada cuenta solo entra por su portal (por ejemplo, el administrador por `/empres
 
 Las pantallas no cambiaron: siguen llamando a las mismas funciones de `@/lib/api`.
 
-## Qué ya es real y qué falta
+## Qué es real
 
-Las altas (incluidos comedores y planes), la foto y el historial de precios de los platillos, regenerar rutas, reasignar incidencias y editar o desactivar empresas, empleados, planes, repartidores, límite del auto y personas con acceso ya son reales. Todo funciona con el backend **excepto** lo que el backend todavía no construye. Esas funciones avisan con un mensaje claro («… todavía no está disponible en el servidor») o muestran su pantalla vacía:
-
-- **Datos:** el dashboard es real (resumen, alertas y los 10 indicadores), el historial de precios también y las fotos de los platillos se suben de verdad (JPG, PNG o WebP, hasta 2 MB).
+Todo es real: con el backend encendido, **cada función de `lib/api.ts` llama a la API** y no queda ninguna que avise «todavía no está disponible». Los datos son los del backend: el dashboard (resumen, alertas y 10 indicadores), el historial de precios, las fotos de los platillos (JPG, PNG o WebP, hasta 2 MB), los adjuntos de los tickets y todas las altas, ediciones y desactivaciones.
 
 ## Ventanas de crear, editar, eliminar y ver detalle
 
@@ -65,7 +63,7 @@ Las ventanas viven en `components/ventanas.tsx` (formulario, confirmación y pan
 | Facturas, pedidos de mañana, pagos al comedor | — | — | — | sí |
 | Elección del empleado | sí | sí | quitar | sí |
 
-**Ventanas listas, rutas del backend pendientes** (devuelven «… todavía no está disponible en el servidor»; las funciones ya existen en `lib/api.ts` y en la maqueta): `editarComedor`, `cambiarEstadoComedor` y `cambiarEstadoPlatillo`. Ya son reales la foto (`subirImagenPlatillo`), el historial y programar un precio. Ya son reales: editar platillo (`PUT …/platillos/{id}`) y quitar la elección (`DELETE /empleado/elecciones`).
+Todas las ventanas ya están conectadas al backend: no queda ninguna función que avise «todavía no está disponible».
 
 ## Detalle de una empresa (administración)
 

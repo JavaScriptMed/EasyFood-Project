@@ -10,10 +10,7 @@ use Tests\Concerns\ArmaEscenarios;
 use Tests\Concerns\VerificaRestricciones;
 use Tests\TestCase;
 
-/**
- * El mapa de la API v1: toda ruta existe con su nombre y su rol, y las que todavía no se construyen (las más complejas,
- * el dashboard y las imágenes) respondían 501 con un mensaje claro en lugar de un 404; hoy ya no queda ninguno.
- */
+/** El mapa de la API v1: toda ruta existe con su nombre y su rol y apunta a un controlador real. */
 class RutasDeLaApiTest extends TestCase
 {
     use ActuaComoUsuario;
@@ -41,11 +38,6 @@ class RutasDeLaApiTest extends TestCase
         return null;
     }
 
-    private function pendiente(RutaDeLaravel $ruta): bool
-    {
-        return str_ends_with($ruta->getActionName(), 'NoImplementadoController');
-    }
-
     private function direccion(RutaDeLaravel $ruta): string
     {
         return '/'.preg_replace(['/\{id\}/', '/\{[^}]+\}/'], ['1', 'x'], $ruta->uri());
@@ -63,11 +55,15 @@ class RutasDeLaApiTest extends TestCase
         $this->assertSame(count($rutas), count(array_unique(array_map(fn ($r) => $r->getName(), $rutas))), 'los nombres no se repiten');
     }
 
-    public function test_ya_no_queda_ningun_endpoint_pendiente_de_construir(): void
+    public function test_toda_ruta_apunta_a_un_controlador_y_metodo_que_existen(): void
     {
-        $pendientes = collect($this->rutasV1())->filter(fn ($r) => $this->pendiente($r))->map(fn ($r) => $r->getName())->sort()->values()->all();
-
-        $this->assertSame([], $pendientes);
+        foreach ($this->rutasV1() as $ruta) {
+            $accion = $ruta->getAction('uses');
+            $this->assertIsString($accion, "{$ruta->uri()} no debe ser una función anónima");
+            [$clase, $metodo] = array_pad(explode('@', $accion), 2, '__invoke');
+            $this->assertTrue(class_exists($clase) && method_exists($clase, $metodo), "{$ruta->uri()} apunta a {$accion}, que no existe");
+            $this->assertStringNotContainsString('NoImplementado', $accion, "{$ruta->uri()} sigue sin construirse");
+        }
     }
 
     public function test_sin_iniciar_sesion_todo_lo_privado_responde_401_con_mensaje_en_espanol(): void

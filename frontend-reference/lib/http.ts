@@ -45,7 +45,6 @@ function mensajeDe(estado: number, cuerpo: any): string {
   }
   if (typeof cuerpo?.mensaje === 'string') return cuerpo.mensaje
   if (typeof cuerpo?.message === 'string' && estado !== 500) return cuerpo.message
-  if (estado === 501) return 'Esta función todavía no está disponible en el servidor.'
   if (estado >= 500) return 'El servidor tuvo un problema. Intenta de nuevo en unos minutos.'
   return `No se pudo completar la solicitud (${estado}).`
 }
