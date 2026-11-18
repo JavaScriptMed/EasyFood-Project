@@ -2,7 +2,9 @@
 
 El front habla con el backend de Laravel (`../easyfood`, API en `/api/v1`). Con el backend encendido y datos cargados, todos los portales funcionan con datos reales.
 
-## Levantarlo
+## Levantarlo en tu computadora
+
+Esta carpeta es un proyecto Next.js **completo y autosuficiente** (tiene su `package.json`, su `package-lock.json`, la configuración y todo el sistema de diseño): no depende de ninguna otra carpeta.
 
 ```bash
 # 1) Backend (carpeta easyfood/): base de datos, API y tareas automáticas
@@ -10,12 +12,30 @@ docker compose up -d
 docker compose exec app php artisan migrate
 docker compose exec app php artisan db:seed --class=DatosDeEjemploSeeder   # cuentas y datos de ejemplo (usa SEED_PASSWORD de tu .env)
 
-# 2) Front (tu proyecto Next.js con estas carpetas app/, components/, lib/)
+# 2) Front (esta carpeta, frontend-reference/). Requiere Node 20.9 o más
+npm install
 cp .env.example .env.local        # NEXT_PUBLIC_API_URL=http://localhost:8000
-pnpm dev                          # http://localhost:3000
+npm run dev                       # http://localhost:3000
+npm run build                     # compila para producción (también revisa los tipos)
 ```
 
-El backend solo acepta peticiones del front en `http://localhost:3000` (o `127.0.0.1:3000`); si usas otro puerto, agrégalo en `CORS_ALLOWED_ORIGINS` del `.env` del backend.
+## Variables de entorno
+
+| Variable | Qué hace |
+|---|---|
+| `NEXT_PUBLIC_API_URL` | Dirección de la API de Laravel, con `https` y sin barra final (`http://localhost:8000` en local, `https://api.tu-dominio.com` en producción). Se lee al **compilar**: si la cambias, vuelve a desplegar. |
+| `NEXT_PUBLIC_USAR_MOCK` | `true` = pantallas con datos de ejemplo y sin backend; `false` o sin definir = backend real. En producción, `false`. |
+
+No pongas claves aquí: las variables `NEXT_PUBLIC_*` terminan dentro del JavaScript que baja el navegador.
+
+## Publicarlo en Vercel
+
+1. En Vercel: **Add New → Project** y elige el repositorio.
+2. **Root Directory: `frontend-reference`**. Framework: Next.js (lo detecta solo). Install Command y Build Command, los de siempre (`npm install` y `npm run build`).
+3. **Environment Variables** (Production y Preview): `NEXT_PUBLIC_API_URL` = `https://api.tu-dominio.com` y `NEXT_PUBLIC_USAR_MOCK` = `false`.
+4. Deploy. Después pon el dominio que te dé Vercel en `CORS_ALLOWED_ORIGINS` y `FRONTEND_URL` del backend (ver `easyfood/DESPLIEGUE.md`, paso 9).
+
+En local, el backend solo acepta peticiones del front en `http://localhost:3000` (o `127.0.0.1:3000`); si usas otro puerto, agrégalo en `CORS_ALLOWED_ORIGINS` del `.env` del backend.
 
 ## Cuentas de ejemplo (contraseña = `SEED_PASSWORD`)
 
@@ -69,6 +89,10 @@ Todas las ventanas ya están conectadas al backend: no queda ninguna función qu
 
 El panel de una empresa tiene cuatro pestañas: **Resumen** (contacto, entrega, consumo del mes, vigencia y usuarios con acceso), **Empleados** (quiénes son, estado, platillos del mes y su elección de mañana; `GET /admin/empresas/{id}/empleados`), **Consumo** (gráfica por día de cualquiera de los últimos 6 meses) y **Contrato** (precio, subsidio, mínimo, ventana, vigencia, renovar y calculadora de subsidio).
 
+## Zonas de entrega (administración)
+
+`/admin/zonas`: lista de zonas con su área y cuántas direcciones, empresas, comedores y repartidores usa cada una. **Nueva zona** (nombre + archivo GeoJSON), **Cambiar polígono**, **Importar varias** (un FeatureCollection con `properties.nombre` en cada polígono) y **Desactivar** o **Reactivar**. Antes de guardar se dibuja el polígono para comprobar que es el correcto. El nombre no cambia: lo usan empresas, comedores y repartidores.
+
 ## Soporte: adjuntar archivos
 
 En el chat de un ticket (`/admin/soporte`) el clip abre el selector de archivos: foto (JPG, PNG, WebP) o PDF de hasta 5 MB. El archivo elegido se muestra sobre el cuadro de texto, con botón para quitarlo, y se puede enviar con o sin texto. Las fotos se ven dentro de la conversación y los PDF salen como enlace (`components/adjunto-de-ticket.tsx`).
@@ -83,4 +107,4 @@ En el chat de un ticket (`/admin/soporte`) el clip abre el selector de archivos:
 
 ## Probar sin backend
 
-`NEXT_PUBLIC_USAR_MOCK=true` en `.env.local` y reinicia `pnpm dev`: todo vuelve a los datos de ejemplo.
+`NEXT_PUBLIC_USAR_MOCK=true` en `.env.local` y reinicia `npm run dev`: todo vuelve a los datos de ejemplo.

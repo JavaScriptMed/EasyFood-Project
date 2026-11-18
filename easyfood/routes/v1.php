@@ -107,6 +107,13 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('cortes/vista-previa', [Admin\CorteController::class, 'vistaPrevia'])->name('cortes.vista-previa');
             Route::post('cortes/ejecutar', [Admin\CorteController::class, 'ejecutar'])->name('cortes.ejecutar');
 
+            Route::get('zonas', [Admin\ZonaController::class, 'index'])->name('zonas.index');
+            Route::post('zonas', [Admin\ZonaController::class, 'store'])->name('zonas.store');
+            Route::post('zonas/importar', [Admin\ZonaController::class, 'importar'])->name('zonas.importar');
+            Route::get('zonas/{id}', [Admin\ZonaController::class, 'show'])->name('zonas.show');
+            Route::put('zonas/{id}', [Admin\ZonaController::class, 'update'])->name('zonas.update');
+            Route::patch('zonas/{id}/estado', [Admin\ZonaController::class, 'estado'])->name('zonas.estado');
+
             Route::get('repartidores', [Admin\RepartidorController::class, 'index'])->name('repartidores.index');
             Route::post('repartidores', [Admin\RepartidorController::class, 'store'])->name('repartidores.store');
             Route::get('repartidores/capacidades', [Admin\RepartidorController::class, 'capacidades'])->name('repartidores.capacidades');

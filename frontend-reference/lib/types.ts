@@ -616,6 +616,25 @@ export interface NuevoPlan {
   destacado: boolean
 }
 
+/** Una zona de entrega: su polígono vive en el backend (PostGIS); aquí solo lo que se muestra. */
+export interface ZonaDetalle {
+  id: string
+  nombre: string // no se renombra: es el texto que usan empresas, comedores, repartidores y direcciones
+  activo: boolean
+  area_km2: number
+  direcciones: number
+  empresas: number
+  comedores: number
+  repartidores: number
+  geojson?: unknown // solo en el detalle de una zona (un Feature)
+}
+
+export interface ResultadoImportarZonas {
+  creadas: number
+  actualizadas: number
+  zonas: { id: string; nombre: string; creada: boolean; area_km2: number }[]
+}
+
 export interface NuevoRepartidor {
   nombre: string
   correo: string

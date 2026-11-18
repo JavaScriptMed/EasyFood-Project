@@ -1,0 +1,35 @@
+meta {
+  name: Desactivar la zona
+  type: http
+  seq: 10
+}
+
+patch {
+  url: {{baseUrl}}/api/v1/admin/zonas/{{zonaNuevaId}}/estado
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+body:json {
+  {
+    "activo": false
+  }
+}
+
+tests {
+  test("responde 200", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("queda inactiva", function () {
+    expect(res.body.activo).to.equal(false);
+  });
+}
+
+docs {
+  No se puede mientras haya empresas, comedores o repartidores activos en la zona (`zona_en_uso`).
+}

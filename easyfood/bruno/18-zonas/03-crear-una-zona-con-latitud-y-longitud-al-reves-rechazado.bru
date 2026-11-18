@@ -1,0 +1,55 @@
+meta {
+  name: Crear una zona con latitud y longitud al revés (rechazado)
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{baseUrl}}/api/v1/admin/zonas
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+body:json {
+  {
+    "nombre": "Al reves",
+    "geojson": {
+      "type": "Polygon",
+      "coordinates": [
+        [
+          [
+            25.64,
+            -100.34
+          ],
+          [
+            25.7,
+            -100.34
+          ],
+          [
+            25.7,
+            -100.28
+          ],
+          [
+            25.64,
+            -100.28
+          ],
+          [
+            25.64,
+            -100.34
+          ]
+        ]
+      ]
+    }
+  }
+}
+
+tests {
+  test("responde 422 coordenadas_invalidas", function () {
+    expect(res.getStatus()).to.equal(422);
+    expect(res.body.codigo).to.equal("coordenadas_invalidas");
+  });
+}

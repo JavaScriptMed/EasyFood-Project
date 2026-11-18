@@ -1,0 +1,31 @@
+meta {
+  name: Reactivar la zona
+  type: http
+  seq: 11
+}
+
+patch {
+  url: {{baseUrl}}/api/v1/admin/zonas/{{zonaNuevaId}}/estado
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+body:json {
+  {
+    "activo": true
+  }
+}
+
+tests {
+  test("responde 200", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("vuelve a estar activa", function () {
+    expect(res.body.activo).to.equal(true);
+  });
+}

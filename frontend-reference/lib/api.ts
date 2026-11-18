@@ -13,7 +13,7 @@ import * as mock from './api-mock'
 import type {
   BloqueHorario, CalificacionPendiente, CostoOperativo, IndicadoresEmpresa, InvitacionDetalle, InvitacionPublica, ResultadoAceptacion, SolicitudRestablecimiento,
   ResultadoAltaEmpleados, UsuarioAcceso, ValidacionToken, CalendarioServicio, ClienteDetalle, ClienteResumen, ComedorDetalle, ConfiguracionOperacion, ConsumoDiario, ContratoPorVencer, Corte,
-  DashboardAdmin, DiaSinServicio, DisponibilidadConPlatillo, EleccionEmpleado, Empleado, EmpleadoDetalle, EmpresaDetalle, EntregaDetalle, FacturaConEmpresa, HistorialPrecio,
+  DashboardAdmin, DiaSinServicio, DisponibilidadConPlatillo, EleccionEmpleado, Empleado, EmpleadoDetalle, EmpresaDetalle, EntregaDetalle, FacturaConEmpresa, HistorialPrecio, ResultadoImportarZonas, ZonaDetalle,
   FacturaDetalle, FacturaMensual, FilaReporteProveedor, IncidenciaDetalle, LiquidacionComedor, LiquidacionConComedor, MensajeContacto, MensajeTicket,
   MenuSemanalDia, MiEleccion, MiMenu, OrdenProduccionDetalle, PedidoDetalle, PedidosMananaEmpresa, Plan, PlatilloDetalle, RegistroAuditoriaDetalle,
   RepartidorDetalle, ResultadoCorte, Rol, RutaDetalle, TicketDetalle, TicketResumen, TipoVehiculo, VistaPreviaCorte,
@@ -177,6 +177,11 @@ const real: typeof mock = {
   // ---- comedores
   listarComedores: async () => leer<ComedorDetalle[]>('/api/v1/admin/comedores'),
   obtenerComedor: async (id) => leer<ComedorDetalle>(esRol('comedor') ? '/api/v1/comedor/perfil' : `/api/v1/admin/comedores/${id}`),
+  listarZonas: async () => leer<ZonaDetalle[]>('/api/v1/admin/zonas'),
+  crearZona: async (nombre, geojson) => ids(await post<ZonaDetalle>('/api/v1/admin/zonas', { nombre, geojson })),
+  reemplazarPoligonoZona: async (id, geojson) => ids(await put<ZonaDetalle>(`/api/v1/admin/zonas/${id}`, { geojson })),
+  importarZonas: async (coleccion) => ids(await post<ResultadoImportarZonas>('/api/v1/admin/zonas/importar', coleccion)),
+  cambiarEstadoZona: async (id, activo) => ids(await patch<ZonaDetalle>(`/api/v1/admin/zonas/${id}/estado`, { activo })),
   crearComedor: async (datos) => ids(await post<ComedorDetalle>('/api/v1/admin/comedores', datos)),
   editarComedor: async (id, datos) => ids(await put<ComedorDetalle>(`/api/v1/admin/comedores/${id}`, datos)),
   cambiarEstadoComedor: async (id, activo) => ids(await patch<ComedorDetalle>(`/api/v1/admin/comedores/${id}/estado`, { activo })),
@@ -362,6 +367,11 @@ export const editarPlan = elegir('editarPlan')
 export const crearPlan = elegir('crearPlan')
 export const cambiarEstadoPlan = elegir('cambiarEstadoPlan')
 export const crearComedor = elegir('crearComedor')
+export const listarZonas = elegir('listarZonas')
+export const crearZona = elegir('crearZona')
+export const reemplazarPoligonoZona = elegir('reemplazarPoligonoZona')
+export const importarZonas = elegir('importarZonas')
+export const cambiarEstadoZona = elegir('cambiarEstadoZona')
 export const programarPrecioPlatillo = elegir('programarPrecioPlatillo')
 export const subirImagenPlatillo = elegir('subirImagenPlatillo')
 export const editarRepartidor = elegir('editarRepartidor')

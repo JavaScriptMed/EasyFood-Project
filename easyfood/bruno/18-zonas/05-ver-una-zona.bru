@@ -1,0 +1,25 @@
+meta {
+  name: Ver una zona
+  type: http
+  seq: 5
+}
+
+get {
+  url: {{baseUrl}}/api/v1/admin/zonas/{{zonaNuevaId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+tests {
+  test("responde 200", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("trae el polígono como Feature", function () {
+    expect(res.body.geojson.properties.nombre).to.equal(bru.getVar("nombreZona"));
+  });
+}

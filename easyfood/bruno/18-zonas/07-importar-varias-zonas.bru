@@ -1,0 +1,108 @@
+meta {
+  name: Importar varias zonas
+  type: http
+  seq: 7
+}
+
+post {
+  url: {{baseUrl}}/api/v1/admin/zonas/importar
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+body:json {
+  {
+    "type": "FeatureCollection",
+    "features": [
+      {
+        "type": "Feature",
+        "properties": {
+          "nombre": "{{nombreZonaA}}"
+        },
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [
+            [
+              [
+                -100.53,
+                25.67
+              ],
+              [
+                -100.47,
+                25.67
+              ],
+              [
+                -100.47,
+                25.73
+              ],
+              [
+                -100.53,
+                25.73
+              ],
+              [
+                -100.53,
+                25.67
+              ]
+            ]
+          ]
+        }
+      },
+      {
+        "type": "Feature",
+        "properties": {
+          "nombre": "{{nombreZonaB}}"
+        },
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [
+            [
+              [
+                -100.63,
+                25.67
+              ],
+              [
+                -100.57,
+                25.67
+              ],
+              [
+                -100.57,
+                25.73
+              ],
+              [
+                -100.63,
+                25.73
+              ],
+              [
+                -100.63,
+                25.67
+              ]
+            ]
+          ]
+        }
+      }
+    ]
+  }
+}
+
+script:pre-request {
+  const t = Date.now(); bru.setVar("nombreZonaA", "Zona A " + t); bru.setVar("nombreZonaB", "Zona B " + t);
+}
+
+tests {
+  test("responde 201", function () {
+    expect(res.getStatus()).to.equal(201);
+  });
+
+  test("crea las dos", function () {
+    expect(res.body.creadas).to.equal(2);
+    expect(res.body.zonas.length).to.equal(2);
+  });
+}
+
+docs {
+  Un FeatureCollection con un polígono por zona y su nombre en `properties.nombre`. Todo o nada: si una trae error no se guarda ninguna.
+}
