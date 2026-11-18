@@ -5,6 +5,7 @@
 #   scripts/demo.sh servir     levanta la API de la demo en http://localhost:8001 (contenedor easylunch-demo)
 #   scripts/demo.sh detener    apaga la API de la demo
 #
+# Los correos de la demo van al log (storage/logs/enlaces.log muestra los enlaces); para mandarlos de verdad: DEMO_MAILER=smtp scripts/demo.sh servir
 # Solo toca easylunch_demo. Cuentas de ejemplo: contraseña Prueba1234 (admin: demo@easylunch.test / Admin1234).
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -27,6 +28,7 @@ case "${1:-}" in
     docker rm -f easylunch-demo >/dev/null 2>&1 || true
     docker compose run -d --rm --name easylunch-demo -p 8001:8001 \
       -e DB_DATABASE=easylunch_demo -e APP_URL=http://localhost:8001 \
+      -e MAIL_MAILER="${DEMO_MAILER:-log}" \
       -e CORS_ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000 -e FRONTEND_URL=http://localhost:3000 \
       app php -S 0.0.0.0:8001 -t public >/dev/null
     docker exec easylunch-demo php artisan storage:link >/dev/null 2>&1 || true
