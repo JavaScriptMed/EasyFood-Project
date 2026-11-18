@@ -109,6 +109,13 @@ services:
         max-size: "10m"
         max-file: "3"
 
+networks:
+  # Subred fija: así se le puede dar permiso en pg_hba.conf y en el firewall del servidor para llegar al PostgreSQL (ver DESPLIEGUE.md).
+  default:
+    ipam:
+      config:
+        - subnet: 172.31.250.0/24
+
 volumes:
   # Fotos de platillos, adjuntos de tickets y logs. Respáldalo (ver DESPLIEGUE.md).
   storage:

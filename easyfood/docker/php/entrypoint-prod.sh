@@ -26,6 +26,16 @@ if [ -z "${DB_PASSWORD:-}" ] || [ -z "${DB_DATABASE:-}" ]; then
   exit 1
 fi
 
+case "${MAIL_MAILER:-log}" in
+  log|array) ;;
+  *)
+    if [ -z "${MAIL_FROM_ADDRESS:-}" ]; then
+      echo "Falta MAIL_FROM_ADDRESS en .env.production: sin remitente los correos de invitación no salen." >&2
+      exit 1
+    fi
+    ;;
+esac
+
 # La configuración se lee una sola vez, de las variables del contenedor (no hay archivo .env dentro de la imagen).
 php artisan config:cache --no-interaction >/dev/null
 php artisan route:cache --no-interaction >/dev/null
