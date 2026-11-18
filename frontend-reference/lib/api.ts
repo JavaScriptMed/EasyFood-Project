@@ -194,7 +194,9 @@ const real: typeof mock = {
   guardarPlatillo: async (datos) => {
     const propio = esRol('comedor')
     const cuerpo: Record<string, unknown> = {
-      nombre: datos.nombre, descripcion: datos.descripcion, tiempo_comida: datos.tiempo_comida, calorias: datos.calorias, alergenos: datos.alergenos, estado_revision: datos.estado_revision,
+      nombre: datos.nombre, descripcion: datos.descripcion, tiempo_comida: datos.tiempo_comida, calorias: datos.calorias, alergenos: datos.alergenos,
+      // El backend solo acepta borrador o en_revision: publicar o rechazar es la decisión de la revisión (abajo), no un dato del formulario.
+      ...(datos.estado_revision === 'borrador' || datos.estado_revision === 'en_revision' ? { estado_revision: datos.estado_revision } : {}),
       ...(datos.precio_venta !== undefined ? { precio_venta: datos.precio_venta } : {}),
       ...(!propio ? { comedor_id: datos.comedor_id } : {}),
     }
@@ -205,7 +207,12 @@ const real: typeof mock = {
       if (!comedor.contrato) throw new ErrorApi('Escribe el precio de venta del platillo.', 422, 'validacion')
       cuerpo.precio_venta = comedor.contrato.precio_por_platillo
     }
-    return platillo(ids(await post<PlatilloDetalle>(`/api/v1/${propio ? 'comedor' : 'admin'}/platillos`, cuerpo)))
+    const creado = ids(await post<PlatilloDetalle>(`/api/v1/${propio ? 'comedor' : 'admin'}/platillos`, cuerpo))
+    // Lo que da de alta el administrador no necesita pasar por otra revisión: se aprueba en el acto.
+    if (!propio && datos.estado_revision === 'publicado' && creado.estado_revision === 'en_revision') {
+      return platillo(ids(await post<PlatilloDetalle>(`/api/v1/admin/platillos/${creado.id}/revision`, { decision: 'aprobar' })))
+    }
+    return platillo(creado)
   },
   revisarPlatillo: async (id, decision, motivo) => platillo(ids(await post<PlatilloDetalle>(`/api/v1/admin/platillos/${id}/revision`, { decision, motivo }))),
   listarHistorialPrecios: async (id) => leer<HistorialPrecio[]>(`/api/v1/admin/platillos/${id}/historial-precios`),
