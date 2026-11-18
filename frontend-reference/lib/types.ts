@@ -586,6 +586,7 @@ export interface NuevaEmpresa {
   compra_minima_mensual: number
   porcentaje_subsidio: number
   direccion_entrega: string
+  zona?: string // nombre de una zona cargada (el backend exige que exista)
   horario_entrega: string // "12:30–13:15"
 }
 

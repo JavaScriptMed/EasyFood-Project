@@ -54,12 +54,13 @@ Clic derecho en la colección → **Run**, o corre carpeta por carpeta. **Empiez
 | 06 | **Corte y reparto** | **Ejecutar el corte**: cierra elecciones, órdenes de producción, entregas por empresa, rutas por zona e incidencias |
 | 07 | Administración · dinero | Facturas a empresas y liquidaciones a comedores (total, partes y diferencia por mínimo) |
 | 08 | Portal de empresas | Empleados (activar/desactivar) y facturas propias |
+| 15 | Altas (empresa, repartidor y empleados) | Dar de alta una empresa con su contrato, un repartidor y empleados; cada persona recibe su invitación |
 | 14 | Cuentas (invitaciones y contraseña) | Invitar, reenviar y aceptar una invitación, y restablecer la contraseña; los enlaces salen en `storage/logs/enlaces.log` |
 | 13 | Dashboard e indicadores | Dashboard del administrador (10 indicadores), costos operativos, indicadores de RR. HH., calificación del menú y captura de calificaciones |
 | 09 | Administración · clientes y soporte | Clientes, pedidos, tickets y reembolso de un pedido pagado con Stripe |
 | 10 | Administración · bitácora | Todo lo que hicieron las carpetas anteriores |
 | 11 | Público y errores de ejemplo | Contacto y ejemplos de 401, 403, 404 y 422 |
-| 12 | Pendientes (501) | Los 18 endpoints configurados pero **todavía no construidos**: deben responder 501 |
+| 12 | Pendientes (501) | Los 6 endpoints configurados pero **todavía no construidos**: deben responder 501 |
 
 Cada petición tiene su descripción (pestaña **Docs**) y sus pruebas (pestaña **Tests**; ✓ verde = respondió como se espera). Las respuestas salen en español y con la forma `{ mensaje, codigo, errores }`.
 

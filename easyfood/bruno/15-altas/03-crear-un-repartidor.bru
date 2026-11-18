@@ -1,0 +1,41 @@
+meta {
+  name: Crear un repartidor
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{baseUrl}}/api/v1/admin/repartidores
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+body:json {
+  {
+    "nombre": "Repartidor de Bruno",
+    "correo": "{{correoRepartidorNuevo}}",
+    "telefono": "33 0000 1111",
+    "placas": "jal-777-b",
+    "zona_base": "Zapopan"
+  }
+}
+
+script:pre-request {
+  bru.setVar("correoRepartidorNuevo", "repartidor." + Date.now() + "@bruno.test");
+}
+
+tests {
+  test("responde 201", function () {
+    expect(res.getStatus()).to.equal(201);
+    expect(res.body.estado).to.equal("libre");
+    expect(res.body.placas).to.equal("JAL-777-B");
+  });
+}
+
+docs {
+  Solo se reparte en auto: las placas son obligatorias. Sin `numero_empleado` se asigna el siguiente (R-003).
+}

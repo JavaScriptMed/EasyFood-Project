@@ -12,7 +12,7 @@ import { leerSesion } from './sesion'
 import * as mock from './api-mock'
 import type {
   BloqueHorario, CalificacionPendiente, CostoOperativo, IndicadoresEmpresa, InvitacionDetalle, InvitacionPublica, ResultadoAceptacion, SolicitudRestablecimiento,
-  UsuarioAcceso, ValidacionToken, CalendarioServicio, ClienteDetalle, ClienteResumen, ComedorDetalle, ConfiguracionOperacion, ConsumoDiario, ContratoPorVencer, Corte,
+  ResultadoAltaEmpleados, UsuarioAcceso, ValidacionToken, CalendarioServicio, ClienteDetalle, ClienteResumen, ComedorDetalle, ConfiguracionOperacion, ConsumoDiario, ContratoPorVencer, Corte,
   DashboardAdmin, DiaSinServicio, DisponibilidadConPlatillo, EleccionEmpleado, Empleado, EmpleadoDetalle, EmpresaDetalle, EntregaDetalle, FacturaConEmpresa,
   FacturaDetalle, FacturaMensual, FilaReporteProveedor, IncidenciaDetalle, LiquidacionComedor, LiquidacionConComedor, MensajeContacto, MensajeTicket,
   MenuSemanalDia, MiEleccion, MiMenu, OrdenProduccionDetalle, PedidoDetalle, PedidosMananaEmpresa, Plan, PlatilloDetalle, RegistroAuditoriaDetalle,
@@ -89,7 +89,18 @@ const real: typeof mock = {
   // ---- empresas y contratos
   listarEmpresas: async () => leer<EmpresaDetalle[]>('/api/v1/admin/empresas'),
   obtenerEmpresa: async (id) => leer<EmpresaDetalle>(esRol('empresa') ? '/api/v1/empresa/perfil' : `/api/v1/admin/empresas/${id}`),
-  crearEmpresa: async () => { throw pendiente('Dar de alta una empresa') },
+  // El formulario captura el contacto como «Nombre y correo» y el horario como «12:30–13:15»; el API los pide separados.
+  crearEmpresa: async (datos) => {
+    const correo = datos.contacto_rrhh.match(/[^\s@,;<>]+@[^\s@,;<>]+\.[^\s@,;<>]+/)?.[0]
+    if (!correo) throw new ErrorApi('Escribe el nombre y el correo del contacto de RR. HH. (por ejemplo, «Mariana Ortega mariana@empresa.mx»).', 422, 'validacion')
+    const [inicio, fin] = datos.horario_entrega.split(/\s*[–-]\s*/).map((h) => h.trim().padStart(5, '0'))
+    if (!inicio || !fin) throw new ErrorApi('Escribe el horario de entrega, por ejemplo 12:30–13:15.', 422, 'validacion')
+    return ids(await post<EmpresaDetalle>('/api/v1/admin/empresas', {
+      nombre: datos.nombre, contacto_nombre: datos.contacto_rrhh.replace(correo, '').replace(/[,;<>]/g, ' ').replace(/\s+/g, ' ').trim() || 'Contacto de RR. HH.', contacto_correo: correo,
+      direccion_entrega: datos.direccion_entrega, zona: datos.zona ?? '', vigencia_inicio: datos.vigencia_inicio, compra_minima_mensual: datos.compra_minima_mensual,
+      porcentaje_subsidio: datos.porcentaje_subsidio, ventana_entrega_inicio: inicio, ventana_entrega_fin: fin,
+    }))
+  },
   editarEmpresa: async () => { throw pendiente('Editar una empresa') },
   cambiarEstadoEmpresa: async () => { throw pendiente('Desactivar una empresa') },
   renovarContratoEmpresa: async (id) => ids(await post<EmpresaDetalle>(`/api/v1/admin/empresas/${id}/renovar-contrato`)),
@@ -115,7 +126,7 @@ const real: typeof mock = {
 
   // ---- empleados de una empresa
   listarEmpleados: async () => leer<EmpleadoDetalle[]>('/api/v1/empresa/empleados'),
-  agregarEmpleados: async () => { throw pendiente('Dar de alta empleados') },
+  agregarEmpleados: async (_empresa, personas) => post<ResultadoAltaEmpleados>('/api/v1/empresa/empleados', { personas: personas.map((p) => ({ nombre: p.nombre, correo: p.correo || null })) }),
   editarEmpleado: async () => { throw pendiente('Editar un empleado') },
   quitarMiEleccion: async (_empleado, fecha, tiempo_comida) => { await borrar('/api/v1/empleado/elecciones', { fecha, tiempo_comida }) },
   cambiarEstadoEmpleado: async (id, activo) => ids(await patch<Empleado>(`/api/v1/empresa/empleados/${id}/estado`, { activo })),
@@ -209,7 +220,7 @@ const real: typeof mock = {
   listarRepartidores: async (filtro = {}) => (await leer<any[]>('/api/v1/admin/repartidores', { estado: filtro.estado })).map(repartidor),
   obtenerCapacidadesVehiculo: async () => { const c = await get<{ automovil: number }>('/api/v1/admin/repartidores/capacidades'); return { bicicleta: 0, motocicleta: 0, automovil: c.automovil } as Record<TipoVehiculo, number> },
   cambiarDisponibilidadRepartidor: async (id) => repartidor(ids(await patch<any>(`/api/v1/admin/repartidores/${id}/disponibilidad`))),
-  crearRepartidor: async () => { throw pendiente('Dar de alta repartidores') },
+  crearRepartidor: async (datos) => repartidor(ids(await post<any>('/api/v1/admin/repartidores', datos))),
   editarRepartidor: async () => { throw pendiente('Editar un repartidor') },
   cambiarEstadoRepartidor: async () => { throw pendiente('Desactivar un repartidor') },
   guardarCapacidadesVehiculo: async () => { throw pendiente('Cambiar los límites por vehículo') },

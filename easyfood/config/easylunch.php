@@ -13,4 +13,10 @@ return [
     'frontend_url' => env('FRONTEND_URL', 'http://localhost:3000'),
     'vigencia_invitacion_dias' => 7,
     'vigencia_restablecimiento_min' => 60,
+
+    /*
+    | Altas: precio por platillo del contrato con una empresa nueva cuando no se indica otro, y meses que dura el contrato.
+    */
+    'precio_por_platillo_empresa' => 130,
+    'meses_de_contrato' => 6,
 ];

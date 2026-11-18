@@ -69,7 +69,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
             Route::get('empresas', [Admin\EmpresaController::class, 'index'])->name('empresas.index');
             Route::get('empresas/{id}', [Admin\EmpresaController::class, 'show'])->name('empresas.show');
-            Route::post('empresas', Pendiente::class)->name('empresas.store');                             // PENDIENTE · crearEmpresa (usuario + contrato + invitación)
+            Route::post('empresas', [Admin\EmpresaAltaController::class, 'store'])->name('empresas.store');
             Route::get('empresas/{id}/consumo', [Admin\EmpresaController::class, 'consumo'])->name('empresas.consumo');
             Route::post('empresas/{id}/renovar-contrato', [Admin\ContratoController::class, 'renovarEmpresa'])->name('empresas.renovar');
             Route::get('comedores', [Admin\ComedorController::class, 'index'])->name('comedores.index');
@@ -97,7 +97,7 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::post('cortes/ejecutar', [Admin\CorteController::class, 'ejecutar'])->name('cortes.ejecutar');
 
             Route::get('repartidores', [Admin\RepartidorController::class, 'index'])->name('repartidores.index');
-            Route::post('repartidores', Pendiente::class)->name('repartidores.store');                     // PENDIENTE · crearRepartidor (usuario + invitación)
+            Route::post('repartidores', [Admin\RepartidorController::class, 'store'])->name('repartidores.store');
             Route::get('repartidores/capacidades', [Admin\RepartidorController::class, 'capacidades'])->name('repartidores.capacidades');
             Route::patch('repartidores/{id}/disponibilidad', [Admin\RepartidorController::class, 'disponibilidad'])->name('repartidores.disponibilidad');
 
@@ -143,7 +143,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::prefix('empresa')->name('v1.empresa.')->middleware('role:company')->group(function () {
         Route::get('perfil', [Empresa\PerfilController::class, 'show'])->name('perfil');
         Route::get('empleados', [Empresa\EmpleadoController::class, 'index'])->name('empleados.index');
-        Route::post('empleados', Pendiente::class)->name('empleados.store');                               // PENDIENTE · agregarEmpleados (usuarios + invitaciones)
+        Route::post('empleados', [Empresa\EmpleadoAltaController::class, 'store'])->name('empleados.store');
         Route::patch('empleados/{id}/estado', [Empresa\EmpleadoController::class, 'estado'])->name('empleados.estado');
         Route::get('pedidos-de-manana', [Empresa\PedidosMananaController::class, 'index'])->name('pedidos-de-manana');
         Route::get('indicadores', [Empresa\IndicadoresController::class, 'show'])->name('indicadores');

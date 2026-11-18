@@ -65,43 +65,71 @@ class Invitaciones
     }
 
     /**
-     * Crea la cuenta (inactiva) con su invitación y manda el correo. Lo usan la pantalla de invitar y las altas (empresa, repartidor, empleados).
-     * Debe llamarse dentro de una transacción si se arma junto con otras filas; el correo sale solo si la invitación quedó guardada.
+     * Crea la cuenta (inactiva) con su invitación y manda el correo. Lo usa la pantalla de invitar.
      *
      * @return array{0: Invitacion, 1: string}
      */
     public function crearCuenta(?User $actor, string $tipo, ?int $organizacionId, string $nombre, string $correo, string $rolDelFront, ?CarbonInterface $ahora = null): array
     {
+        $organizacion = $this->nombreDeLaOrganizacion($tipo, $organizacionId);
+        [$invitacion, $token] = DB::transaction(function () use ($actor, $tipo, $organizacionId, $nombre, $correo, $rolDelFront, $ahora, $organizacion) {
+            $usuario = $this->prepararCuenta($nombre, $correo, $rolDelFront);
+            [$invitacion, $token] = $this->crearInvitacion($usuario, $tipo, $organizacionId, $rolDelFront, $ahora);
+            Bitacora::registrar($actor, 'invitar', 'usuarios', $usuario->id, "Invitó a {$usuario->name} ({$rolDelFront}) a {$organizacion}.");
+
+            return [$invitacion, $token];
+        });
+        $this->enviar($invitacion->refresh(), $token);
+
+        return [$invitacion, $token];
+    }
+
+    /**
+     * La cuenta de una persona antes de que acepte: inactiva y con una contraseña que nadie conoce (la elige al aceptar). Parte de las altas
+     * (empresa, repartidor, empleados): llámalo dentro de la transacción del alta y manda el correo con enviar() cuando ya se guardó.
+     *
+     * @throws ReglaDeNegocioException correo_en_uso | rol_desconocido
+     */
+    public function prepararCuenta(string $nombre, string $correo, string $rolDelFront): User
+    {
         $nombre = trim($nombre);
         $correo = Str::lower(trim($correo));
-        $organizacion = $this->nombreDeLaOrganizacion($tipo, $organizacionId);
         $rol = Role::query()->where('name', RolesDeApi::base($rolDelFront))->first() ?? throw new ReglaDeNegocioException('rol_desconocido', 'Ese rol no existe.');
         if (User::query()->whereRaw('lower(email) = ?', [$correo])->exists()) {
             throw new ReglaDeNegocioException('correo_en_uso', 'Ese correo ya tiene una cuenta o una invitación.');
         }
 
+        $usuario = User::create(['role_id' => $rol->id, 'name' => $nombre, 'email' => $correo, 'password' => Str::random(48), 'status' => 'inactive']);
+        [$nombrePila, $apellidos] = array_pad(explode(' ', $nombre, 2), 2, '');
+        UserProfile::create(['user_id' => $usuario->id, 'first_name' => $nombrePila, 'last_name' => trim($apellidos) ?: $nombrePila]);
+
+        return $usuario;
+    }
+
+    /**
+     * La invitación de una cuenta ya creada (solo se guarda el hash del enlace). Devuelve la invitación y el enlace, que solo se conoce aquí.
+     *
+     * @return array{0: Invitacion, 1: string}
+     */
+    public function crearInvitacion(User $usuario, string $tipo, ?int $organizacionId, string $rolDelFront, ?CarbonInterface $ahora = null): array
+    {
         $ahora = $this->calendario->ahora($ahora);
         $token = Str::random(48);
-
-        $invitacion = DB::transaction(function () use ($nombre, $correo, $rol, $tipo, $organizacionId, $ahora, $token, $actor, $rolDelFront, $organizacion) {
-            // La contraseña inicial no la conoce nadie: la persona elige la suya al aceptar.
-            $usuario = User::create(['role_id' => $rol->id, 'name' => $nombre, 'email' => $correo, 'password' => Str::random(48), 'status' => 'inactive']);
-            [$nombrePila, $apellidos] = array_pad(explode(' ', $nombre, 2), 2, '');
-            UserProfile::create(['user_id' => $usuario->id, 'first_name' => $nombrePila, 'last_name' => trim($apellidos) ?: $nombrePila]);
-
-            $invitacion = Invitacion::create([
-                'usuario_id' => $usuario->id, 'correo' => $correo, 'rol_id' => $rol->id, 'organizacion_tipo' => $tipo,
-                'comedor_id' => $tipo === 'comedor' ? $organizacionId : null, 'empresa_id' => $tipo === 'empresa' ? $organizacionId : null,
-                'token_hash' => hash('sha256', $token), 'enviada_en' => $ahora, 'vence_en' => $ahora->addDays((int) config('easylunch.vigencia_invitacion_dias')),
-            ]);
-            Bitacora::registrar($actor, 'invitar', 'usuarios', $usuario->id, "Invitó a {$nombre} ({$rolDelFront}) a {$organizacion}.");
-
-            return $invitacion;
-        });
-
-        $this->enviarCorreo($invitacion->refresh(), $nombre, $organizacion, $token, $rolDelFront, $tipo);
+        $invitacion = Invitacion::create([
+            'usuario_id' => $usuario->id, 'correo' => $usuario->email, 'rol_id' => $usuario->role_id, 'organizacion_tipo' => $tipo,
+            'comedor_id' => $tipo === 'comedor' ? $organizacionId : null, 'empresa_id' => $tipo === 'empresa' ? $organizacionId : null,
+            'token_hash' => hash('sha256', $token), 'enviada_en' => $ahora, 'vence_en' => $ahora->addDays((int) config('easylunch.vigencia_invitacion_dias')),
+        ]);
 
         return [$invitacion, $token];
+    }
+
+    /** Manda el correo de una invitación (y deja el enlace en el log de desarrollo). Llámalo cuando la invitación ya quedó guardada. */
+    public function enviar(Invitacion $invitacion, string $token): void
+    {
+        $invitacion->loadMissing(['usuario', 'rol']);
+        $organizacion = $this->nombreDeLaOrganizacion($invitacion->organizacion_tipo, $invitacion->comedor_id ?? $invitacion->empresa_id);
+        $this->enviarCorreo($invitacion, $invitacion->usuario->name, $organizacion, $token, RolesDeApi::front($invitacion->rol->name), $invitacion->organizacion_tipo);
     }
 
     /**

@@ -52,8 +52,8 @@ Rutas en `routes/v1.php` (prefijo `/api/v1`), JSON en español y token Bearer de
 
 | Grupo (rol) | Prefijo | Construido | Solo ruta (501) |
 |---|---|---|---|
-| Panel de administración (`admin`; `support` en clientes, pedidos, tickets e incidencias) | `/admin` | empresas y comedores (lectura), renovar contratos, contratos por vencer, platillos (crear, editar, revisar), configuración, calendario, corte (y su vista previa), repartidores, rutas, entregas, incidencias, facturas, liquidaciones, reporte de proveedor, menú semanal, consumo de una empresa, clientes, pedidos, tickets, bitácora, **dashboard con 10 indicadores en tiempo real** (`GET /admin/dashboard`, solo `admin`) y costos operativos (listar, registrar, anular) | crear empresa, historial de precios, imágenes, crear repartidor, generar rutas, reasignar incidencias |
-| Portal de empresas (`company`) | `/empresa` | perfil, empleados (ver, activar/desactivar), pedidos de mañana, consumo, vista previa del mes en curso, facturas, indicadores de RR. HH. (`GET /empresa/indicadores`) | agregar empleados |
+| Panel de administración (`admin`; `support` en clientes, pedidos, tickets e incidencias) | `/admin` | empresas y comedores (lectura), **alta de empresa** (`POST /admin/empresas`), **alta de repartidor** (`POST /admin/repartidores`), renovar contratos, contratos por vencer, platillos (crear, editar, revisar), configuración, calendario, corte (y su vista previa), repartidores, rutas, entregas, incidencias, facturas, liquidaciones, reporte de proveedor, menú semanal, consumo de una empresa, clientes, pedidos, tickets, bitácora, **dashboard con 10 indicadores en tiempo real** (`GET /admin/dashboard`, solo `admin`) y costos operativos (listar, registrar, anular) | historial de precios, imágenes, generar rutas, reasignar incidencias |
+| Portal de empresas (`company`) | `/empresa` | perfil, empleados (ver, **agregar**, activar/desactivar), pedidos de mañana, consumo, vista previa del mes en curso, facturas, indicadores de RR. HH. (`GET /empresa/indicadores`) | |
 | Portal de comedores (`provider`) | `/comedor` | perfil, platillos, disponibilidad, producción, pagos | imágenes |
 | Portal de empleados (`employee`) | `/empleado` | menú, elegir/quitar platillo, historial, calificar la entrega y el platillo que recibió | |
 | App móvil (`customer`) | `/cliente` | paquetes, menú semanal, direcciones, pedidos (pedir), pago con tarjeta (`POST /cliente/pedidos/{id}/pago`) | |
@@ -68,7 +68,7 @@ Cada portal solo ve lo suyo: la empresa, el comedor o el empleado se resuelven d
 
 ## Probar la API a mano (Bruno) y datos de ejemplo
 
-La carpeta [`bruno/`](bruno/README.md) es una colección de [Bruno](https://www.usebruno.com/) con 134 peticiones y 242 pruebas automáticas que cubren toda la API v1 (incluidos los pendientes, que deben responder 501). `DatosDeEjemploSeeder` carga empresas, comedores, empleados, platillos, historial, clientes y pedidos de ejemplo (solo desarrollo; la contraseña de las cuentas sale de `SEED_PASSWORD` en tu `.env`):
+La carpeta [`bruno/`](bruno/README.md) es una colección de [Bruno](https://www.usebruno.com/) con 159 peticiones y 273 pruebas automáticas que cubren toda la API v1 (incluidos los pendientes, que deben responder 501). `DatosDeEjemploSeeder` carga empresas, comedores, empleados, platillos, historial, clientes y pedidos de ejemplo (solo desarrollo; la contraseña de las cuentas sale de `SEED_PASSWORD` en tu `.env`):
 
 ```bash
 docker compose exec app php artisan db:seed --class=DatosDeEjemploSeeder
@@ -114,6 +114,12 @@ Sin ellas, el pago y el webhook responden `503 pagos_no_configurados`. Después 
 - **Webhook `charge.refunded`.** Cubre los reembolsos hechos desde el Dashboard de Stripe: si el pedido está pagado, pasa a `cancelado` con los datos del reembolso; si el endpoint ya lo hizo, no repite nada. Un reembolso parcial no cancela: queda `pago.reembolso_parcial` en la bitácora. Agrega `charge.refunded` a `--events` en `stripe listen` (arriba) y para probarlo: `stripe refunds create --payment-intent=pi_XXXX`.
 
 **Reglas.** Se compara contra la hora del cargo, no la del webhook. Un pedido vencido no se puede empezar a pagar (`422 pedido_vencido`), pero el pago no lo cancela: lo cancela el corte. Si Stripe cobra algo que ya no se puede aplicar, el pedido no cambia y el cobro se reembolsa (ver Reembolsos). Las pruebas usan una pasarela falsa (`tests/Support/PasarelaFalsa.php`): ninguna llama a la red.
+
+## Altas: empresa, repartidor y empleados
+
+- **Empresa** (`POST /admin/empresas`): crea el contacto de RR. HH. (cuenta inactiva con invitación), la empresa y su contrato de 6 meses (`precio_por_platillo` $130 si no se manda). El nombre debe ser único y la `zona` debe existir en `zonas`; si no, el error lista las disponibles.
+- **Repartidor** (`POST /admin/repartidores`): cuenta con invitación, `numero_empleado` automático (`R-001`…), placas obligatorias (solo se reparte en automóvil) y `zona_base` existente.
+- **Empleados** (`POST /empresa/empleados`, hasta 500): cada persona queda inactiva hasta aceptar su invitación; sin correo se arma con el nombre y el dominio de la empresa; los correos repetidos o ya registrados se omiten y se devuelven en `omitidos`.
 
 ## Cuentas: invitaciones y contraseña
 

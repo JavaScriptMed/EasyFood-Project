@@ -244,7 +244,7 @@ export const crearEmpresa = (datos: NuevaEmpresa) => llamar<EmpresaDetalle>(() =
   const correo = datos.contacto_rrhh.match(/[^\s@]+@[^\s@]+\.[^\s@]+/)?.[0] ?? `rrhh@${id.toLowerCase()}.mx`
   const nombreContacto = datos.contacto_rrhh.replace(correo, '').replace(/[,;<>]/g, ' ').trim() || 'Contacto de RR. HH.'
   const usuario: Usuario = { id: `USR-${id}`, nombre: nombreContacto, correo, telefono: null, rol: 'empresa', activo: true }
-  const empresa: Empresa = { id, usuario_id: usuario.id, nombre: datos.nombre.trim(), dominio: correo.split('@')[1], zona: 'Guadalajara', direccion_entrega: datos.direccion_entrega.trim() }
+  const empresa: Empresa = { id, usuario_id: usuario.id, nombre: datos.nombre.trim(), dominio: correo.split('@')[1], zona: datos.zona?.trim() || 'Guadalajara', direccion_entrega: datos.direccion_entrega.trim() }
   const [ventana_inicio = '12:30', ventana_fin = '13:15'] = datos.horario_entrega.split(/\s*[–-]\s*/)
   const inicio = datos.vigencia_inicio || FECHA_HOY
   const fin = new Date(`${inicio}T00:00:00Z`)
