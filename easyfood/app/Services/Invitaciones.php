@@ -65,6 +65,48 @@ class Invitaciones
     }
 
     /**
+     * Invita a varias personas a la vez (un archivo de nombres y correos). Cada una recibe su invitación por separado: un correo que ya
+     * tiene cuenta o que viene repetido en la lista se omite y se dice cuál y por qué, sin romper al resto.
+     *
+     * @param  array<int, array{nombre: string, correo: string}>  $personas
+     * @return array{invitados: int, omitidos: int, correos_omitidos: array<int, array{nombre: string, correo: string, motivo: string}>}
+     */
+    public function invitarVarios(User $actor, string $tipo, ?int $organizacionId, string $rolDelFront, array $personas): array
+    {
+        $this->autorizar($actor, $tipo, $organizacionId);
+        if (! in_array($rolDelFront, self::ROLES_INVITABLES[$tipo] ?? [], true)) {
+            throw new ReglaDeNegocioException('rol_no_corresponde', 'Ese rol no corresponde a esta organización.');
+        }
+
+        $vistos = [];
+        $omitidos = [];
+        $invitados = 0;
+        foreach ($personas as $persona) {
+            $nombre = trim($persona['nombre']);
+            $correo = Str::lower(trim($persona['correo']));
+            if (isset($vistos[$correo])) {
+                $omitidos[] = ['nombre' => $nombre, 'correo' => $correo, 'motivo' => 'repetido_en_el_archivo'];
+
+                continue;
+            }
+            try {
+                $this->crearCuenta($actor, $tipo, $organizacionId, $nombre, $correo, $rolDelFront);
+            } catch (ReglaDeNegocioException $e) {
+                if ($e->codigo !== 'correo_en_uso') {
+                    throw $e;
+                }
+                $omitidos[] = ['nombre' => $nombre, 'correo' => $correo, 'motivo' => 'ya_tiene_cuenta'];
+
+                continue;
+            }
+            $vistos[$correo] = true;
+            $invitados++;
+        }
+
+        return ['invitados' => $invitados, 'omitidos' => count($omitidos), 'correos_omitidos' => $omitidos];
+    }
+
+    /**
      * Crea la cuenta (inactiva) con su invitación y manda el correo. Lo usa la pantalla de invitar.
      *
      * @return array{0: Invitacion, 1: string}

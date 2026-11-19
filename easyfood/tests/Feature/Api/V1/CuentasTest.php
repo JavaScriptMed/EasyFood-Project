@@ -152,6 +152,50 @@ class CuentasTest extends TestCase
         $this->assertSame(1, Invitacion::count());
     }
 
+    private function invitarVarios(array $extra = []): \Illuminate\Testing\TestResponse
+    {
+        return $this->postJson('/api/v1/cuentas/invitaciones/lote', $extra + ['organizacion_tipo' => 'plataforma', 'rol' => 'soporte', 'personas' => [
+            ['nombre' => 'Sofía Ramírez', 'correo' => 'Sofia@Ejemplo.mx'], ['nombre' => 'Tomás Vega', 'correo' => 'tomas@ejemplo.mx'],
+        ]]);
+    }
+
+    public function test_se_invita_a_varias_personas_de_un_archivo_y_se_dice_a_quienes_se_omitio(): void
+    {
+        $admin = $this->comoRol('admin');
+        $this->usuarioDeRol('customer', ['email' => 'ocupado@ejemplo.mx']);
+
+        $r = $this->invitarVarios(['personas' => [
+            ['nombre' => 'Sofía Ramírez', 'correo' => 'Sofia@Ejemplo.mx'], ['nombre' => 'Sofía otra vez', 'correo' => 'sofia@ejemplo.mx'],
+            ['nombre' => 'Ocupado Pérez', 'correo' => 'ocupado@ejemplo.mx'], ['nombre' => 'Tomás Vega', 'correo' => 'tomas@ejemplo.mx'],
+        ]])->assertCreated()->json();
+
+        $this->assertSame([2, 2], [$r['invitados'], $r['omitidos']]);
+        $this->assertSame([
+            ['nombre' => 'Sofía otra vez', 'correo' => 'sofia@ejemplo.mx', 'motivo' => 'repetido_en_el_archivo'],
+            ['nombre' => 'Ocupado Pérez', 'correo' => 'ocupado@ejemplo.mx', 'motivo' => 'ya_tiene_cuenta'],
+        ], $r['correos_omitidos']);
+        $this->assertSame(['support', 'inactive'], [User::where('email', 'sofia@ejemplo.mx')->firstOrFail()->role->name, User::where('email', 'tomas@ejemplo.mx')->firstOrFail()->status]);
+        Mail::assertQueued(InvitacionDeAcceso::class, 2);
+        $this->assertSame(2, \App\Models\RegistroAuditoria::where('accion', 'invitar')->where('usuario_id', $admin->id)->count());
+    }
+
+    public function test_invitar_varios_respeta_quien_puede_invitar_el_rol_y_lo_que_se_manda(): void
+    {
+        $empresa = $this->comoEmpresa();
+        $otra = $this->empresaConContrato('Centro');
+
+        $this->invitarVarios(['organizacion_tipo' => 'empresa', 'organizacion_id' => $empresa->id, 'rol' => 'empresa'])->assertCreated()->assertJsonPath('invitados', 2);
+        $this->invitarVarios(['organizacion_tipo' => 'empresa', 'organizacion_id' => $otra->id, 'rol' => 'empresa'])->assertStatus(403);
+        $this->invitarVarios(['organizacion_tipo' => 'empresa', 'organizacion_id' => $empresa->id, 'rol' => 'administrador'])->assertStatus(422)->assertJsonPath('codigo', 'rol_no_corresponde');
+        $this->invitarVarios(['organizacion_tipo' => 'empresa', 'organizacion_id' => $empresa->id, 'rol' => 'empresa', 'personas' => []])->assertUnprocessable();
+        $this->invitarVarios(['organizacion_tipo' => 'empresa', 'organizacion_id' => $empresa->id, 'rol' => 'empresa', 'personas' => [['nombre' => 'Sin Correo']]])->assertUnprocessable();
+        $this->invitarVarios(['organizacion_tipo' => 'empresa', 'organizacion_id' => $empresa->id, 'rol' => 'empresa', 'personas' => [['nombre' => 'Mal Correo', 'correo' => 'mal@@x']]])->assertUnprocessable();
+
+        $this->comoRol('customer');
+        $this->invitarVarios()->assertStatus(403);
+        $this->assertSame(2, Invitacion::count());
+    }
+
     public function test_sin_sesion_no_se_invita_ni_se_ve_quien_tiene_acceso(): void
     {
         $this->invitar()->assertStatus(401);

@@ -26,6 +26,23 @@ class InvitacionController extends Controller
         return response()->json($invitaciones->fila($invitacion->usuario->load('role'), $invitacion, false, null), 201);
     }
 
+    /**
+     * Invita a varias personas de una organización de un solo paso (nombre y correo de cada una, con el mismo rol).
+     * Los correos que ya tienen cuenta o vienen repetidos se omiten y se informan en `correos_omitidos`.
+     */
+    public function lote(Request $request, Invitaciones $invitaciones): JsonResponse
+    {
+        $d = $request->validate([
+            'organizacion_tipo' => 'required|in:comedor,empresa,plataforma', 'organizacion_id' => 'nullable|integer|required_unless:organizacion_tipo,plataforma',
+            'rol' => 'required|string|max:20',
+            'personas' => 'required|array|min:1|max:200', 'personas.*.nombre' => 'required|string|min:2|max:120', 'personas.*.correo' => 'required|email|max:190',
+        ]);
+
+        return response()->json($invitaciones->invitarVarios(
+            $request->user(), $d['organizacion_tipo'], $d['organizacion_tipo'] === 'plataforma' ? null : (int) $d['organizacion_id'], $d['rol'], $d['personas'],
+        ), 201);
+    }
+
     /** Renueva el enlace y la vigencia de una invitación que no se ha aceptado, y vuelve a mandar el correo. */
     public function reenviar(Request $request, int $id, Invitaciones $invitaciones): JsonResponse
     {

@@ -876,6 +876,19 @@ export interface NuevaInvitacion {
   rol: Rol
 }
 
+export interface NuevasInvitaciones {
+  organizacion_tipo: TipoOrganizacion
+  organizacion_id: string | null
+  rol: Rol
+  personas: { nombre: string; correo: string }[]
+}
+
+export interface ResultadoInvitacionesEnLote {
+  invitados: number
+  omitidos: number
+  correos_omitidos: CorreoOmitido[]
+}
+
 export interface SolicitudRestablecimiento {
   enviado: true
   enlace_simulado: string | null // solo en la maqueta: lo que traería el correo

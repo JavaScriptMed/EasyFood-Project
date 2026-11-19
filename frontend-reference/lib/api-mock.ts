@@ -15,7 +15,7 @@ import type {
   CalendarioServicio, CambioDisponibilidad, CandidatoReasignacion, ContratoPorVencer, FiltroBitacora, IncidenciaDetalle, TipoIncidencia, Comedor, ComedorDetalle, ConfiguracionOperacion, Corte, DiaSinServicio, EntregaEmpresa, VistaPreviaCorte, DashboardAdmin, DisponibilidadConPlatillo, EleccionEmpleado, Empleado, EmpleadoDetalle, Empresa, EmpresaDetalle,
   CalificacionPendiente, CalificarEntrega, CalificarPlatillo, CostoOperativo, IndicadoresEmpresa, NuevoCostoOperativo, ProgramarPrecio, EdicionComedor, EdicionEmpleado, EdicionEmpresa, EdicionPlan, EdicionRepartidor, EdicionUsuarioAcceso, EntregaDetalle, EstadoContrato, FacturaConEmpresa, FacturaDetalle, FacturaMensual, FilaReporteProveedor, GuardarPlatillo, HistorialPrecio,
   LiquidacionComedor, LiquidacionConComedor, MenuSemanalDia, MensajeTicket, NuevaEmpresa, NuevoComedor, ResultadoImportarZonas, ZonaDetalle, NuevoPlan, NuevoRepartidor, OrdenProduccionDetalle, PedidoDetalle,
-  CorreoOmitido, PedidosMananaEmpresa, Plan, Platillo, PlatilloDetalle, RegistroAuditoriaDetalle, RepartidorDetalle, ResultadoAltaEmpleados, ResultadoCorte, RutaDetalle,
+  CorreoOmitido, NuevasInvitaciones, ResultadoInvitacionesEnLote, PedidosMananaEmpresa, Plan, Platillo, PlatilloDetalle, RegistroAuditoriaDetalle, RepartidorDetalle, ResultadoAltaEmpleados, ResultadoCorte, RutaDetalle,
   MensajeContacto, NuevoMensajeContacto, ClienteDetalle, ClienteResumen, ConsumoDiario, EstadoInvitacion, Incidencia, MiEleccion, MiMenu, OpcionMenu, InvitacionDetalle, InvitacionPublica, Invitacion, NuevaInvitacion, Portal, ResultadoAceptacion, SolicitudRestablecimiento, TipoOrganizacion, UsuarioAcceso, ValidacionToken, RegistroAuditoria, Repartidor, Ruta, TicketDetalle, TicketResumen, TiempoComida, TipoVehiculo, Usuario, UsuarioResumen,
 } from './types'
 
@@ -360,6 +360,27 @@ export const invitarUsuario = (datos: NuevaInvitacion) => llamar<UsuarioAcceso>(
   const invitacion = crearInvitacion(usuario.id, correo, datos.rol, datos.organizacion_tipo, datos.organizacion_id)
   auditar('invitar', 'usuario', usuario.id, `Invitó a ${usuario.nombre} a ${nombreOrganizacion(datos.organizacion_tipo, datos.organizacion_id)}`)
   return { usuario_id: usuario.id, nombre: usuario.nombre, correo, rol: usuario.rol, activo: false, es_principal: false, invitacion: conEstadoInvitacion(invitacion) }
+})
+
+export const invitarVariosUsuarios = (datos: NuevasInvitaciones) => llamar<ResultadoInvitacionesEnLote>(() => {
+  if (!rolesInvitables[datos.organizacion_tipo].includes(datos.rol)) throw new Error('Ese rol no corresponde a esta organización.')
+  const nuevos = new Set<string>()
+  const correos_omitidos: CorreoOmitido[] = []
+  let invitados = 0
+  for (const persona of datos.personas) {
+    const correo = persona.correo.trim().toLowerCase()
+    const nombre = persona.nombre.trim()
+    if (nombre.length < 2 || !correoValido(correo)) throw new Error(`Revisa «${persona.nombre}»: necesita nombre y un correo válido.`)
+    if (nuevos.has(correo)) { correos_omitidos.push({ nombre, correo, motivo: 'repetido_en_el_archivo' }); continue }
+    if (db.usuarios.some((u) => u.correo.toLowerCase() === correo)) { correos_omitidos.push({ nombre, correo, motivo: 'ya_tiene_cuenta' }); continue }
+    const usuario: Usuario = { id: `USR-INV-${Date.now().toString(36)}-${invitados}`, nombre, correo, telefono: null, rol: datos.rol, activo: false }
+    db.usuarios.push(usuario)
+    crearInvitacion(usuario.id, correo, datos.rol, datos.organizacion_tipo, datos.organizacion_id)
+    auditar('invitar', 'usuario', usuario.id, `Invitó a ${nombre} a ${nombreOrganizacion(datos.organizacion_tipo, datos.organizacion_id)}`)
+    nuevos.add(correo)
+    invitados++
+  }
+  return { invitados, omitidos: correos_omitidos.length, correos_omitidos }
 })
 
 const filaDeUsuario = (usuario: Usuario): UsuarioAcceso => {
