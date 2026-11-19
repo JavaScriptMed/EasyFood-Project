@@ -76,6 +76,7 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::patch('paquetes/{id}/estado', [Admin\PaqueteController::class, 'estado'])->name('paquetes.estado');
             Route::get('empresas/{id}', [Admin\EmpresaController::class, 'show'])->name('empresas.show');
             Route::post('empresas', [Admin\EmpresaAltaController::class, 'store'])->name('empresas.store');
+            Route::post('empresas/{id}/empleados', [Admin\EmpresaAltaController::class, 'empleados'])->name('empresas.empleados.store');
             Route::get('empresas/{id}/consumo', [Admin\EmpresaController::class, 'consumo'])->name('empresas.consumo');
             Route::post('empresas/{id}/renovar-contrato', [Admin\ContratoController::class, 'renovarEmpresa'])->name('empresas.renovar');
             Route::get('comedores', [Admin\ComedorController::class, 'index'])->name('comedores.index');

@@ -5,6 +5,7 @@ import { FormEvent, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { CircleAlert, Eye, Pencil, Search, Upload, UserPlus, X } from 'lucide-react'
 import type { CorreoOmitido } from '@/lib/types'
+import { ARCHIVOS_DE_EMPLEADOS, correoValido, leerArchivoDeEmpleados, MOTIVOS_DE_OMISION } from '@/lib/empleados-archivo'
 import { CampoTexto, GrillaDatos, PanelDetalle, VentanaFormulario } from '@/components/ventanas'
 import { editarEmpleado } from '@/lib/api'
 import { etiquetaMes } from '@/lib/format'
@@ -14,26 +15,6 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { useEmpresa } from '@/components/empresa-shell'
 import { MES_ACTUAL } from '@/lib/config'
-
-const unquote = (value: string) => value.trim().replace(/^"|"$/g, '').trim()
-
-/** Lee un CSV "nombre,correo" (con o sin encabezado, separado por coma o punto y coma). */
-function parseEmployeesCsv(text: string) {
-  return text
-    .replace(/^﻿/, '')
-    .split(/\r?\n/)
-    .map((line) => line.split(/[;,]/).map(unquote))
-    .filter(([name]) => name && !/^(nombre|name)$/i.test(name))
-    .map(([nombre, correo = '']) => ({ nombre, correo }))
-}
-
-const MOTIVOS_DE_OMISION: Record<CorreoOmitido['motivo'], string> = {
-  ya_tiene_cuenta: 'ya tiene una cuenta en EasyLunch',
-  repetido_en_el_archivo: 'está repetido en el archivo',
-}
-
-/** Excel, LibreOffice y Numbers guardan en archivos comprimidos que aquí no se pueden leer: solo sirve texto CSV. */
-const esHojaDeCalculo = (file: File) => /\.(xlsx|xlsm|xlsb|xls|ods|numbers)$/i.test(file.name) || /spreadsheet|ms-excel/i.test(file.type)
 
 export default function EmpresaEmpleados() {
   const { empleados: employees, agregarEmpleados, cambiarEstadoEmpleado, recargar } = useEmpresa()
@@ -95,16 +76,21 @@ export default function EmpresaEmpleados() {
   async function upload(file: File | undefined) {
     if (!file) return
     setResumenSubida(null)
-    if (esHojaDeCalculo(file)) {
-      toast.error('«' + file.name + '» es un archivo de Excel y no se puede leer así', {
-        description: 'Ábrelo en Excel y guárdalo con Archivo → Guardar como → CSV UTF-8 (delimitado por comas). Luego súbelo otra vez.',
-        duration: 12000,
-      })
+    let people: Awaited<ReturnType<typeof leerArchivoDeEmpleados>>
+    try {
+      people = await leerArchivoDeEmpleados(file)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'No se pudo leer el archivo', { duration: 12000 })
       if (fileInput.current) fileInput.current.value = ''
       return
     }
-    const people = parseEmployeesCsv(await file.text())
-    if (!people.length) toast.error('El archivo no tiene empleados. Usa las columnas nombre y correo (el correo es opcional).')
+    // Un correo mal escrito haría que el servidor rechace todo el archivo: se separan y se avisan.
+    const malos = people.filter((p) => p.correo && !correoValido(p.correo))
+    if (malos.length) {
+      people = people.filter((p) => !p.correo || correoValido(p.correo))
+      toast.warning(`${malos.length} fila(s) tienen un correo mal escrito y no se subieron`, { description: malos.slice(0, 5).map((p) => `${p.nombre}: ${p.correo}`).join(' · ') + (malos.length > 5 ? ' …' : ''), duration: 12000 })
+    }
+    if (!people.length) toast.error('El archivo no tiene empleados. Usa la columna A para el nombre y la B para el correo (el correo es opcional).')
     else {
       try {
         const { agregados, omitidos, correos_omitidos } = await agregarEmpleados(people)
@@ -128,8 +114,8 @@ export default function EmpresaEmpleados() {
           <PageTitle eyebrow="Equipo" title="Empleados" description={<>{activeCount} activos de {employees.length} registrados.</>} />
         </div>
         <div className="flex flex-wrap gap-2">
-          <input ref={fileInput} type="file" accept=".csv,text/csv" className="hidden" onChange={(e) => upload(e.target.files?.[0])} />
-          <Button variant="outline" className="h-10 px-4" onClick={() => fileInput.current?.click()}><Upload /> Subir CSV</Button>
+          <input ref={fileInput} type="file" accept={ARCHIVOS_DE_EMPLEADOS} className="hidden" onChange={(e) => upload(e.target.files?.[0])} />
+          <Button variant="outline" className="h-10 px-4" onClick={() => fileInput.current?.click()}><Upload /> Subir CSV o Excel</Button>
           <Button className="h-10 px-4" onClick={() => setAdding(true)}><UserPlus /> Agregar empleado</Button>
         </div>
       </div>
@@ -201,7 +187,7 @@ export default function EmpresaEmpleados() {
           </table>
         </div>
       </Card>
-      <p className="mt-3 text-xs text-muted-foreground">Para subir un CSV usa dos columnas: nombre y correo (el correo puede ir vacío: lo armamos con el nombre y el dominio de tu empresa). Si lo tienes en Excel, guárdalo con Archivo → Guardar como → CSV UTF-8. Los empleados desactivados dejan de poder elegir platillo.</p>
+      <p className="mt-3 text-xs text-muted-foreground">Sube un archivo CSV o de Excel (.xlsx) con dos columnas: nombre y correo (el correo puede ir vacío: lo armamos con el nombre y el dominio de tu empresa). Los empleados desactivados dejan de poder elegir platillo.</p>
 
       {porDesactivar && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4" onClick={() => !desactivando && setPorDesactivar(null)}>

@@ -126,7 +126,7 @@ const real: typeof mock = {
   // ---- empleados de una empresa
   // La empresa ve los suyos; el administrador ve los de la empresa que consulta.
   listarEmpleados: async (empresa_id) => leer<EmpleadoDetalle[]>(esRol('empresa') ? '/api/v1/empresa/empleados' : `/api/v1/admin/empresas/${empresa_id}/empleados`),
-  agregarEmpleados: async (_empresa, personas) => post<ResultadoAltaEmpleados>('/api/v1/empresa/empleados', { personas: personas.map((p) => ({ nombre: p.nombre, correo: p.correo || null })) }),
+  agregarEmpleados: async (empresa, personas) => post<ResultadoAltaEmpleados>(esRol('empresa') ? '/api/v1/empresa/empleados' : `/api/v1/admin/empresas/${empresa}/empleados`, { personas: personas.map((p) => ({ nombre: p.nombre, correo: p.correo || null })) }),
   editarEmpleado: async (id, datos) => ids(await put<Empleado>(`/api/v1/empresa/empleados/${id}`, datos)),
   quitarMiEleccion: async (_empleado, fecha, tiempo_comida) => { await borrar('/api/v1/empleado/elecciones', { fecha, tiempo_comida }) },
   cambiarEstadoEmpleado: async (id, activo) => ids(await patch<Empleado>(`/api/v1/empresa/empleados/${id}/estado`, { activo })),
