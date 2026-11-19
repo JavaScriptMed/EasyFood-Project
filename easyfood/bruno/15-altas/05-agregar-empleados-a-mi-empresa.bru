@@ -33,6 +33,8 @@ tests {
     expect(res.getStatus()).to.equal(201);
     expect(res.body.agregados).to.equal(2);
     expect(res.body.omitidos).to.equal(1);
+    expect(res.body.correos_omitidos).to.have.length(1);
+    expect(res.body.correos_omitidos[0].motivo).to.be.oneOf(["ya_tiene_cuenta", "repetido_en_el_archivo"]);
   });
 }
 

@@ -152,19 +152,28 @@ class AltaDeCuentas
      * Si falta el correo se arma con el nombre y el dominio de la empresa (ana.ruiz@nexo.mx).
      *
      * @param  array<int, array{nombre: string, correo?: ?string}>  $personas
-     * @return array{agregados: int, omitidos: int}
+     * @return array{agregados: int, omitidos: int, correos_omitidos: array<int, array{nombre: string, correo: string, motivo: string}>}
+     *                                                                                                              `motivo`: `ya_tiene_cuenta` o `repetido_en_el_archivo`
      */
     public function agregarEmpleados(User $actor, Empresa $empresa, array $personas): array
     {
         $vistos = [];
         $pendientes = [];
         $agregados = 0;
+        $omitidos = [];
 
-        DB::transaction(function () use ($actor, $empresa, $personas, &$vistos, &$pendientes, &$agregados) {
+        DB::transaction(function () use ($actor, $empresa, $personas, &$vistos, &$pendientes, &$agregados, &$omitidos) {
             foreach ($personas as $persona) {
                 $nombre = trim($persona['nombre']);
                 $correo = Str::lower(trim((string) ($persona['correo'] ?? ''))) ?: $this->correoDesdeElNombre($nombre, $empresa->dominio);
-                if (isset($vistos[$correo]) || User::query()->whereRaw('lower(email) = ?', [$correo])->exists()) {
+                if (isset($vistos[$correo])) {
+                    $omitidos[] = ['nombre' => $nombre, 'correo' => $correo, 'motivo' => 'repetido_en_el_archivo'];
+
+                    continue;
+                }
+                if (User::query()->whereRaw('lower(email) = ?', [$correo])->exists()) {
+                    $omitidos[] = ['nombre' => $nombre, 'correo' => $correo, 'motivo' => 'ya_tiene_cuenta'];
+
                     continue;
                 }
                 $vistos[$correo] = true;
@@ -183,7 +192,7 @@ class AltaDeCuentas
             $this->invitaciones->enviar($invitacion->refresh(), $token);
         }
 
-        return ['agregados' => $agregados, 'omitidos' => count($personas) - $agregados];
+        return ['agregados' => $agregados, 'omitidos' => count($omitidos), 'correos_omitidos' => $omitidos];
     }
 
     // ------------------------------------------------------------------ apoyo

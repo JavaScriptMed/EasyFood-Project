@@ -15,7 +15,7 @@ import type {
   CalendarioServicio, CambioDisponibilidad, CandidatoReasignacion, ContratoPorVencer, FiltroBitacora, IncidenciaDetalle, TipoIncidencia, Comedor, ComedorDetalle, ConfiguracionOperacion, Corte, DiaSinServicio, EntregaEmpresa, VistaPreviaCorte, DashboardAdmin, DisponibilidadConPlatillo, EleccionEmpleado, Empleado, EmpleadoDetalle, Empresa, EmpresaDetalle,
   CalificacionPendiente, CalificarEntrega, CalificarPlatillo, CostoOperativo, IndicadoresEmpresa, NuevoCostoOperativo, ProgramarPrecio, EdicionComedor, EdicionEmpleado, EdicionEmpresa, EdicionPlan, EdicionRepartidor, EdicionUsuarioAcceso, EntregaDetalle, EstadoContrato, FacturaConEmpresa, FacturaDetalle, FacturaMensual, FilaReporteProveedor, GuardarPlatillo, HistorialPrecio,
   LiquidacionComedor, LiquidacionConComedor, MenuSemanalDia, MensajeTicket, NuevaEmpresa, NuevoComedor, ResultadoImportarZonas, ZonaDetalle, NuevoPlan, NuevoRepartidor, OrdenProduccionDetalle, PedidoDetalle,
-  PedidosMananaEmpresa, Plan, Platillo, PlatilloDetalle, RegistroAuditoriaDetalle, RepartidorDetalle, ResultadoAltaEmpleados, ResultadoCorte, RutaDetalle,
+  CorreoOmitido, PedidosMananaEmpresa, Plan, Platillo, PlatilloDetalle, RegistroAuditoriaDetalle, RepartidorDetalle, ResultadoAltaEmpleados, ResultadoCorte, RutaDetalle,
   MensajeContacto, NuevoMensajeContacto, ClienteDetalle, ClienteResumen, ConsumoDiario, EstadoInvitacion, Incidencia, MiEleccion, MiMenu, OpcionMenu, InvitacionDetalle, InvitacionPublica, Invitacion, NuevaInvitacion, Portal, ResultadoAceptacion, SolicitudRestablecimiento, TipoOrganizacion, UsuarioAcceso, ValidacionToken, RegistroAuditoria, Repartidor, Ruta, TicketDetalle, TicketResumen, TiempoComida, TipoVehiculo, Usuario, UsuarioResumen,
 } from './types'
 
@@ -507,9 +507,16 @@ export const agregarEmpleados = (empresa_id: string, personas: { nombre: string;
   if (!empresa) throw new Error('La empresa no existe.')
   const conocidos = new Set(db.usuarios.map((u) => u.correo.toLowerCase()))
   let agregados = 0
+  const nuevosEnElArchivo = new Set<string>()
+  const correos_omitidos: CorreoOmitido[] = []
   for (const persona of personas) {
     const correo = (persona.correo || db.correoDesdeNombre(persona.nombre, empresa.dominio)).toLowerCase()
-    if (!persona.nombre || conocidos.has(correo)) continue
+    if (!persona.nombre) continue
+    if (conocidos.has(correo)) {
+      correos_omitidos.push({ nombre: persona.nombre, correo, motivo: nuevosEnElArchivo.has(correo) ? 'repetido_en_el_archivo' : 'ya_tiene_cuenta' })
+      continue
+    }
+    nuevosEnElArchivo.add(correo)
     conocidos.add(correo)
     const id = `${empresa_id}-N${empleadosDe(empresa_id).filter((e) => e.id.includes('-N')).length + 1}`
     db.usuarios.push({ id: `USR-${id}`, nombre: persona.nombre, correo, telefono: null, rol: 'empleado', activo: true })
@@ -518,7 +525,7 @@ export const agregarEmpleados = (empresa_id: string, personas: { nombre: string;
     agregados++
   }
   if (agregados) auditar('crear', 'empleado', empresa_id, `Agregó ${agregados} empleados a ${empresa.nombre}`)
-  return { agregados, omitidos: personas.length - agregados }
+  return { agregados, omitidos: correos_omitidos.length, correos_omitidos }
 })
 
 function quitarEleccion(eleccion: EleccionEmpleado) {

@@ -178,6 +178,7 @@ class AltasTest extends TestCase
         ]])->assertCreated()->json();
 
         $this->assertSame([2, 1], [$r['agregados'], $r['omitidos']], 'el correo repetido en la lista se omite');
+        $this->assertSame([['nombre' => 'Ana de nuevo', 'correo' => 'ana.ruiz@nexo.mx', 'motivo' => 'repetido_en_el_archivo']], $r['correos_omitidos'], 'se dice cuál se omitió y por qué');
         $empleados = Empleado::where('empresa_id', $empresa->id)->with('usuario.role')->get();
         $this->assertEqualsCanonicalizing(['ana.ruiz@nexo.mx', 'jose.nunez@nexo.mx'], $empleados->pluck('usuario.email')->all(), 'sin correo se arma con el nombre y el dominio');
         $this->assertSame(['employee', 'inactive'], [$empleados[0]->usuario->role->name, $empleados[0]->usuario->status]);
@@ -195,6 +196,7 @@ class AltasTest extends TestCase
         $r = $this->postJson('/api/v1/empresa/empleados', ['personas' => [['nombre' => 'Ocupado Pérez', 'correo' => 'ocupado@nexo.mx'], ['nombre' => 'Libre Pérez', 'correo' => 'libre@nexo.mx']]])->assertCreated()->json();
 
         $this->assertSame([1, 1], [$r['agregados'], $r['omitidos']]);
+        $this->assertSame([['nombre' => 'Ocupado Pérez', 'correo' => 'ocupado@nexo.mx', 'motivo' => 'ya_tiene_cuenta']], $r['correos_omitidos']);
         $this->assertSame(1, Empleado::where('empresa_id', $empresa->id)->count());
     }
 

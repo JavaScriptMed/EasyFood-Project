@@ -3,7 +3,8 @@
 import { PageTitle } from '@/components/panel'
 import { FormEvent, useRef, useState } from 'react'
 import { toast } from 'sonner'
-import { Eye, Pencil, Search, Upload, UserPlus, X } from 'lucide-react'
+import { CircleAlert, Eye, Pencil, Search, Upload, UserPlus, X } from 'lucide-react'
+import type { CorreoOmitido } from '@/lib/types'
 import { CampoTexto, GrillaDatos, PanelDetalle, VentanaFormulario } from '@/components/ventanas'
 import { editarEmpleado } from '@/lib/api'
 import { etiquetaMes } from '@/lib/format'
@@ -26,6 +27,14 @@ function parseEmployeesCsv(text: string) {
     .map(([nombre, correo = '']) => ({ nombre, correo }))
 }
 
+const MOTIVOS_DE_OMISION: Record<CorreoOmitido['motivo'], string> = {
+  ya_tiene_cuenta: 'ya tiene una cuenta en EasyLunch',
+  repetido_en_el_archivo: 'está repetido en el archivo',
+}
+
+/** Excel, LibreOffice y Numbers guardan en archivos comprimidos que aquí no se pueden leer: solo sirve texto CSV. */
+const esHojaDeCalculo = (file: File) => /\.(xlsx|xlsm|xlsb|xls|ods|numbers)$/i.test(file.name) || /spreadsheet|ms-excel/i.test(file.type)
+
 export default function EmpresaEmpleados() {
   const { empleados: employees, agregarEmpleados, cambiarEstadoEmpleado, recargar } = useEmpresa()
   const [porDesactivar, setPorDesactivar] = useState<(typeof employees)[number] | null>(null)
@@ -40,6 +49,7 @@ export default function EmpresaEmpleados() {
   const [email, setEmail] = useState('')
   const [saving, setSaving] = useState(false)
   const fileInput = useRef<HTMLInputElement>(null)
+  const [resumenSubida, setResumenSubida] = useState<{ agregados: number; omitidos: CorreoOmitido[] } | null>(null)
 
   const visible = employees.filter((e) => `${e.nombre} ${e.correo}`.toLowerCase().includes(query.trim().toLowerCase()))
   const activeCount = employees.filter((e) => e.activo).length
@@ -84,12 +94,26 @@ export default function EmpresaEmpleados() {
 
   async function upload(file: File | undefined) {
     if (!file) return
+    setResumenSubida(null)
+    if (esHojaDeCalculo(file)) {
+      toast.error('«' + file.name + '» es un archivo de Excel y no se puede leer así', {
+        description: 'Ábrelo en Excel y guárdalo con Archivo → Guardar como → CSV UTF-8 (delimitado por comas). Luego súbelo otra vez.',
+        duration: 12000,
+      })
+      if (fileInput.current) fileInput.current.value = ''
+      return
+    }
     const people = parseEmployeesCsv(await file.text())
     if (!people.length) toast.error('El archivo no tiene empleados. Usa las columnas nombre y correo (el correo es opcional).')
     else {
       try {
-        const { agregados, omitidos } = await agregarEmpleados(people)
-        toast.success(`${agregados} empleados agregados`, { description: omitidos > 0 ? `${omitidos} omitidos por correo repetido.` : undefined })
+        const { agregados, omitidos, correos_omitidos } = await agregarEmpleados(people)
+        if (omitidos === 0) toast.success(`${agregados} empleados agregados`)
+        else {
+          // Con omitidos no se celebra: se deja un aviso fijo en la página con cada correo y su motivo.
+          setResumenSubida({ agregados, omitidos: correos_omitidos ?? [] })
+          toast.warning(agregados ? `${agregados} agregados, pero ${omitidos} se omitieron` : `No se agregó a nadie: se omitieron ${omitidos}`, { description: 'Abajo ves cuáles y por qué.' })
+        }
       } catch (error) {
         toast.error(error instanceof Error ? error.message : 'No se pudo procesar el archivo')
       }
@@ -109,6 +133,28 @@ export default function EmpresaEmpleados() {
           <Button className="h-10 px-4" onClick={() => setAdding(true)}><UserPlus /> Agregar empleado</Button>
         </div>
       </div>
+
+      {resumenSubida && (
+        <div role="alert" className="mb-5 rounded-xl border border-warning/40 bg-warning/10 p-4">
+          <div className="flex items-start gap-3">
+            <CircleAlert className="mt-0.5 size-5 shrink-0 text-warning" aria-hidden="true" />
+            <div className="min-w-0 flex-1">
+              <p className="font-semibold">
+                {resumenSubida.agregados
+                  ? `Se agregaron ${resumenSubida.agregados} y se omitieron ${resumenSubida.omitidos.length}.`
+                  : `No se agregó a nadie: se omitieron ${resumenSubida.omitidos.length}.`}
+              </p>
+              <p className="mt-1 text-sm text-muted-foreground">Estos correos no se registraron. Si quieres darlos de alta, corrígelos en el archivo y súbelo de nuevo.</p>
+              <ul className="mt-3 max-h-56 space-y-1 overflow-y-auto text-sm">
+                {resumenSubida.omitidos.map((o, i) => (
+                  <li key={`${o.correo}-${i}`} className="flex flex-wrap gap-x-2"><span className="font-medium break-all">{o.correo}</span><span className="text-muted-foreground">— {o.nombre}: {MOTIVOS_DE_OMISION[o.motivo]}</span></li>
+                ))}
+              </ul>
+            </div>
+            <Button variant="ghost" size="icon" aria-label="Cerrar aviso" onClick={() => setResumenSubida(null)}><X /></Button>
+          </div>
+        </div>
+      )}
 
       <label className="relative mb-4 block max-w-md">
         <span className="sr-only">Buscar empleado</span>
@@ -155,7 +201,7 @@ export default function EmpresaEmpleados() {
           </table>
         </div>
       </Card>
-      <p className="mt-3 text-xs text-muted-foreground">Para subir un CSV usa dos columnas: nombre y correo (el correo puede ir vacío: lo armamos con el nombre y el dominio de tu empresa). Los empleados desactivados dejan de poder elegir platillo.</p>
+      <p className="mt-3 text-xs text-muted-foreground">Para subir un CSV usa dos columnas: nombre y correo (el correo puede ir vacío: lo armamos con el nombre y el dominio de tu empresa). Si lo tienes en Excel, guárdalo con Archivo → Guardar como → CSV UTF-8. Los empleados desactivados dejan de poder elegir platillo.</p>
 
       {porDesactivar && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4" onClick={() => !desactivando && setPorDesactivar(null)}>
