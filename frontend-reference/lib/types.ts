@@ -428,9 +428,19 @@ export interface MenuSemanalDia {
   celdas: Partial<Record<TiempoComida, { platillo_id: string; platillo_nombre: string; precio_venta: number; porciones_maximas: number }>>
 }
 
+export type MotivoDeOmision = 'ya_tiene_cuenta' | 'repetido_en_el_archivo'
+
+export interface CorreoOmitido {
+  nombre: string
+  correo: string
+  motivo: MotivoDeOmision
+}
+
 export interface ResultadoAltaEmpleados {
   agregados: number
   omitidos: number
+  /** Qué correos no se agregaron y por qué (el backend siempre lo manda; el modo maqueta también). */
+  correos_omitidos?: CorreoOmitido[]
 }
 
 // ---------------------------------------------------------------- entradas y vistas adicionales de la API
@@ -864,6 +874,19 @@ export interface NuevaInvitacion {
   nombre: string
   correo: string
   rol: Rol
+}
+
+export interface NuevasInvitaciones {
+  organizacion_tipo: TipoOrganizacion
+  organizacion_id: string | null
+  rol: Rol
+  personas: { nombre: string; correo: string }[]
+}
+
+export interface ResultadoInvitacionesEnLote {
+  invitados: number
+  omitidos: number
+  correos_omitidos: CorreoOmitido[]
 }
 
 export interface SolicitudRestablecimiento {

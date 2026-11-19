@@ -54,6 +54,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('cuentas/usuarios-acceso', [Cuentas\UsuarioAccesoController::class, 'index'])->name('v1.cuentas.usuarios-acceso');              // listarUsuariosAcceso
         Route::put('cuentas/usuarios-acceso/{id}', [Cuentas\UsuarioAccesoController::class, 'update'])->name('v1.cuentas.usuarios-acceso.update');
         Route::patch('cuentas/usuarios-acceso/{id}/estado', [Cuentas\UsuarioAccesoController::class, 'estado'])->name('v1.cuentas.usuarios-acceso.estado');
+        Route::post('cuentas/invitaciones/lote', [Cuentas\InvitacionController::class, 'lote'])->name('v1.cuentas.invitaciones.lote');                       // invitarVarios
         Route::post('cuentas/invitaciones', [Cuentas\InvitacionController::class, 'store'])->name('v1.cuentas.invitaciones.crear');               // invitarUsuario
         Route::post('cuentas/invitaciones/{id}/reenviar', [Cuentas\InvitacionController::class, 'reenviar'])->name('v1.cuentas.invitaciones.reenviar'); // reenviarInvitacion
     });
@@ -76,6 +77,7 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::patch('paquetes/{id}/estado', [Admin\PaqueteController::class, 'estado'])->name('paquetes.estado');
             Route::get('empresas/{id}', [Admin\EmpresaController::class, 'show'])->name('empresas.show');
             Route::post('empresas', [Admin\EmpresaAltaController::class, 'store'])->name('empresas.store');
+            Route::post('empresas/{id}/empleados', [Admin\EmpresaAltaController::class, 'empleados'])->name('empresas.empleados.store');
             Route::get('empresas/{id}/consumo', [Admin\EmpresaController::class, 'consumo'])->name('empresas.consumo');
             Route::post('empresas/{id}/renovar-contrato', [Admin\ContratoController::class, 'renovarEmpresa'])->name('empresas.renovar');
             Route::get('comedores', [Admin\ComedorController::class, 'index'])->name('comedores.index');

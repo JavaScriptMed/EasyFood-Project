@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Empresa;
 use App\Services\AltaDeCuentas;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -26,5 +27,17 @@ class EmpresaAltaController extends Controller
         $empresa = $altas->crearEmpresa($request->user(), $d);
 
         return response()->json(EmpresaController::detallePorId($empresa->id), 201);
+    }
+
+    /**
+     * El administrador agrega empleados a una empresa (uno por uno o desde un CSV), igual que lo hace la propia empresa desde su portal.
+     * Cada uno recibe una invitación; un correo que ya tiene cuenta o repetido en la lista se omite y se dice cuál y por qué.
+     */
+    public function empleados(Request $request, int $id, AltaDeCuentas $altas): JsonResponse
+    {
+        $empresa = Empresa::query()->findOrFail($id);
+        $d = $request->validate(['personas' => 'required|array|min:1|max:500', 'personas.*.nombre' => 'required|string|min:2|max:120', 'personas.*.correo' => 'nullable|email|max:190']);
+
+        return response()->json($altas->agregarEmpleados($request->user(), $empresa, $d['personas']), 201);
     }
 }

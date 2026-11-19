@@ -12,7 +12,7 @@ import { leerSesion } from './sesion'
 import * as mock from './api-mock'
 import type {
   BloqueHorario, CalificacionPendiente, CostoOperativo, IndicadoresEmpresa, InvitacionDetalle, InvitacionPublica, ResultadoAceptacion, SolicitudRestablecimiento,
-  ResultadoAltaEmpleados, UsuarioAcceso, ValidacionToken, CalendarioServicio, ClienteDetalle, ClienteResumen, ComedorDetalle, ConfiguracionOperacion, ConsumoDiario, ContratoPorVencer, Corte,
+  ResultadoAltaEmpleados, ResultadoInvitacionesEnLote, TipoOrganizacion, UsuarioAcceso, ValidacionToken, CalendarioServicio, ClienteDetalle, ClienteResumen, ComedorDetalle, ConfiguracionOperacion, ConsumoDiario, ContratoPorVencer, Corte,
   DashboardAdmin, DiaSinServicio, DisponibilidadConPlatillo, EleccionEmpleado, Empleado, EmpleadoDetalle, EmpresaDetalle, EntregaDetalle, FacturaConEmpresa, HistorialPrecio, ResultadoImportarZonas, ZonaDetalle,
   FacturaDetalle, FacturaMensual, FilaReporteProveedor, IncidenciaDetalle, LiquidacionComedor, LiquidacionConComedor, MensajeContacto, MensajeTicket,
   MenuSemanalDia, MiEleccion, MiMenu, OrdenProduccionDetalle, PedidoDetalle, PedidosMananaEmpresa, Plan, PlatilloDetalle, RegistroAuditoriaDetalle,
@@ -34,6 +34,15 @@ function ids<T>(valor: T): T {
 }
 
 const leer = async <T>(ruta: string, query?: Record<string, unknown>) => ids(await get<T>(ruta, query))
+/**
+ * En los portales de empresa y comedor el front no conoce el id numérico de su organización (usa un marcador): el servidor la
+ * identifica por la sesión, pero estos endpoints piden el id. Se lee del perfil propio.
+ */
+async function organizacionReal<T extends { tipo: TipoOrganizacion; id: string | null }>(organizacion: T): Promise<T> {
+  if (organizacion.tipo === 'plataforma' || (organizacion.id && /^\d+$/.test(organizacion.id))) return organizacion
+  const perfil = await leer<{ id: string }>(organizacion.tipo === 'empresa' ? '/api/v1/empresa/perfil' : '/api/v1/comedor/perfil')
+  return { ...organizacion, id: String(perfil.id) }
+}
 const rolActual = (): Rol | null => { const s = leerSesion(); return s.estado === 'ninguna' ? null : s.rol }
 const esRol = (...roles: Rol[]) => { const r = rolActual(); return !!r && roles.includes(r) }
 const ahoraIso = () => new Date().toISOString().slice(0, 19)
@@ -112,8 +121,9 @@ const real: typeof mock = {
 
   // ---- invitaciones y cuenta. El enlace de cada correo solo viaja por correo (en desarrollo, también en storage/logs/enlaces.log del backend):
   // la API nunca lo devuelve, por eso `token` llega vacío y el front no ofrece «abrir el enlace».
-  listarUsuariosAcceso: async (organizacion) => leer<UsuarioAcceso[]>('/api/v1/cuentas/usuarios-acceso', { tipo: organizacion.tipo, id: organizacion.id }),
-  invitarUsuario: async (datos) => ids(await post<UsuarioAcceso>('/api/v1/cuentas/invitaciones', datos)),
+  listarUsuariosAcceso: async (organizacion) => { const o = await organizacionReal(organizacion); return leer<UsuarioAcceso[]>('/api/v1/cuentas/usuarios-acceso', { tipo: o.tipo, id: o.id }) },
+  invitarUsuario: async (datos) => { const o = await organizacionReal({ tipo: datos.organizacion_tipo, id: datos.organizacion_id }); return ids(await post<UsuarioAcceso>('/api/v1/cuentas/invitaciones', { ...datos, organizacion_id: o.id })) },
+  invitarVariosUsuarios: async (datos) => { const o = await organizacionReal({ tipo: datos.organizacion_tipo, id: datos.organizacion_id }); return post<ResultadoInvitacionesEnLote>('/api/v1/cuentas/invitaciones/lote', { ...datos, organizacion_id: o.id }) },
   reenviarInvitacion: async (id) => ids(await post<InvitacionDetalle>(`/api/v1/cuentas/invitaciones/${id}/reenviar`)),
   editarUsuarioAcceso: async (id, datos) => ids(await put<UsuarioAcceso>(`/api/v1/cuentas/usuarios-acceso/${id}`, datos)),
   cambiarEstadoUsuarioAcceso: async (id, activo) => ids(await patch<UsuarioAcceso>(`/api/v1/cuentas/usuarios-acceso/${id}/estado`, { activo })),
@@ -126,7 +136,7 @@ const real: typeof mock = {
   // ---- empleados de una empresa
   // La empresa ve los suyos; el administrador ve los de la empresa que consulta.
   listarEmpleados: async (empresa_id) => leer<EmpleadoDetalle[]>(esRol('empresa') ? '/api/v1/empresa/empleados' : `/api/v1/admin/empresas/${empresa_id}/empleados`),
-  agregarEmpleados: async (_empresa, personas) => post<ResultadoAltaEmpleados>('/api/v1/empresa/empleados', { personas: personas.map((p) => ({ nombre: p.nombre, correo: p.correo || null })) }),
+  agregarEmpleados: async (empresa, personas) => post<ResultadoAltaEmpleados>(esRol('empresa') ? '/api/v1/empresa/empleados' : `/api/v1/admin/empresas/${empresa}/empleados`, { personas: personas.map((p) => ({ nombre: p.nombre, correo: p.correo || null })) }),
   editarEmpleado: async (id, datos) => ids(await put<Empleado>(`/api/v1/empresa/empleados/${id}`, datos)),
   quitarMiEleccion: async (_empleado, fecha, tiempo_comida) => { await borrar('/api/v1/empleado/elecciones', { fecha, tiempo_comida }) },
   cambiarEstadoEmpleado: async (id, activo) => ids(await patch<Empleado>(`/api/v1/empresa/empleados/${id}/estado`, { activo })),
@@ -305,6 +315,7 @@ export const listarBitacora = elegir('listarBitacora')
 export const listarActoresBitacora = elegir('listarActoresBitacora')
 export const listarUsuariosAcceso = elegir('listarUsuariosAcceso')
 export const invitarUsuario = elegir('invitarUsuario')
+export const invitarVariosUsuarios = elegir('invitarVariosUsuarios')
 export const reenviarInvitacion = elegir('reenviarInvitacion')
 export const solicitarRestablecimiento = elegir('solicitarRestablecimiento')
 export const validarTokenRestablecimiento = elegir('validarTokenRestablecimiento')

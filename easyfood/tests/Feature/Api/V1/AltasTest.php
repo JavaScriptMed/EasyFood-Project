@@ -178,6 +178,7 @@ class AltasTest extends TestCase
         ]])->assertCreated()->json();
 
         $this->assertSame([2, 1], [$r['agregados'], $r['omitidos']], 'el correo repetido en la lista se omite');
+        $this->assertSame([['nombre' => 'Ana de nuevo', 'correo' => 'ana.ruiz@nexo.mx', 'motivo' => 'repetido_en_el_archivo']], $r['correos_omitidos'], 'se dice cuál se omitió y por qué');
         $empleados = Empleado::where('empresa_id', $empresa->id)->with('usuario.role')->get();
         $this->assertEqualsCanonicalizing(['ana.ruiz@nexo.mx', 'jose.nunez@nexo.mx'], $empleados->pluck('usuario.email')->all(), 'sin correo se arma con el nombre y el dominio');
         $this->assertSame(['employee', 'inactive'], [$empleados[0]->usuario->role->name, $empleados[0]->usuario->status]);
@@ -185,6 +186,42 @@ class AltasTest extends TestCase
         Mail::assertQueued(InvitacionDeAcceso::class, 2);
         Mail::assertQueued(InvitacionDeAcceso::class, fn ($m) => str_contains($m->url, '/empleados/aceptar-invitacion?token='));
         $this->assertSame(1, RegistroAuditoria::where('accion', 'crear')->where('entidad', 'empleados')->count());
+    }
+
+    public function test_el_administrador_agrega_empleados_a_una_empresa_y_se_le_dice_cuales_se_omitieron(): void
+    {
+        $this->comoRol('admin');
+        $id = $this->postJson('/api/v1/admin/empresas', $this->nuevaEmpresa())->assertCreated()->json('id');
+
+        $r = $this->postJson("/api/v1/admin/empresas/{$id}/empleados", ['personas' => [
+            ['nombre' => 'Ana Ruiz', 'correo' => 'ana@pacifico-textil.mx'], ['nombre' => 'Ana otra vez', 'correo' => 'ANA@pacifico-textil.mx'],
+            ['nombre' => 'La titular', 'correo' => 'lucia@pacifico-textil.mx'], ['nombre' => 'José Núñez'],
+        ]])->assertCreated()->json();
+
+        $this->assertSame([2, 2], [$r['agregados'], $r['omitidos']]);
+        $this->assertSame([['nombre' => 'Ana otra vez', 'correo' => 'ana@pacifico-textil.mx', 'motivo' => 'repetido_en_el_archivo'], ['nombre' => 'La titular', 'correo' => 'lucia@pacifico-textil.mx', 'motivo' => 'ya_tiene_cuenta']], $r['correos_omitidos']);
+        $this->assertEqualsCanonicalizing(['ana@pacifico-textil.mx', 'jose.nunez@pacifico-textil.mx'], Empleado::where('empresa_id', $id)->with('usuario')->get()->pluck('usuario.email')->all());
+        $this->getJson("/api/v1/admin/empresas/{$id}/empleados")->assertOk()->assertJsonCount(2);
+    }
+
+    public function test_agregar_empleados_desde_el_admin_pide_empresa_existente_y_lista_valida(): void
+    {
+        $this->comoRol('admin');
+
+        $this->postJson('/api/v1/admin/empresas/99999/empleados', ['personas' => [['nombre' => 'Ana Ruiz']]])->assertNotFound();
+        $id = $this->postJson('/api/v1/admin/empresas', $this->nuevaEmpresa())->assertCreated()->json('id');
+        $this->postJson("/api/v1/admin/empresas/{$id}/empleados", ['personas' => []])->assertUnprocessable();
+        $this->postJson("/api/v1/admin/empresas/{$id}/empleados", ['personas' => [['nombre' => 'Ana Ruiz', 'correo' => 'mal@@correo']]])->assertUnprocessable();
+        $this->assertSame(0, Empleado::where('empresa_id', $id)->count());
+    }
+
+    public function test_solo_el_administrador_agrega_empleados_a_cualquier_empresa(): void
+    {
+        $this->comoRol('admin');
+        $id = $this->postJson('/api/v1/admin/empresas', $this->nuevaEmpresa())->assertCreated()->json('id');
+        $this->comoRol('customer');
+
+        $this->postJson("/api/v1/admin/empresas/{$id}/empleados", ['personas' => [['nombre' => 'Ana Ruiz']]])->assertForbidden();
     }
 
     public function test_un_correo_que_ya_tiene_cuenta_se_omite_sin_romper_el_resto(): void
@@ -195,6 +232,7 @@ class AltasTest extends TestCase
         $r = $this->postJson('/api/v1/empresa/empleados', ['personas' => [['nombre' => 'Ocupado Pérez', 'correo' => 'ocupado@nexo.mx'], ['nombre' => 'Libre Pérez', 'correo' => 'libre@nexo.mx']]])->assertCreated()->json();
 
         $this->assertSame([1, 1], [$r['agregados'], $r['omitidos']]);
+        $this->assertSame([['nombre' => 'Ocupado Pérez', 'correo' => 'ocupado@nexo.mx', 'motivo' => 'ya_tiene_cuenta']], $r['correos_omitidos']);
         $this->assertSame(1, Empleado::where('empresa_id', $empresa->id)->count());
     }
 
