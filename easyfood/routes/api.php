@@ -7,7 +7,7 @@ use App\Http\Controllers\Api\ProviderController;
 use App\Http\Controllers\Api\Admin\UserController as AdminUserController;
 use App\Http\Controllers\Api\MenuController;
 use App\Http\Controllers\Api\CatalogCategoryController;
-use App\Http\Controllers\Api\OrderController;
+
 use App\Http\Controllers\Api\AddressController;
 
 // -----------------------------------------------------------------
@@ -46,10 +46,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('/menus/{id}', [MenuController::class, 'destroy']);
     });
 
-    // Rutas de Órdenes y Paquetes Programados para el Cliente
-    Route::get('/orders', [OrderController::class, 'index']);
-    Route::post('/orders', [OrderController::class, 'store']);
-    Route::get('/orders/{id}', [OrderController::class, 'show']);
+   
 
     // Gestión de Direcciones del Cliente
     Route::get('/addresses', [AddressController::class, 'index']);

@@ -31,8 +31,13 @@ class PedidoController extends Controller
      */
     public function store(Request $request, ContratacionDePaquetes $paquetes): JsonResponse
     {
-        $datos = $request->validate(['paquete_id' => 'required|integer', 'direccion_id' => 'required|integer', 'platillos' => 'required|array|min:1|max:6', 'platillos.*' => 'required|integer']);
-
+        // En app/Http/Controllers/Api/V1/Cliente/PedidoController.php
+$datos = $request->validate([
+    'paquete_id' => 'required|integer', 
+    'direccion_id' => 'required|integer', 
+    'platillos' => 'required|array|min:1|max:18', // Permitimos hasta 18 platillos (6 días * 3 tiempos)
+    'platillos.*' => 'required|integer'
+]);
         $paquete = Paquete::query()->findOrFail($datos['paquete_id']);
         $direccion = Address::query()->where('user_id', $request->user()->id)->findOrFail($datos['direccion_id']);
         $pedido = $paquetes->pedir($request->user(), $paquete, $direccion, $datos['platillos']);

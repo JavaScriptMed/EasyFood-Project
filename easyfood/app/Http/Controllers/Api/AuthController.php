@@ -125,53 +125,55 @@ class AuthController extends Controller
      * Actualiza los datos del usuario y su perfil asociado.
      */
     public function updateProfile(Request $request)
-    {
-        $user = $request->user();
+{
+    $user = $request->user();
 
-        // Validar datos recibidos
-        $validated = $request->validate([
-            'name'       => 'sometimes|required|string|max:120',
-            'first_name' => 'sometimes|required|string|max:100',
-            'last_name'  => 'sometimes|required|string|max:100',
-            'phone'      => 'nullable|string|max:20',
-            'avatar_url' => 'nullable|url|max:255',
-            'bio'        => 'nullable|string',
-            'birth_date' => 'nullable|date',
-        ]);
+    // Validar datos recibidos (ahora validamos 'avatar' como archivo de imagen)
+    $validated = $request->validate([
+        'name'       => 'sometimes|required|string|max:120',
+        'first_name' => 'sometimes|required|string|max:100',
+        'last_name'  => 'sometimes|required|string|max:100',
+        'phone'      => 'nullable|string|max:20',
+        'avatar'     => 'nullable|image|mimes:jpeg,png,jpg,webp|max:2048', // Archivo de hasta 2MB
+        'bio'        => 'nullable|string',
+        'birth_date' => 'nullable|date',
+    ]);
 
-        // Si se envía el campo 'name', se actualiza en la tabla 'users'
-        if (isset($validated['name'])) {
-            $user->update(['name' => $validated['name']]);
-        }
-
-        // Extraer campos pertenecientes a la tabla 'user_profiles'
-        $profileData = collect($validated)->only([
-            'first_name',
-            'last_name',
-            'phone',
-            'avatar_url',
-            'bio',
-            'birth_date',
-        ])->toArray();
-
-        // Actualizar o crear la información extendida en 'user_profiles'
-        if (!empty($profileData)) {
-            UserProfile::updateOrCreate(
-                ['user_id' => $user->id],
-                $profileData
-            );
-        }
-
-        return response()->json([
-            'message' => 'Perfil actualizado exitosamente.',
-            'user'    => [
-                'id'      => $user->id,
-                'name'    => $user->name,
-                'email'   => $user->email,
-                'role'    => $user->role->name,
-                'status'  => $user->status,
-                'profile' => $user->fresh()->profile,
-            ],
-        ], 200);
+    if (isset($validated['name'])) {
+        $user->update(['name' => $validated['name']]);
     }
+
+    $profileData = collect($validated)->only([
+        'first_name',
+        'last_name',
+        'phone',
+        'bio',
+        'birth_date',
+    ])->toArray();
+
+    // Si el usuario subió una nueva imagen de perfil
+    if ($request->hasFile('avatar')) {
+        $path = $request->file('avatar')->store('avatars', 'public');
+        $profileData['avatar_url'] = asset('storage/' . $path);
+    }
+
+    if (!empty($profileData)) {
+        UserProfile::updateOrCreate(
+            ['user_id' => $user->id],
+            $profileData
+        );
+    }
+
+    return response()->json([
+        'message' => 'Perfil actualizado exitosamente.',
+        'user'    => [
+            'id'      => $user->id,
+            'name'    => $user->name,
+            'email'   => $user->email,
+            'role'    => $user->role->name,
+            'status'  => $user->status,
+            'profile' => $user->fresh()->profile,
+        ],
+    ], 200);
+}
 }

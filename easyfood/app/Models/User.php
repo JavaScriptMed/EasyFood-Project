@@ -85,9 +85,4 @@ class User extends Authenticatable
         return $this->role->name === $roles;
     }
 
-    // ... dentro de la clase User extiende Authenticatable
-public function addresses()
-{
-    return $this->hasMany(Address::class);
-}
 }

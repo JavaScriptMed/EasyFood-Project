@@ -46,8 +46,11 @@ class ContratacionDePaquetes
         if ($direccion->sin_cobertura) {
             throw new ReglaDeNegocioException('sin_cobertura', 'Esa dirección está fuera de cobertura: elige otra o pide que se amplíe la zona.');
         }
-        if (count($platillos) !== $paquete->dias) {
-            throw new ReglaDeNegocioException('platillos_incompletos', "El paquete «{$paquete->nombre}» necesita {$paquete->dias} platillo(s): uno por día.");
+
+        // >>> NUEVA REGLA: Exigimos 3 platillos por cada día del paquete (Ej: 1 día = 3 platillos, 2 días = 6 platillos) <<<
+        $platillosEsperados = $paquete->dias * 3;
+        if (count($platillos) !== $platillosEsperados) {
+            throw new ReglaDeNegocioException('platillos_incompletos', "El paquete «{$paquete->nombre}» necesita {$platillosEsperados} platillos en total (3 por cada uno de los {$paquete->dias} días).");
         }
 
         $ahora = $this->calendario->ahora($ahora);
@@ -58,19 +61,25 @@ class ContratacionDePaquetes
             $suma = 0;
 
             foreach ($fechas as $i => $fecha) {
-                $menu = Menu::query()->find($platillos[$i] instanceof Menu ? $platillos[$i]->id : $platillos[$i]);
-                if (! $menu || $menu->estado_revision !== 'publicado' || ! $menu->is_available) {
-                    throw new ReglaDeNegocioException('platillo_no_disponible', "El platillo del día {$fecha->toDateString()} no está disponible.");
-                }
-                $disponibilidad = DisponibilidadDia::query()->where('menu_id', $menu->id)->whereDate('fecha', $fecha->toDateString())->lockForUpdate()->first();
-                if (! $disponibilidad || $disponibilidad->porciones_tomadas >= $disponibilidad->porciones_maximas) {
-                    throw new ReglaDeNegocioException('sin_porciones', "Ya no quedan porciones de «{$menu->name}» para el {$fecha->toDateString()}.");
-                }
-                $disponibilidad->increment('porciones_tomadas');
+                // Iteramos los 3 tiempos/comidas correspondientes a este día ($i * 3, $i * 3 + 1, $i * 3 + 2)
+                for ($t = 0; $t < 3; $t++) {
+                    $index = ($i * 3) + $t;
+                    $menuId = $platillos[$index] instanceof Menu ? $platillos[$index]->id : $platillos[$index];
 
-                $precio = Dinero::centavos($menu->price);
-                $suma += $precio;
-                $dias[] = ['fecha' => $fecha->toDateString(), 'menu_id' => $menu->id, 'precio_congelado' => Dinero::formato($precio)];
+                    $menu = Menu::query()->find($menuId);
+                    if (! $menu || $menu->estado_revision !== 'publicado' || ! $menu->is_available) {
+                        throw new ReglaDeNegocioException('platillo_no_disponible', "El platillo del día {$fecha->toDateString()} no está disponible.");
+                    }
+                    $disponibilidad = DisponibilidadDia::query()->where('menu_id', $menu->id)->whereDate('fecha', $fecha->toDateString())->lockForUpdate()->first();
+                    if (! $disponibilidad || $disponibilidad->porciones_tomadas >= $disponibilidad->porciones_maximas) {
+                        throw new ReglaDeNegocioException('sin_porciones', "Ya no quedan porciones de «{$menu->name}» para el {$fecha->toDateString()}.");
+                    }
+                    $disponibilidad->increment('porciones_tomadas');
+
+                    $precio = Dinero::centavos($menu->price);
+                    $suma += $precio;
+                    $dias[] = ['fecha' => $fecha->toDateString(), 'menu_id' => $menu->id, 'precio_congelado' => Dinero::formato($precio)];
+                }
             }
 
             $descuento = (float) $paquete->descuento_porcentaje;

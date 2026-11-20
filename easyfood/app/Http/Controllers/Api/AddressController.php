@@ -4,19 +4,20 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Address;
+use App\Models\Zona;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 
 class AddressController extends Controller
 {
-    // Listar direcciones del usuario autenticado
+    // Listar direcciones del usuario autenticado con su respectiva zona
     public function index(Request $request)
     {
-        $addresses = $request->user()->addresses()->orderBy('is_default', 'desc')->get();
+        $addresses = $request->user()->addresses()->with('zona')->orderBy('is_default', 'desc')->get();
         return response()->json($addresses, 200);
     }
 
-    // Registrar nueva dirección
+    // Registrar nueva dirección dentro de la ZMG
     public function store(Request $request)
     {
         $validated = $request->validate([
@@ -32,16 +33,21 @@ class AddressController extends Controller
 
         $user = $request->user();
 
-        // Si no se envían coordenadas, las calculamos con una búsqueda de texto flexible
+        // 1. Si no se envían coordenadas, las calculamos enfocadas estrictamente en la ZMG
         if (empty($validated['latitude']) || empty($validated['longitude'])) {
-            $cpText = !empty($validated['postal_code']) ? "C.P. {$validated['postal_code']}" : "";
-            $fullAddress = "{$validated['street_address']}, {$cpText}, Guadalajara, Jalisco, México";
+            $cp = $validated['postal_code'] ?? '';
+            $cpText = !empty($cp) ? "C.P. {$cp}" : "";
+            // Forzamos el contexto de la ZMG (Zapopan, Guadalajara, Jalisco, México)
+            $fullAddress = "{$validated['street_address']}, {$cpText}, Zapopan / Guadalajara, Jalisco, México";
             
             try {
                 $response = Http::withUserAgent('EasyLunchApp')->get('https://nominatim.openstreetmap.org/search', [
-                    'q' => $fullAddress,
-                    'format' => 'json',
-                    'limit' => 1
+                    'q'          => $fullAddress,
+                    'postalcode' => $cp,
+                    'city'       => 'Guadalajara', // O puedes dejarlo abierto a la ZMG
+                    'country'    => 'México',
+                    'format'     => 'json',
+                    'limit'      => 1
                 ]);
 
                 if ($response->successful() && count($response->json()) > 0) {
@@ -49,22 +55,9 @@ class AddressController extends Controller
                     $validated['latitude'] = $data['lat'];
                     $validated['longitude'] = $data['lon'];
                 } else {
-                    // Respaldo secundario buscando solo por calle y ciudad
-                    $fallbackResponse = Http::withUserAgent('EasyLunchApp')->get('https://nominatim.openstreetmap.org/search', [
-                        'q' => "{$validated['street_address']}, Guadalajara, Jalisco, México",
-                        'format' => 'json',
-                        'limit' => 1
-                    ]);
-
-                    if ($fallbackResponse->successful() && count($fallbackResponse->json()) > 0) {
-                        $data = $fallbackResponse->json()[0];
-                        $validated['latitude'] = $data['lat'];
-                        $validated['longitude'] = $data['lon'];
-                    } else {
-                        // Coordenadas predeterminadas de respaldo final (ZMG)
-                        $validated['latitude'] = 20.676667;
-                        $validated['longitude'] = -103.347222;
-                    }
+                    // Respaldo genérico en el centro de la ZMG
+                    $validated['latitude'] = 20.676667;
+                    $validated['longitude'] = -103.347222;
                 }
             } catch (\Exception $e) {
                 $validated['latitude'] = 20.676667;
@@ -72,11 +65,29 @@ class AddressController extends Controller
             }
         }
 
-        // Si se marca como predeterminada, quitamos el flag a las demás
+        // 2. Validar mediante PostGIS si las coordenadas caen dentro de una Zona activa de EasyLunch en la ZMG
+        $zona = Zona::whereRaw(
+            "ST_Contains(geometria, ST_GeomFromText(?, 4326))", 
+            ["POINT({$validated['longitude']} {$validated['latitude']})"]
+        )->first();
+
+        // Opcional: Si quieres bloquear direcciones fuera de cobertura, puedes descomentar la siguiente validación:
+        /*
+        if (!$zona) {
+            return response()->json([
+                'message' => 'Lo sentimos, por el momento EasyLunch solo tiene cobertura dentro de las zonas habilitadas en la Zona Metropolitana de Guadalajara.'
+            ], 422);
+        }
+        */
+
+        if ($zona) {
+            $validated['zona_id'] = $zona->id;
+        }
+
+        // 3. Gestionar dirección predeterminada
         if (!empty($validated['is_default']) && $validated['is_default']) {
             $user->addresses()->update(['is_default' => false]);
         } else {
-            // Si es la primera dirección, la hacemos predeterminada por defecto
             if ($user->addresses()->count() === 0) {
                 $validated['is_default'] = true;
             }
@@ -85,8 +96,8 @@ class AddressController extends Controller
         $address = $user->addresses()->create($validated);
 
         return response()->json([
-            'message' => 'Dirección guardada exitosamente.',
-            'address' => $address,
+            'message' => 'Dirección guardada exitosamente dentro de la ZMG.',
+            'address' => $address->load('zona'),
         ], 201);
     }
 
@@ -110,18 +121,20 @@ class AddressController extends Controller
             'is_default'            => 'nullable|boolean',
         ]);
 
-        // Si se modifica la calle o código postal, recalculamos con la nueva búsqueda flexible
+        // Si cambia la calle o C.P., recalculamos
         if ((isset($validated['street_address']) || isset($validated['postal_code'])) && (empty($validated['latitude']) || empty($validated['longitude']))) {
             $street = $validated['street_address'] ?? $address->street_address;
             $cp = $validated['postal_code'] ?? $address->postal_code;
             $cpText = !empty($cp) ? "C.P. {$cp}" : "";
-            $fullAddress = "{$street}, {$cpText}, Guadalajara, Jalisco, México";
+            $fullAddress = "{$street}, {$cpText}, Jalisco, México";
 
             try {
                 $response = Http::withUserAgent('EasyLunchApp')->get('https://nominatim.openstreetmap.org/search', [
-                    'q' => $fullAddress,
-                    'format' => 'json',
-                    'limit' => 1
+                    'q'          => $fullAddress,
+                    'postalcode' => $cp,
+                    'country'    => 'México',
+                    'format'     => 'json',
+                    'limit'      => 1
                 ]);
 
                 if ($response->successful() && count($response->json()) > 0) {
@@ -130,7 +143,22 @@ class AddressController extends Controller
                     $validated['longitude'] = $data['lon'];
                 }
             } catch (\Exception $e) {
-                // Si falla, conserva los valores anteriores
+                // Conserva valores previos
+            }
+        }
+
+        // Recalcular zona si las coordenadas cambiaron
+        $lat = $validated['latitude'] ?? $address->latitude;
+        $lng = $validated['longitude'] ?? $address->longitude;
+        
+        if ($lat && $lng) {
+            $zona = Zona::whereRaw(
+                "ST_Contains(geometria, ST_GeomFromText(?, 4326))", 
+                ["POINT({$lng} {$lat})"]
+            )->first();
+
+            if ($zona) {
+                $validated['zona_id'] = $zona->id;
             }
         }
 
@@ -142,7 +170,7 @@ class AddressController extends Controller
 
         return response()->json([
             'message' => 'Dirección actualizada exitosamente.',
-            'address' => $address,
+            'address' => $address->load('zona'),
         ], 200);
     }
 
