@@ -21,7 +21,7 @@ use Tests\Concerns\VerificaRestricciones;
 use Tests\TestCase;
 
 /**
- * Los pedidos individuales llegan en UNA entrega el sábado, con su propio corte (el sábado a la hora de corte) y rutas SEPARADAS
+ * Los pedidos individuales llegan en UNA entrega el sábado, con su propio corte (el viernes a la hora de corte) y rutas SEPARADAS
  * de las de empresas, según la zona de su dirección. «Hoy» es el miércoles 11 de nov de 2026: el pedido llega el sábado 14 y se
  * come desde el lunes 16.
  */
@@ -57,10 +57,10 @@ class RutasConClientesIndividualesTest extends TestCase
         return PedidoDia::where('pedido_id', $pedido->id)->sole();
     }
 
-    /** El corte de individuales del sábado 14, a las 18:30. */
+    /** El corte de individuales del sábado 14: el viernes 13 a las 18:30. */
     private function corte()
     {
-        $this->ahoraEs('2026-11-14 18:30');
+        $this->ahoraEs('2026-11-13 18:30');
 
         return app(CorteDeIndividuales::class)->ejecutar(self::ENTREGA);
     }
@@ -184,23 +184,21 @@ class RutasConClientesIndividualesTest extends TestCase
 
         $paradas = $deClientes->paradas()->orderBy('orden')->get();
         $this->assertSame([$a->id, $b->id], $paradas->pluck('pedido_dia_id')->all());
-        $this->assertSame(['18:10:00', '18:20:00'], $paradas->pluck('hora_estimada')->all(), 'salen a la hora de corte y cada cliente se estima 10 min después del anterior');
-        $this->assertSame(['18:00:00', '18:20:00'], [$deClientes->ventana_inicio, $deClientes->ventana_fin]);
+        $this->assertSame(['13:00:00', '13:10:00'], $paradas->pluck('hora_estimada')->all(), 'salen cuando el repartidor termina la ruta de la empresa y cada cliente se estima 10 min después del anterior');
+        $this->assertSame(['12:50:00', '13:10:00'], [$deClientes->ventana_inicio, $deClientes->ventana_fin]);
     }
 
-    public function test_una_ruta_de_clientes_arranca_a_la_hora_de_corte_del_sabado(): void
+    public function test_una_ruta_solo_de_clientes_sale_el_sabado_a_las_12(): void
     {
-        $this->ajuste('hora_corte', '17:00');
         $menu = $this->menuDisponible();
         $this->pedidoPagado($menu);
         $this->repartidorEn('Centro');
 
-        $this->ahoraEs('2026-11-14 17:30');
-        app(CorteDeIndividuales::class)->ejecutar(self::ENTREGA);
+        $this->corte();
 
         $ruta = Ruta::sole();
-        $this->assertSame(['17:00:00', '17:10:00'], [$ruta->ventana_inicio, $ruta->ventana_fin]);
-        $this->assertSame('17:10:00', Parada::sole()->hora_estimada);
+        $this->assertSame(['12:00:00', '12:10:00'], [$ruta->ventana_inicio, $ruta->ventana_fin]);
+        $this->assertSame('12:10:00', Parada::sole()->hora_estimada);
     }
 
     public function test_cada_zona_usa_su_propio_repartidor(): void
@@ -298,32 +296,34 @@ class RutasConClientesIndividualesTest extends TestCase
         $this->assertSame($antes, [Ruta::count(), Parada::count(), Incidencia::count(), DB::table('ordenes_produccion')->sum('porciones_individuales')]);
     }
 
-    public function test_los_pedidos_de_lunes_a_viernes_y_del_sabado_antes_de_la_hora_de_corte_entran_al_reparto_y_el_siguiente_no(): void
+    public function test_los_pedidos_de_lunes_a_viernes_antes_de_las_6_pm_entran_al_reparto_del_sabado_y_los_siguientes_no(): void
     {
         $menu = $this->menuDisponible(50);
         foreach (['2026-11-23', '2026-11-24'] as $dia) {
-            $this->disponible($menu, $dia, 50); // los días de comida del pedido del sábado siguiente
+            $this->disponible($menu, $dia, 50); // los días de comida de los pedidos del sábado siguiente
         }
         $this->repartidorEn('Centro');
 
         $this->ahoraEs('2026-11-09 08:00'); // lunes
         $lunes = $this->pedidoPagado($menu);
-        $this->ahoraEs('2026-11-13 23:00'); // viernes por la noche
+        $this->ahoraEs('2026-11-13 17:59'); // viernes, un minuto antes de la hora de corte
         $viernes = $this->pedidoPagado($menu);
-        $this->ahoraEs('2026-11-14 17:59'); // sábado antes de la hora de corte
-        $sabadoAntes = $this->pedidoPagado($menu);
-        $this->ahoraEs('2026-11-14 18:00'); // sábado, ya cerró: pasa al siguiente
-        $sabadoDespues = $this->pedidoPagado($menu);
+        $this->ahoraEs('2026-11-13 18:00'); // viernes, ya cerró: pasa al sábado siguiente
+        $viernesDespues = $this->pedidoPagado($menu);
+        $this->ahoraEs('2026-11-14 09:00'); // sábado, cuando ya salen a repartir
+        $sabado = $this->pedidoPagado($menu);
 
-        $this->assertSame(['2026-11-14', '2026-11-14', '2026-11-14', '2026-11-21'], array_map(fn (PedidoDia $d) => $d->fecha->toDateString(), [$lunes, $viernes, $sabadoAntes, $sabadoDespues]));
+        $this->assertSame(['2026-11-14', '2026-11-14', '2026-11-21', '2026-11-21'], array_map(fn (PedidoDia $d) => $d->fecha->toDateString(), [$lunes, $viernes, $viernesDespues, $sabado]));
 
         $this->corte();
 
         $conParada = Parada::pluck('pedido_dia_id')->all();
-        $this->assertEqualsCanonicalizing([$lunes->id, $viernes->id, $sabadoAntes->id], $conParada);
-        $this->assertNotContains($sabadoDespues->id, $conParada, 'el pedido del sábado después del corte espera al sábado siguiente');
-        $this->assertSame('programada', $sabadoDespues->fresh()->estado);
-        $this->assertSame('recibido', $sabadoDespues->pedido->fresh()->estado);
+        $this->assertEqualsCanonicalizing([$lunes->id, $viernes->id], $conParada);
+        foreach ([$viernesDespues, $sabado] as $siguiente) {
+            $this->assertNotContains($siguiente->id, $conParada, 'espera al sábado siguiente');
+            $this->assertSame('programada', $siguiente->fresh()->estado);
+            $this->assertSame('recibido', $siguiente->pedido->fresh()->estado, 'sigue pagado, no se cancela');
+        }
     }
 
     public function test_el_corte_manual_se_puede_adelantar_pero_solo_para_sabados_de_servicio(): void

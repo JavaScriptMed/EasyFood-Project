@@ -98,7 +98,7 @@ class CalendarioDeServicioTest extends TestCase
         $this->assertSame('2026-11-13', app(CalendarioDeServicio::class)->fechaDeEntregaParaPedidoNuevo()->toDateString());
     }
 
-    public function test_la_entrega_de_individuales_es_el_sabado_y_cierra_ese_mismo_sabado_a_la_hora_de_corte(): void
+    public function test_la_entrega_de_individuales_es_el_sabado_y_cierra_el_viernes_a_la_hora_de_corte(): void
     {
         $calendario = app(CalendarioDeServicio::class);
         $sabado = fn (string $ahora) => (function () use ($calendario, $ahora) {
@@ -108,15 +108,15 @@ class CalendarioDeServicioTest extends TestCase
         })();
 
         $this->assertSame('2026-11-14', $sabado('2026-11-09 00:00'), 'lunes temprano');
-        $this->assertSame('2026-11-14', $sabado('2026-11-13 23:59'), 'viernes tarde');
-        $this->assertSame('2026-11-14', $sabado('2026-11-14 00:00'), 'sábado temprano');
-        $this->assertSame('2026-11-14', $sabado('2026-11-14 17:59:59'), 'un segundo antes de la hora de corte');
-        $this->assertSame('2026-11-21', $sabado('2026-11-14 18:00:00'), 'a la hora de corte ya cerró');
+        $this->assertSame('2026-11-14', $sabado('2026-11-13 17:59:59'), 'un segundo antes de la hora de corte del viernes');
+        $this->assertSame('2026-11-21', $sabado('2026-11-13 18:00:00'), 'a la hora de corte del viernes ya cerró');
+        $this->assertSame('2026-11-21', $sabado('2026-11-13 23:59'), 'viernes por la noche');
+        $this->assertSame('2026-11-21', $sabado('2026-11-14 08:00'), 'sábado, cuando ya salen a repartir');
         $this->assertSame('2026-11-21', $sabado('2026-11-15 10:00'), 'domingo');
 
-        $this->assertSame('2026-11-14 18:00', $calendario->momentoDeCierreDeIndividuales('2026-11-14')->format('Y-m-d H:i'), 'el mismo sábado, no el día anterior');
+        $this->assertSame('2026-11-13 18:00', $calendario->momentoDeCierreDeIndividuales('2026-11-14')->format('Y-m-d H:i'), 'el viernes, el día anterior a la entrega');
         $this->ajuste('hora_corte', '16:30');
-        $this->assertSame('2026-11-14 16:30', $calendario->momentoDeCierreDeIndividuales('2026-11-14')->format('Y-m-d H:i'), 'respeta la hora configurada');
+        $this->assertSame('2026-11-13 16:30', $calendario->momentoDeCierreDeIndividuales('2026-11-14')->format('Y-m-d H:i'), 'respeta la hora configurada');
     }
 
     public function test_un_sabado_festivo_o_ya_cortado_no_es_dia_de_entrega_de_individuales(): void

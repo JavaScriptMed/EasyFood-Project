@@ -28,7 +28,7 @@ class PedidoController extends Controller
 
     /**
      * Cuándo llega el próximo pedido de un cliente individual: el sábado de entrega (los pedidos de lunes a viernes entran al sábado
-     * de esa semana; el sábado mismo, hasta la hora de corte), cuándo cierra y los días de comida (hasta 6) de la semana siguiente
+     * de esa semana, antes del viernes a las 18:00; después pasan al siguiente), cuándo cierra y los días de comida (hasta 6) de la semana siguiente
      * para los que hay que elegir platillos: son los de `GET /menu-semanal?fecha_inicio=` a partir del primero.
      */
     public function proximaEntrega(CalendarioDeServicio $calendario): JsonResponse

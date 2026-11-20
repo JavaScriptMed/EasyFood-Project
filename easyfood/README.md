@@ -267,7 +267,7 @@ El servicio `scheduler` de docker-compose ejecuta `php artisan schedule:work` (c
 | Comando | Cuándo | Qué hace |
 |---|---|---|
 | `easylunch:corte-automatico` | cada minuto | Ejecuta el corte (empleados y empresas) de la siguiente fecha de entrega en cuanto llega su hora (18:00 por defecto). Solo corta días de servicio; no repite si ya hay corte (automático o manual). Si falla, reintenta cada 5 min hasta 12 veces. |
-| `easylunch:corte-individuales` | cada minuto | El sábado, en cuanto llega la hora de corte (18:00 por defecto), cierra los pedidos de clientes individuales de ese sábado: cancela lo sin pagar, suma sus porciones a la producción y arma sus rutas (separadas de las de empresas). Mismo reintento que el corte general. |
+| `easylunch:corte-individuales` | cada minuto | El viernes, en cuanto llega la hora de corte (18:00 por defecto) y después del corte general, cierra los pedidos de clientes individuales del sábado siguiente: cancela lo sin pagar, suma sus porciones a la producción y arma sus rutas (separadas de las de empresas). Mismo reintento que el corte general. |
 | `easylunch:cancelar-pedidos-vencidos` | cada minuto | Cancela los pedidos individuales que no se pagaron antes del corte de su primer día. |
 | `easylunch:avisos-de-contratos` | diario 08:00 | Avisos de contratos que vencen este mes o en los 7 días siguientes. |
 

@@ -26,6 +26,9 @@ class GeneradorDeRutas
     /** …y cada entrega a un cliente individual se estima esta cantidad de minutos después de la anterior (tras las de empresas). */
     private const MINUTOS_ENTRE_ENTREGAS_INDIVIDUALES = 10;
 
+    /** Una ruta de clientes individuales sale el sábado a esta hora; si su repartidor ya hizo una ruta de empresas ese día, sale cuando la termina. */
+    public const INICIO_SIN_EMPRESAS = '12:00:00';
+
     public function __construct(private readonly CalendarioDeServicio $calendario) {}
 
     /**
@@ -52,7 +55,7 @@ class GeneradorDeRutas
         $porZona = $deEmpresas->concat($deClientes)->groupBy(fn ($item) => $item['zona'] === null ? '' : $this->zona($item['zona']));
 
         // Un repartidor ya ocupado con una ruta del MISMO tipo ese día no se repite; con una del otro tipo sí (las empresas se
-        // atienden por la mañana y los clientes individuales el sábado después del corte).
+        // atienden por la mañana y los clientes individuales después, el mismo sábado).
         $ocupados = Ruta::query()->whereDate('fecha', $fecha)
             ->when($empresas && ! $individuales, fn ($q) => $q->whereHas('paradas', fn ($p) => $p->whereNotNull('entrega_empresa_id')))
             ->when($individuales && ! $empresas, fn ($q) => $q->whereHas('paradas', fn ($p) => $p->whereNotNull('pedido_dia_id')))
@@ -73,7 +76,7 @@ class GeneradorDeRutas
                     if (! $asignados) {
                         break; // Ninguno cabe solo en un auto: otro auto igual tampoco serviría.
                     }
-                    $this->guardarRuta($corte, $fecha, $repartidor, $asignados, $capacidad);
+                    $this->guardarRuta($corte, $fecha, $repartidor, $asignados, $capacidad, $this->finDeSuRutaDeEmpresas($repartidor, $fecha));
                     $rutas++;
                 }
             }
@@ -106,15 +109,25 @@ class GeneradorDeRutas
         return [$asignados, $resto];
     }
 
-    /** @param array<int, array> $items entregas a empresas primero y luego clientes individuales */
-    private function guardarRuta(Corte $corte, string $fecha, Repartidor $repartidor, array $items, array $capacidad): void
+    /** A qué hora termina la ruta de empresas que ese repartidor ya tiene ese día (para que la de clientes no se le empalme). */
+    private function finDeSuRutaDeEmpresas(Repartidor $repartidor, string $fecha): ?string
+    {
+        return Ruta::query()->whereDate('fecha', $fecha)->where('repartidor_id', $repartidor->id)
+            ->whereHas('paradas', fn ($p) => $p->whereNotNull('entrega_empresa_id'))->max('ventana_fin');
+    }
+
+    /**
+     * @param  array<int, array>  $items  entregas a empresas, o entregas a clientes individuales (se arman en pasadas distintas)
+     * @param  string|null  $noAntesDe  hora en que el repartidor termina su ruta de empresas de ese día; la de clientes sale después
+     */
+    private function guardarRuta(Corte $corte, string $fecha, Repartidor $repartidor, array $items, array $capacidad, ?string $noAntesDe = null): void
     {
         $items = collect($items);
         $empresas = $items->where('tipo', 'empresa');
         $clientes = $items->where('tipo', 'cliente')->values();
 
-        // Una ruta de clientes individuales sale en cuanto cierran los pedidos del sábado (la hora de corte).
-        $inicio = $empresas->map(fn ($i) => $i['modelo']->ventana_inicio)->min() ?? $this->calendario->horaDeCorte().':00';
+        // Una ruta de clientes individuales sale el sábado a las 12:00, o cuando su repartidor termina la ruta de empresas de ese día.
+        $inicio = $empresas->map(fn ($i) => $i['modelo']->ventana_inicio)->min() ?? max(self::INICIO_SIN_EMPRESAS, (string) $noAntesDe);
         $finEmpresas = $empresas->map(fn ($i) => $i['modelo']->ventana_fin)->max() ?? $inicio;
         $horaDeCliente = function (int $n) use ($finEmpresas) {
             $base = CarbonImmutable::createFromTimeString($finEmpresas);

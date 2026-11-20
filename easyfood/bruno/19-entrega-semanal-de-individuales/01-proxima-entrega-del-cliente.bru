@@ -27,13 +27,14 @@ tests {
     expect(new Date(res.body.fecha_entrega + "T12:00:00Z").getUTCDay()).to.equal(6);
   });
 
-  test("cierra ese sábado y trae 6 días de comida posteriores a la entrega", function () {
-    expect(res.body.cierra_en.slice(0, 10)).to.equal(res.body.fecha_entrega);
+  test("cierra el viernes anterior y trae 6 días de comida posteriores a la entrega", function () {
+    const viernes = new Date(new Date(res.body.fecha_entrega + "T12:00:00Z").getTime() - 24 * 3600 * 1000).toISOString().slice(0, 10);
+    expect(res.body.cierra_en.slice(0, 10)).to.equal(viernes);
     expect(res.body.dias_de_comida).to.have.length(6);
     expect(res.body.dias_de_comida[0] > res.body.fecha_entrega).to.equal(true);
   });
 }
 
 docs {
-  Lunes a viernes: el sábado de esa semana. Sábado antes de la hora de corte: ese sábado. Sábado desde la hora de corte (y domingo): el siguiente. `dias_de_comida` son los siguientes días de servicio después de la entrega (el domingo y los festivos no cuentan): son los días para los que se eligen platillos (`GET /menu-semanal?fecha_inicio=`).
+  Lunes a viernes antes de las 18:00 del viernes: el sábado de esa semana. Viernes desde las 18:00, sábado y domingo: el siguiente. `dias_de_comida` son los siguientes días de servicio después de la entrega (el domingo y los festivos no cuentan): son los días para los que se eligen platillos (`GET /menu-semanal?fecha_inicio=`).
 }

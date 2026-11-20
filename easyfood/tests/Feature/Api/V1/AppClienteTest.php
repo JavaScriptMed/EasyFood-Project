@@ -166,8 +166,8 @@ class AppClienteTest extends TestCase
 
         $this->assertSame(['pendiente_pago', '2026-11-14', '2026-11-16', '2026-11-17', 'Centro', 'GDL-20261109-0001'], [$p['estado'], $p['fecha_entrega'], $p['fecha_inicio'], $p['fecha_fin'], $p['zona'], $p['folio']]);
         $this->assertEquals(190.0, $p['total'], '(100 + 100) × 95 %');
-        $this->assertSame(5 * 86400 + 8 * 3600, $p['segundos_para_pagar'], 'hasta el sábado a la hora de corte');
-        $this->assertStringStartsWith('2026-11-14T18:00:00', $p['vence_pago_en']);
+        $this->assertSame(4 * 86400 + 8 * 3600, $p['segundos_para_pagar'], 'hasta el viernes a la hora de corte');
+        $this->assertStringStartsWith('2026-11-13T18:00:00', $p['vence_pago_en']);
         $this->assertSame(1, $p['entregas_totales'], 'todo llega junto en una sola entrega');
         $this->assertCount(2, $p['dias'], 'pero el cliente sigue viendo lo que eligió para cada día');
         $this->assertSame(['2026-11-16', '2026-11-17'], array_column($p['dias'], 'fecha'));
@@ -181,9 +181,9 @@ class AppClienteTest extends TestCase
         $this->getJson('/api/v1/cliente/proxima-entrega')->assertOk()
             ->assertJsonPath('fecha_entrega', '2026-11-14')
             ->assertJsonPath('dias_de_comida', ['2026-11-16', '2026-11-17', '2026-11-18', '2026-11-19', '2026-11-20', '2026-11-21'])
-            ->assertJson(fn ($j) => $j->where('cierra_en', fn ($v) => str_starts_with($v, '2026-11-14T18:00:00'))->etc());
+            ->assertJson(fn ($j) => $j->where('cierra_en', fn ($v) => str_starts_with($v, '2026-11-13T18:00:00'))->etc()); // el viernes a la hora de corte
 
-        $this->ahoraEs('2026-11-14 18:00'); // el sábado a la hora de corte ya cerró: pasa al siguiente
+        $this->ahoraEs('2026-11-13 18:00'); // el viernes a la hora de corte ya cerró: pasa al siguiente
         $this->getJson('/api/v1/cliente/proxima-entrega')->assertOk()->assertJsonPath('fecha_entrega', '2026-11-21')->assertJsonPath('dias_de_comida.0', '2026-11-23');
     }
 
@@ -275,7 +275,7 @@ class AppClienteTest extends TestCase
         $paquete = Paquete::create(['nombre' => 'Un día', 'dias' => 1]);
         $id = $this->postJson('/api/v1/cliente/pedidos', ['paquete_id' => $paquete->id, 'direccion_id' => $direccion, 'platillos' => [['comida' => $this->menuDisponible()]]])->json('id');
 
-        $this->ahoraEs('2026-11-14 18:00:00'); // sábado, hora de corte
+        $this->ahoraEs('2026-11-13 18:00:00'); // viernes, hora de corte
         $this->postJson("/api/v1/cliente/pedidos/{$id}/pago")->assertStatus(422)->assertJsonPath('codigo', 'pedido_vencido');
         $this->getJson("/api/v1/cliente/pedidos/{$id}")->assertOk()->assertJsonPath('estado', 'pendiente_pago');
         $this->assertSame([], $this->pasarela->intentos, 'no se crea ningún intento');

@@ -28,7 +28,7 @@ use Throwable;
  *  4. consolida una sola entrega por empresa;
  *  5. crea las rutas de las empresas respetando la capacidad del auto (entregas y platillos) y agrupando por zona.
  * Los clientes individuales NO entran aquí: reciben su pedido el sábado y tienen su propio corte ({@see CorteDeIndividuales}),
- * que cierra ese sábado a la hora de corte.
+ * que corre el mismo viernes a la hora de corte.
  *
  * Es idempotente: ejecutarlo otra vez para la misma fecha no cambia nada y deja un registro «sin_cambios».
  * Si algo falla, nada se guarda salvo un registro «fallido» con el motivo, y se puede volver a ejecutar.

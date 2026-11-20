@@ -65,8 +65,8 @@ class ReembolsosDePedidosTest extends TestCase
         $pedido = app(ContratacionDePaquetes::class)->pedir($this->cliente, $paquete, $direccion, [$menu]);
 
         $this->intento = app(PagosDePedidos::class)->iniciar($this->cliente, $pedido->id)['payment_intent_id'];
-        $this->pasarela->cobrar($this->intento, '2026-11-14T11:00:00-06:00');
-        $this->enviar($this->pasarela->webhook('evt_pago_'.$pedido->id, 'payment_intent.succeeded', $this->intento, 10000, '2026-11-14T11:00:00-06:00'))->assertJsonPath('resultado', 'pagado');
+        $this->pasarela->cobrar($this->intento, '2026-11-13T11:00:00-06:00');
+        $this->enviar($this->pasarela->webhook('evt_pago_'.$pedido->id, 'payment_intent.succeeded', $this->intento, 10000, '2026-11-13T11:00:00-06:00'))->assertJsonPath('resultado', 'pagado');
 
         return $pedido->fresh();
     }
@@ -298,8 +298,8 @@ class ReembolsosDePedidosTest extends TestCase
     {
         $pedido = $this->pedidoPorPagarNuevo();
         $intento = app(PagosDePedidos::class)->iniciar($this->cliente, $pedido->id)['payment_intent_id'];
-        $this->pasarela->cobrar($intento, '2026-11-14T11:00:00-06:00');
-        $this->enviar($this->pasarela->webhook('evt_pago_'.$pedido->id, 'payment_intent.succeeded', $intento, 10000, '2026-11-14T11:00:00-06:00'))->assertJsonPath('resultado', 'pagado');
+        $this->pasarela->cobrar($intento, '2026-11-13T11:00:00-06:00');
+        $this->enviar($this->pasarela->webhook('evt_pago_'.$pedido->id, 'payment_intent.succeeded', $intento, 10000, '2026-11-13T11:00:00-06:00'))->assertJsonPath('resultado', 'pagado');
 
         return $pedido->fresh();
     }

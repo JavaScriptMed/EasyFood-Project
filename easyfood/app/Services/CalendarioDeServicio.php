@@ -18,8 +18,8 @@ use Carbon\CarbonInterface;
  * - El corte de una entrega es a la hora configurada (18:00 por defecto, hora de Guadalajara) del DÍA CALENDARIO ANTERIOR.
  * - Un pedido nuevo va a la primera fecha de servicio cuyo corte aún no pasó.
  * - Los clientes individuales son distintos: reciben TODO su pedido en una sola entrega, el sábado de cada semana. Los pedidos de
- *   lunes a viernes entran al sábado de esa semana; los del sábado, hasta la hora de corte DE ESE MISMO SÁBADO (después pasan al
- *   siguiente). Las empresas no cambian: siguen recibiendo de lunes a sábado.
+ *   lunes a viernes antes de la hora de corte entran al sábado de esa semana; el viernes desde la hora de corte (18:00) y el sábado
+ *   mismo pasan al sábado siguiente. El sábado salen a repartir. Las empresas no cambian: siguen recibiendo de lunes a sábado.
  */
 class CalendarioDeServicio
 {
@@ -131,15 +131,10 @@ class CalendarioDeServicio
         return $dia->isSaturday() && $this->esDiaDeServicio($dia);
     }
 
-    /**
-     * Instante en que cierran los pedidos de individuales de ese sábado: la hora de corte del MISMO sábado (a diferencia de las
-     * empresas, cuyo corte es el día anterior). Para pasarlo a «el viernes a la hora de corte» basta con restar un día aquí.
-     */
+    /** Instante en que cierran los pedidos de individuales de ese sábado: el viernes a la hora de corte (18:00), igual que las empresas. */
     public function momentoDeCierreDeIndividuales(CarbonInterface|string $sabado): CarbonImmutable
     {
-        [$hora, $minuto] = array_map('intval', explode(':', $this->horaDeCorte()));
-
-        return $this->dia($sabado)->setTime($hora, $minuto);
+        return $this->momentoDelCorte($sabado);
     }
 
     public function corteDeIndividualesYaEjecutado(CarbonInterface|string $sabado): bool
@@ -158,7 +153,7 @@ class CalendarioDeServicio
 
     /**
      * Sábado en que llega un pedido de individuales hecho en $ahora: el primer sábado de servicio que todavía admite pedidos.
-     * Lunes a viernes → el sábado de esa semana; sábado antes de la hora de corte → ese sábado; sábado después → el siguiente.
+     * Lunes a viernes antes de la hora de corte → el sábado de esa semana; viernes desde la hora de corte, sábado y domingo → el siguiente.
      */
     public function fechaDeEntregaDeIndividuales(?CarbonInterface $ahora = null): CarbonImmutable
     {

@@ -25,13 +25,13 @@ Schedule::command('easylunch:corte-automatico')
     ->withoutOverlapping(10)
     ->onFailure(fn () => Log::error('El corte automático terminó con error: revisa el último registro «fallido» de la tabla cortes.'));
 
-// Corte de clientes individuales: el sábado, cuando llega la hora de corte, cierra sus pedidos y arma su orden de producción y sus rutas.
+// Corte de clientes individuales: el viernes a la hora de corte (después del general) cierra sus pedidos del sábado y arma su orden de producción y sus rutas.
 Schedule::command('easylunch:corte-individuales')
     ->everyMinute()
     ->withoutOverlapping(10)
     ->onFailure(fn () => Log::error('El corte de individuales terminó con error: revisa el último registro «fallido» (tipo individuales) de la tabla cortes.'));
 
-// Pedidos individuales que siguen sin pagarse cuando se cumple su plazo (el cierre de pedidos de su sábado).
+// Pedidos individuales que siguen sin pagarse cuando se cumple su plazo (el viernes a la hora de corte anterior a su entrega).
 Schedule::command('easylunch:cancelar-pedidos-vencidos')
     ->everyMinute()
     ->withoutOverlapping(10);

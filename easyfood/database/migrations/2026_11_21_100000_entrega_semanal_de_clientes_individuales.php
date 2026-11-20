@@ -18,7 +18,7 @@ return new class extends Migration
      * - `pedidos.fecha_entrega` es el sábado en que llega el pedido (`fecha_inicio` y `fecha_fin` son el primer y el último día de comida).
      *   Si un INSERT no la manda, la base usa `fecha_inicio`.
      * - `cortes.tipo`: el corte «general» (el de siempre: empleados, empresas y sus rutas) y el de «individuales», que cierra el
-     *   sábado a la hora de corte, genera las órdenes de producción de los clientes y sus rutas. Hay uno de cada tipo por fecha.
+     *   viernes a la hora de corte, genera las órdenes de producción de los clientes y sus rutas. Hay uno de cada tipo por fecha.
      */
     public function up(): void
     {

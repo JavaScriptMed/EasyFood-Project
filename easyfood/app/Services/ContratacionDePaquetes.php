@@ -19,7 +19,7 @@ use Illuminate\Support\Facades\DB;
  * Pedidos de clientes individuales: paquetes de 1, 2 o 6 días de comida.
  *
  * - TODO el pedido llega junto en UNA sola entrega: el sábado de cada semana. De lunes a viernes se pide para el sábado de esa
- *   semana; el sábado mismo se pide hasta la hora de corte, y después el pedido pasa al sábado siguiente.
+ *   semana; desde el viernes a la hora de corte (18:00) y el sábado mismo, el pedido pasa al sábado siguiente. El sábado salen a repartir.
  * - El cliente sigue eligiendo platillos por día. Los días de comida son los siguientes días de servicio consecutivos después de la
  *   entrega (lunes a sábado de la semana siguiente); cada platillo aparta su porción en el día en que se come.
  * - El cliente elige cuántos días (paquete de 1, 2 o 6) y cuántas comidas por día (1, 2 o 3: desayuno, comida y/o cena).
@@ -30,7 +30,7 @@ use Illuminate\Support\Facades\DB;
  * - Una sola entrega por pedido (una parada, un estado, una evidencia): `pedido_dias` es esa entrega y su `fecha` es el sábado.
  * - El pago es simulado: no hay cobro real, solo se registra método y últimos 4 dígitos.
  * - La dirección debe tener cobertura (caer dentro de una zona activa).
- * - Un pedido por pagar vence cuando cierran los pedidos de su sábado (`vence_pago_en`, la hora de corte de ese sábado): si pasa sin
+ * - Un pedido por pagar vence cuando cierran los pedidos de su sábado (`vence_pago_en`: el viernes a la hora de corte): si pasa sin
  *   pagarse se cancela, se liberan sus porciones y hay que pedirlo de nuevo.
  */
 class ContratacionDePaquetes

@@ -11,11 +11,11 @@ use Illuminate\Support\Facades\DB;
 use Throwable;
 
 /**
- * Corte de los clientes individuales: cierra los pedidos del sábado y deja lista su entrega. Corre el sábado a la hora de corte
- * (distinto del corte general, que cierra a empleados y empresas el día anterior). En una sola transacción:
+ * Corte de los clientes individuales: cierra los pedidos del sábado y deja lista su entrega. Corre el viernes a la hora de corte,
+ * igual que el corte general de ese sábado (empleados y empresas), pero es independiente de él; el sábado salen a repartir. En una sola transacción:
  *  1. cancela los pedidos por pagar de ese sábado (ya no se pueden pagar) y libera sus porciones;
  *  2. suma a la orden de producción de cada comedor y platillo las porciones de los clientes (si ya había orden por las empresas,
- *     la actualiza y la deja «pendiente»; si no, la crea con la recolección a la hora de corte);
+ *     la actualiza y la deja «pendiente»; si no, la crea con la recolección 90 minutos antes de que salgan las rutas de clientes);
  *  3. arma las rutas de los clientes, separadas de las de empresas.
  *
  * Es idempotente: ejecutarlo otra vez para el mismo sábado no cambia nada y deja un registro «sin_cambios». Si algo falla, nada se
@@ -35,13 +35,21 @@ class CorteDeIndividuales
         $ahora = $this->calendario->ahora($ahora);
         $hoy = $ahora->startOfDay();
 
-        if (! $this->calendario->esDiaDeEntregaDeIndividuales($hoy)
-            || $ahora->lt($this->calendario->momentoDeCierreDeIndividuales($hoy))
-            || $this->calendario->corteDeIndividualesYaEjecutado($hoy)) {
-            return null;
+        // Normalmente el sábado de mañana (el corte es el viernes a la hora de corte); si el sistema estuvo apagado, el sábado de hoy todavía se alcanza.
+        foreach ([$hoy->addDay(), $hoy] as $sabado) {
+            if ($this->calendario->esDiaDeEntregaDeIndividuales($sabado)
+                && $ahora->gte($this->calendario->momentoDeCierreDeIndividuales($sabado))
+                && ! $this->calendario->corteDeIndividualesYaEjecutado($sabado)) {
+                return $this->intentar($sabado, $ahora);
+            }
         }
 
-        $fallidos = Corte::query()->whereDate('fecha_entrega', $hoy->toDateString())->where('tipo', 'individuales')->where('estado', 'fallido')->orderByDesc('ejecutado_en')->get();
+        return null;
+    }
+
+    private function intentar(CarbonImmutable $sabado, CarbonImmutable $ahora): ?Corte
+    {
+        $fallidos = Corte::query()->whereDate('fecha_entrega', $sabado->toDateString())->where('tipo', 'individuales')->where('estado', 'fallido')->orderByDesc('ejecutado_en')->get();
         if ($fallidos->count() >= CorteAutomatico::INTENTOS_MAXIMOS) {
             return null;
         }
@@ -49,7 +57,7 @@ class CorteDeIndividuales
             return null;
         }
 
-        return $this->ejecutar($hoy, null, $ahora);
+        return $this->ejecutar($sabado, null, $ahora);
     }
 
     /** @param  int|null  $usuarioId  null = lo lanza el sistema a la hora de corte; con valor, lo lanzó esa persona a mano (puede ser antes). */
@@ -65,7 +73,7 @@ class CorteDeIndividuales
             throw new ReglaDeNegocioException('fecha_pasada', 'El corte de individuales solo puede ejecutarse para el sábado de hoy o uno futuro.');
         }
         if ($usuarioId === null && $ahora->lt($this->calendario->momentoDeCierreDeIndividuales($dia))) {
-            throw new ReglaDeNegocioException('corte_prematuro', 'Aún no es la hora de corte de ese sábado.');
+            throw new ReglaDeNegocioException('corte_prematuro', 'Aún no es la hora de corte (el viernes) de ese sábado.');
         }
 
         try {
@@ -121,7 +129,7 @@ class CorteDeIndividuales
             ->whereDate('d.fecha', $fecha)->where('d.estado', 'programada')->whereIn('p.estado', ['recibido', 'activo'])
             ->groupBy('c.menu_id', 'm.provider_id')->select('c.menu_id', 'm.provider_id', DB::raw('count(*) as cantidad'))->get();
 
-        $recoleccion = $this->calendario->horaDeCorte().':00';
+        $recoleccion = CarbonImmutable::createFromTimeString(GeneradorDeRutas::INICIO_SIN_EMPRESAS)->subMinutes(90)->format('H:i:s'); // 90 min antes de que salgan
         foreach ($filas as $fila) {
             $orden = OrdenProduccion::query()->firstOrNew(['comedor_id' => $fila->provider_id, 'menu_id' => $fila->menu_id, 'fecha' => $fecha]);
             if ($orden->exists) {

@@ -10,7 +10,7 @@ class EjecutarCorteDeIndividuales extends Command
 {
     protected $signature = 'easylunch:corte-individuales';
 
-    protected $description = 'Ejecuta el corte de clientes individuales el sábado a la hora de corte: órdenes de producción y rutas de su entrega (el scheduler lo llama cada minuto)';
+    protected $description = 'Ejecuta el corte de clientes individuales el viernes a la hora de corte: órdenes de producción y rutas de su entrega del sábado (el scheduler lo llama cada minuto)';
 
     public function handle(CorteDeIndividuales $corteDeIndividuales): int
     {

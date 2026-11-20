@@ -51,8 +51,9 @@ tests {
     expect(res.body.fecha_inicio).to.equal(res.body.dias[0].fecha);
   });
 
-  test("vence cuando cierran los pedidos de ese sábado", function () {
-    expect(res.body.vence_pago_en.slice(0, 10)).to.equal(res.body.fecha_entrega);
+  test("vence el viernes a la hora de corte anterior a la entrega", function () {
+    const viernes = new Date(new Date(res.body.fecha_entrega + "T12:00:00Z").getTime() - 24 * 3600 * 1000).toISOString().slice(0, 10);
+    expect(res.body.vence_pago_en.slice(0, 10)).to.equal(viernes);
     expect(res.body.segundos_para_pagar).to.be.greaterThan(0);
   });
 }

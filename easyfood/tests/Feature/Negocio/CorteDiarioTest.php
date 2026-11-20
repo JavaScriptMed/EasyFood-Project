@@ -146,13 +146,13 @@ class CorteDiarioTest extends TestCase
         $this->corte(); // el corte general (jueves) no genera nada de los individuales
         $this->assertSame(0, OrdenProduccion::count());
 
-        $this->ahoraEs('2026-11-14 18:30');
+        $this->ahoraEs('2026-11-13 18:30');
         $corte = app(\App\Services\CorteDeIndividuales::class)->ejecutar('2026-11-14');
 
         $orden = OrdenProduccion::sole();
         $this->assertSame([1, 0, 1], [$orden->porciones_totales, $orden->porciones_empresas, $orden->porciones_individuales]);
         $this->assertSame('2026-11-14', $orden->fecha->toDateString());
-        $this->assertSame('18:00:00', $orden->hora_recoleccion, 'sin empresas, la recolección es a la hora de corte');
+        $this->assertSame('10:30:00', $orden->hora_recoleccion, 'sin empresas, la recolección es 90 min antes de que salgan las rutas de clientes (12:00)');
         $this->assertSame('recibido', $pagado->estado);
         $this->assertSame(['individuales', 'con_advertencias'], [$corte->tipo, $corte->estado], 'sin repartidor en la zona queda sin ruta');
         $this->assertStringContainsString('sin ruta', $corte->mensaje);

@@ -220,29 +220,38 @@ class TareasAutomaticasTest extends TestCase
 
     // ------------------------------------------------------------------ corte de individuales
 
-    public function test_el_corte_de_individuales_corre_el_sabado_a_la_hora_de_corte_y_solo_una_vez(): void
+    public function test_el_corte_de_individuales_corre_el_viernes_a_la_hora_de_corte_y_solo_una_vez(): void
     {
-        $this->ahoraEs('2026-11-13 20:00'); // viernes: no le toca (el de empresas sí, pero ese es otro comando)
+        $this->ahoraEs('2026-11-12 20:00'); // jueves: el sábado todavía está lejos
         $this->artisan('easylunch:corte-individuales')->assertExitCode(0);
 
-        $this->ahoraEs('2026-11-14 17:59:59'); // sábado, un segundo antes
+        $this->ahoraEs('2026-11-13 17:59:59'); // viernes, un segundo antes
         $this->artisan('easylunch:corte-individuales')->assertExitCode(0);
         $this->assertSame(0, Corte::where('tipo', 'individuales')->count());
 
-        $this->ahoraEs('2026-11-14 18:00:00');
+        $this->ahoraEs('2026-11-13 18:00:00');
         $this->artisan('easylunch:corte-individuales')->expectsOutputToContain('Corte de individuales del 2026-11-14')->assertExitCode(0);
         $corte = Corte::where('tipo', 'individuales')->sole();
         $this->assertSame(['2026-11-14', false, null], [$corte->fecha_entrega->toDateString(), $corte->sin_cambios, $corte->ejecutado_por], 'lo lanzó el sistema');
 
-        foreach (['2026-11-14 18:01', '2026-11-14 23:59'] as $hora) {
-            $this->ahoraEs($hora);
+        foreach (['2026-11-13 18:01', '2026-11-13 23:59', '2026-11-14 09:00', '2026-11-15 20:00'] as $momento) {
+            $this->ahoraEs($momento);
             $this->artisan('easylunch:corte-individuales')->assertExitCode(0);
         }
-        $this->assertSame(1, Corte::where('tipo', 'individuales')->count(), 'repetirlo no deja registros «sin cambios»');
+        $this->assertSame(1, Corte::where('tipo', 'individuales')->count(), 'repetirlo no deja registros «sin cambios»; domingo no hay nada que cortar');
+        $this->assertSame(1, Corte::count(), 'el corte de individuales es independiente del general');
 
-        $this->ahoraEs('2026-11-15 20:00'); // domingo: no hay entrega de individuales
-        $this->artisan('easylunch:corte-individuales')->assertExitCode(0);
-        $this->assertSame(1, Corte::count());
+        $this->ahoraEs('2026-11-20 18:00'); // el viernes siguiente corta el sábado 21
+        $this->artisan('easylunch:corte-individuales')->expectsOutputToContain('Corte de individuales del 2026-11-21')->assertExitCode(0);
+    }
+
+    public function test_si_el_sistema_estuvo_apagado_el_viernes_el_corte_de_individuales_se_alcanza_el_sabado_por_la_manana(): void
+    {
+        $this->ahoraEs('2026-11-14 09:00');
+
+        $this->artisan('easylunch:corte-individuales')->expectsOutputToContain('Corte de individuales del 2026-11-14')->assertExitCode(0);
+
+        $this->assertSame(['individuales', '2026-11-14'], [Corte::sole()->tipo, Corte::sole()->fecha_entrega->toDateString()]);
     }
 
     // ------------------------------------------------------------------ pedidos vencidos y avisos
@@ -254,14 +263,14 @@ class TareasAutomaticasTest extends TestCase
         $cliente = User::findOrFail($this->usuario());
         $direccion = Address::create(['user_id' => $cliente->id, 'street_address' => 'Av. 1', 'latitude' => 20.67, 'longitude' => -103.35]);
         $menu = $this->platillo();
-        $disp = $this->disponible($menu, '2026-11-16'); // llega el sábado 14 y se come el lunes 16
+        $disp = $this->disponible($menu, '2026-11-16'); // llega el sábado 14 (vence el viernes 13 a las 18:00) y se come el lunes 16
         $pedido = app(ContratacionDePaquetes::class)->pedir($cliente, Paquete::create(['nombre' => 'Un día', 'dias' => 1]), $direccion, [$menu]);
 
-        $this->ahoraEs('2026-11-14 17:59:59');
+        $this->ahoraEs('2026-11-13 17:59:59');
         $this->artisan('easylunch:cancelar-pedidos-vencidos')->assertExitCode(0);
         $this->assertSame('pendiente_pago', $pedido->fresh()->estado);
 
-        $this->ahoraEs('2026-11-14 18:00:00');
+        $this->ahoraEs('2026-11-13 18:00:00');
         $this->artisan('easylunch:cancelar-pedidos-vencidos')->expectsOutputToContain('Pedidos cancelados: 1')->assertExitCode(0);
 
         $this->assertSame('cancelado', $pedido->fresh()->estado);

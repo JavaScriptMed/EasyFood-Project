@@ -104,7 +104,7 @@ class PaquetesTest extends TestCase
         );
     }
 
-    public function test_un_pedido_de_lunes_a_viernes_entra_al_sabado_de_esa_semana_y_el_del_sabado_hasta_la_hora_de_corte(): void
+    public function test_un_pedido_de_lunes_a_viernes_antes_de_las_6_pm_entra_al_sabado_de_esa_semana_y_despues_pasa_al_siguiente(): void
     {
         $menu = $this->platilloDisponible([]);
         $entrega = function (string $ahora, int $dias = 1) use ($menu): string {
@@ -116,10 +116,10 @@ class PaquetesTest extends TestCase
         $this->assertSame('2026-11-14', $entrega('2026-11-09 08:00'), 'lunes');
         $this->assertSame('2026-11-14', $entrega('2026-11-11 15:00', 2), 'miércoles, paquete de dos días');
         $this->assertSame('2026-11-14', $entrega('2026-11-12 12:00', 6), 'jueves, paquete de seis días');
-        $this->assertSame('2026-11-14', $entrega('2026-11-13 23:30'), 'viernes tarde: sigue siendo el sábado de esa semana');
-        $this->assertSame('2026-11-14', $entrega('2026-11-14 17:59'), 'sábado antes de la hora de corte');
-        $this->assertSame('2026-11-21', $entrega('2026-11-14 18:00'), 'sábado desde la hora de corte → el siguiente');
-        $this->assertSame('2026-11-21', $entrega('2026-11-14 22:00'), 'sábado por la noche');
+        $this->assertSame('2026-11-14', $entrega('2026-11-13 17:59'), 'viernes un minuto antes de la hora de corte');
+        $this->assertSame('2026-11-21', $entrega('2026-11-13 18:00'), 'viernes desde la hora de corte → el sábado siguiente');
+        $this->assertSame('2026-11-21', $entrega('2026-11-13 23:30'), 'viernes por la noche');
+        $this->assertSame('2026-11-21', $entrega('2026-11-14 09:00'), 'sábado, cuando ya salen a repartir');
         $this->assertSame('2026-11-21', $entrega('2026-11-15 12:00'), 'domingo');
     }
 
@@ -275,9 +275,9 @@ class PaquetesTest extends TestCase
         $pedido = $this->paquetes()->pedir($this->cliente, Paquete::first(), $this->direccion, array_fill(0, 2, ['comida' => $comida, 'extra' => $extra]));
         $this->assertSame(2, DisponibilidadDia::where('menu_id', $extra->id)->sum('porciones_tomadas'));
 
-        $this->ahoraEs('2026-11-14 17:59');
-        $this->assertSame(0, $this->paquetes()->cancelarVencidos(), 'todavía puede pagarse: el pedido entra al sábado hasta su hora de corte');
-        $this->ahoraEs('2026-11-14 18:01');
+        $this->ahoraEs('2026-11-13 17:59');
+        $this->assertSame(0, $this->paquetes()->cancelarVencidos(), 'todavía puede pagarse: el pedido entra al sábado hasta el viernes a la hora de corte');
+        $this->ahoraEs('2026-11-13 18:01');
         $this->paquetes()->cancelarVencidos();
 
         $this->assertSame('cancelado', $pedido->fresh()->estado);
@@ -387,13 +387,13 @@ class PaquetesTest extends TestCase
         $this->paquetes()->pagar($pagado, 'tarjeta', '4821');
     }
 
-    public function test_no_se_paga_un_pedido_cuando_ya_cerraron_los_pedidos_de_su_sabado(): void
+    public function test_no_se_paga_un_pedido_cuando_ya_cerraron_los_pedidos_de_su_sabado_el_viernes(): void
     {
         $menu = $this->platilloDisponible(['2026-11-10']);
         $this->ahoraEs('2026-11-09 17:00');
         $pedido = $this->paquetes()->pedir($this->cliente, $this->paquete(1), $this->direccion, [$menu]);
 
-        $this->ahoraEs('2026-11-14 18:00');
+        $this->ahoraEs('2026-11-13 18:00');
         $this->expectException(ReglaDeNegocioException::class);
         $this->expectExceptionMessage('ya pasó');
         $this->paquetes()->pagar($pedido, 'tarjeta', '4821');
