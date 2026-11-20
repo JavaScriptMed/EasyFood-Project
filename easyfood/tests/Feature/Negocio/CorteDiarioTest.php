@@ -14,6 +14,7 @@ use App\Models\Menu;
 use App\Models\OrdenProduccion;
 use App\Models\Parada;
 use App\Models\Paquete;
+use App\Models\Pedido;
 use App\Models\Ruta;
 use App\Services\ContratacionDePaquetes;
 use App\Services\EjecutorDelCorte;
@@ -126,11 +127,11 @@ class CorteDiarioTest extends TestCase
         $this->assertSame($corte->id, $norte->corte_id);
     }
 
-    public function test_la_orden_suma_los_pedidos_pagados_de_clientes_individuales(): void
+    public function test_el_corte_general_no_toca_a_los_clientes_individuales_y_su_propio_corte_suma_sus_porciones_a_la_orden(): void
     {
         $this->empresaConContrato();
         $menu = $this->platillo();
-        $this->disponible($menu, self::ENTREGA);
+        $this->disponible($menu, '2026-11-16'); // el lunes en que se come
         $this->zonaDePruebas();
         $cliente = \App\Models\User::findOrFail($this->usuario());
         $direccion = \App\Models\Address::create(['user_id' => $cliente->id, 'street_address' => 'Av. Vallarta 100', 'latitude' => 20.67, 'longitude' => -103.35]);
@@ -142,14 +143,20 @@ class CorteDiarioTest extends TestCase
         $servicio->pedir($cliente, $paquete, $direccion, [$menu]); // queda pendiente de pago: no entra al corte
         $this->ahoraEs('2026-11-11 18:30');
 
-        $corte = $this->corte();
+        $this->corte(); // el corte general (jueves) no genera nada de los individuales
+        $this->assertSame(0, OrdenProduccion::count());
 
-        $orden = OrdenProduccion::first();
+        $this->ahoraEs('2026-11-14 18:30');
+        $corte = app(\App\Services\CorteDeIndividuales::class)->ejecutar('2026-11-14');
+
+        $orden = OrdenProduccion::sole();
         $this->assertSame([1, 0, 1], [$orden->porciones_totales, $orden->porciones_empresas, $orden->porciones_individuales]);
+        $this->assertSame('2026-11-14', $orden->fecha->toDateString());
+        $this->assertSame('18:00:00', $orden->hora_recoleccion, 'sin empresas, la recolección es a la hora de corte');
         $this->assertSame('recibido', $pagado->estado);
-        $this->assertSame('con_advertencias', $corte->estado, 'sin repartidor en la zona queda sin ruta');
+        $this->assertSame(['individuales', 'con_advertencias'], [$corte->tipo, $corte->estado], 'sin repartidor en la zona queda sin ruta');
         $this->assertStringContainsString('sin ruta', $corte->mensaje);
-        $this->assertStringNotContainsString('aún falta definir', $corte->mensaje);
+        $this->assertSame(1, Pedido::where('estado', 'cancelado')->count(), 'el que no pagó se canceló');
     }
 
     public function test_consolida_una_sola_entrega_por_empresa_con_la_ventana_de_su_contrato(): void

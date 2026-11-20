@@ -10,6 +10,7 @@ use App\Models\EntregaEmpresa;
 use App\Models\Ruta;
 use App\Services\Bitacora;
 use App\Services\CalendarioDeServicio;
+use App\Services\CorteDeIndividuales;
 use App\Services\EjecutorDelCorte;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -39,6 +40,30 @@ class CorteController extends Controller
             $corte->sin_cambios ? "Ejecutó el corte del {$fecha}: sin cambios (ya estaba cerrado)." : "Ejecutó el corte del {$fecha}: {$corte->estado}.");
 
         return response()->json($this->resultado($corte, $fecha, $calendario));
+    }
+
+    /**
+     * «Ejecutar corte de individuales ahora»: cierra los pedidos de clientes individuales de un sábado, deja su orden de producción
+     * y arma sus rutas (separadas de las de empresas). Sin `fecha_entrega` usa el primer sábado de servicio que todavía no se corta.
+     * Es idempotente: repetirlo no cambia nada y queda como «sin cambios».
+     */
+    public function ejecutarIndividuales(Request $request, CorteDeIndividuales $corteDeIndividuales, CalendarioDeServicio $calendario): JsonResponse
+    {
+        $fecha = $request->validate(['fecha_entrega' => 'nullable|date_format:Y-m-d'])['fecha_entrega']
+            ?? $calendario->fechaDeEntregaDeIndividuales()->toDateString();
+
+        $corte = $corteDeIndividuales->ejecutar($fecha, $request->user()->id);
+        Bitacora::registrar($request->user(), 'corte.ejecutado', 'cortes', $corte->id,
+            $corte->sin_cambios ? "Ejecutó el corte de individuales del {$fecha}: sin cambios (ya estaba cerrado)." : "Ejecutó el corte de individuales del {$fecha}: {$corte->estado}.");
+
+        return response()->json([
+            'corte' => Vistas::corte($corte), 'fecha_entrega' => $fecha, 'sin_cambios' => $corte->sin_cambios,
+            'ordenes_generadas' => $corte->ordenes_generadas, 'rutas_creadas' => $corte->rutas_creadas,
+            'rutas' => Ruta::query()->with('repartidor.usuario')->whereDate('fecha', $fecha)->whereHas('paradas', fn ($p) => $p->whereNotNull('pedido_dia_id'))->orderBy('id')->get()->map(fn (Ruta $r) => [
+                'id' => $r->id, 'repartidor_nombre' => $r->repartidor->usuario->name, 'zona' => $r->zona, 'entregas' => $r->entregas_asignadas, 'platillos' => $r->platillos_asignados,
+            ])->all(),
+            'advertencias' => $corte->mensaje ? [$corte->mensaje] : [],
+        ]);
     }
 
     /** Qué va a pasar con la próxima fecha sin cortar: cuántos empleados activos hay y cuántos todavía no han elegido. */

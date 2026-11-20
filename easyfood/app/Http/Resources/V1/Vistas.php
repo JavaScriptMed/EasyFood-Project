@@ -207,7 +207,7 @@ final class Vistas
     public static function corte(Corte $c): array
     {
         return [
-            'id' => $c->id, 'fecha_entrega' => $c->fecha_entrega->toDateString(), 'ejecutado_en' => self::iso($c->ejecutado_en), 'ejecutado_por' => $c->ejecutado_por,
+            'id' => $c->id, 'tipo' => $c->tipo ?? 'general', 'fecha_entrega' => $c->fecha_entrega->toDateString(), 'ejecutado_en' => self::iso($c->ejecutado_en), 'ejecutado_por' => $c->ejecutado_por,
             'estado' => $c->estado, 'sin_cambios' => $c->sin_cambios, 'elecciones_cerradas' => $c->elecciones_cerradas,
             'empleados_por_defecto' => $c->empleados_por_defecto, 'ordenes_generadas' => $c->ordenes_generadas,
             'entregas_consolidadas' => $c->entregas_consolidadas, 'rutas_creadas' => $c->rutas_creadas, 'mensaje' => $c->mensaje,
@@ -318,7 +318,7 @@ final class Vistas
 
         return [
             'id' => $p->id, 'folio' => $p->folio, 'cliente_id' => $p->cliente_id, 'cliente_nombre' => $p->cliente?->name, 'plan_id' => $p->paquete_id,
-            'plan_nombre' => $p->paquete?->nombre, 'fecha_inicio' => $p->fecha_inicio->toDateString(), 'fecha_fin' => $p->fecha_fin->toDateString(),
+            'plan_nombre' => $p->paquete?->nombre, 'fecha_entrega' => $p->fecha_entrega->toDateString(), 'fecha_inicio' => $p->fecha_inicio->toDateString(), 'fecha_fin' => $p->fecha_fin->toDateString(),
             'zona' => $p->direccion?->zona, 'total' => self::dinero($p->total), 'estado' => $p->estado,
             'entregas_totales' => $dias->count(), 'entregas_completadas' => $dias->where('estado', 'entregada')->count(),
             'direccion_entrega' => $p->direccion?->street_address, 'referencias' => $p->direccion?->delivery_instructions,
@@ -326,12 +326,16 @@ final class Vistas
             'vence_pago_en' => self::iso($p->vence_pago_en), 'segundos_para_pagar' => $p->segundos_para_pagar,
             'comidas_por_dia' => $p->comidas_por_dia, 'con_extra' => (bool) $p->con_extra,
             'reembolsado_en' => self::iso($p->reembolsado_en), 'monto_reembolsado' => $p->monto_reembolsado === null ? null : self::dinero($p->monto_reembolsado), 'stripe_refund_id' => $p->stripe_refund_id,
-            'dias' => $dias->map(fn ($d) => [
-                'id' => $d->id, 'fecha' => $d->fecha->toDateString(), 'estado' => $d->estado,
-                'platillos' => $d->relationLoaded('platillos') ? $d->platillos->sortBy(fn ($c) => [(int) $c->es_extra, ['desayuno' => 0, 'comida' => 1, 'cena' => 2][$c->tiempo_comida]])->map(fn ($c) => [
-                    'tiempo_comida' => $c->tiempo_comida, 'es_extra' => (bool) $c->es_extra, 'platillo_id' => $c->menu_id, 'platillo_nombre' => $c->menu?->name, 'precio_congelado' => self::dinero($c->precio_congelado),
-                ])->values()->all() : [],
-            ])->values()->all(),
+            // Un elemento por DÍA DE COMIDA (lo que el cliente eligió para cada día). Todos viajan en la misma entrega: `id`, `estado` y
+            // `fecha_entrega` son los de esa entrega única del sábado. Sin los platillos cargados, un elemento por entrega.
+            'dias' => $dias->flatMap(fn ($d) => $d->relationLoaded('platillos') && $d->platillos->isNotEmpty()
+                ? $d->platillos->groupBy(fn ($c) => $c->fecha->toDateString())->sortKeys()->map(fn ($grupo, $fecha) => [
+                    'id' => $d->id, 'fecha' => $fecha, 'fecha_entrega' => $d->fecha->toDateString(), 'estado' => $d->estado,
+                    'platillos' => $grupo->sortBy(fn ($c) => [(int) $c->es_extra, ['desayuno' => 0, 'comida' => 1, 'cena' => 2][$c->tiempo_comida]])->map(fn ($c) => [
+                        'tiempo_comida' => $c->tiempo_comida, 'es_extra' => (bool) $c->es_extra, 'platillo_id' => $c->menu_id, 'platillo_nombre' => $c->menu?->name, 'precio_congelado' => self::dinero($c->precio_congelado),
+                    ])->values()->all(),
+                ])->values()
+                : [['id' => $d->id, 'fecha' => $d->fecha->toDateString(), 'fecha_entrega' => $d->fecha->toDateString(), 'estado' => $d->estado, 'platillos' => []]])->values()->all(),
         ];
     }
 

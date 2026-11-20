@@ -1,0 +1,27 @@
+meta {
+  name: El historial de cortes distingue el tipo
+  type: http
+  seq: 10
+}
+
+get {
+  url: {{baseUrl}}/api/v1/admin/cortes
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+tests {
+  test("responde 200", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("hay cortes generales y de individuales", function () {
+    const tipos = res.body.map(c => c.tipo);
+    expect(tipos).to.include("general");
+    expect(tipos).to.include("individuales");
+  });
+}

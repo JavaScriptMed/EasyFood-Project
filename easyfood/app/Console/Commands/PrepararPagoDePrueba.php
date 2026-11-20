@@ -97,7 +97,7 @@ class PrepararPagoDePrueba extends Command
         $punto = DB::selectOne('select ST_X(p::geometry) as lon, ST_Y(p::geometry) as lat from (select ST_PointOnSurface(area::geometry) as p from zonas order by id limit 1) z')
             ?? throw new \RuntimeException('No hay zonas de cobertura cargadas: sin ellas nadie puede pedir. Carga los datos de ejemplo o las zonas reales.');
 
-        $fecha = $calendario->fechaDeEntregaParaPedidoNuevo();
+        $fecha = $calendario->diasDeComidaDeUnPedido(1, $calendario->fechaDeEntregaDeIndividuales())[0]; // el día en que se comería: el platillo aparta su porción ahí
         $menu = Menu::query()->where('estado_revision', 'publicado')->where('is_available', true)
             ->whereHas('disponibilidad', fn ($q) => $q->whereDate('fecha', $fecha)->whereColumn('porciones_tomadas', '<', 'porciones_maximas'))->orderBy('id')->first()
             ?? throw new \RuntimeException("No hay un platillo publicado con porciones para el {$fecha}. Carga los datos de ejemplo o publica uno y abre su disponibilidad.");

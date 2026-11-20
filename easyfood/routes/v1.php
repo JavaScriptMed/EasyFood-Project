@@ -108,6 +108,7 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('cortes', [Admin\CorteController::class, 'index'])->name('cortes.index');
             Route::get('cortes/vista-previa', [Admin\CorteController::class, 'vistaPrevia'])->name('cortes.vista-previa');
             Route::post('cortes/ejecutar', [Admin\CorteController::class, 'ejecutar'])->name('cortes.ejecutar');
+            Route::post('cortes/individuales/ejecutar', [Admin\CorteController::class, 'ejecutarIndividuales'])->name('cortes.individuales.ejecutar');
 
             Route::get('zonas', [Admin\ZonaController::class, 'index'])->name('zonas.index');
             Route::post('zonas', [Admin\ZonaController::class, 'store'])->name('zonas.store');
@@ -211,6 +212,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('direcciones', [Cliente\DireccionController::class, 'store'])->name('direcciones.store');
         Route::put('direcciones/{id}', [Cliente\DireccionController::class, 'update'])->name('direcciones.update');
         Route::delete('direcciones/{id}', [Cliente\DireccionController::class, 'destroy'])->name('direcciones.destroy');
+        Route::get('proxima-entrega', [Cliente\PedidoController::class, 'proximaEntrega'])->name('proxima-entrega');
         Route::get('pedidos', [Cliente\PedidoController::class, 'index'])->name('pedidos.index');
         Route::post('pedidos', [Cliente\PedidoController::class, 'store'])->name('pedidos.store');
         Route::get('pedidos/{id}', [Cliente\PedidoController::class, 'show'])->name('pedidos.show');

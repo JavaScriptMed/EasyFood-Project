@@ -130,7 +130,11 @@ class Calificaciones
 
     private function diaEntregado(User $usuario, Pedido $pedido, string $fecha): PedidoDia
     {
-        $dia = $pedido->cliente_id === $usuario->id ? PedidoDia::query()->where('pedido_id', $pedido->id)->whereDate('fecha', $fecha)->first() : null;
+        // `fecha` puede ser el sábado de la entrega o cualquiera de los días de comida que llegaron en ella.
+        $dia = $pedido->cliente_id === $usuario->id
+            ? PedidoDia::query()->where('pedido_id', $pedido->id)
+                ->where(fn ($q) => $q->whereDate('fecha', $fecha)->orWhereHas('platillos', fn ($c) => $c->whereDate('fecha', $fecha)))->first()
+            : null;
         if (! $dia || $dia->estado !== 'entregada') {
             throw new ReglaDeNegocioException('sin_entrega_que_calificar', 'Solo se califica una entrega de tu pedido que ya recibiste.');
         }

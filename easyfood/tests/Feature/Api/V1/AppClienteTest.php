@@ -144,7 +144,8 @@ class AppClienteTest extends TestCase
 
     // ------------------------------------------------------------------ pedidos
 
-    private function menuDisponible(array $fechas = ['2026-11-10', '2026-11-11'], float $precio = 100): int
+    /** Con porciones el lunes 16 y el martes 17: los días de comida de un pedido hecho hoy (llega el sábado 14). */
+    private function menuDisponible(array $fechas = ['2026-11-16', '2026-11-17'], float $precio = 100): int
     {
         $menu = $this->platillo(null, 'comida', ['price' => $precio]);
         foreach ($fechas as $fecha) {
@@ -163,12 +164,33 @@ class AppClienteTest extends TestCase
 
         $p = $this->postJson('/api/v1/cliente/pedidos', ['paquete_id' => $paquete->id, 'direccion_id' => $direccion, 'platillos' => [['comida' => $menu], ['comida' => $menu]]])->assertCreated()->json();
 
-        $this->assertSame(['pendiente_pago', '2026-11-10', '2026-11-11', 'Centro', 'GDL-20261109-0001'], [$p['estado'], $p['fecha_inicio'], $p['fecha_fin'], $p['zona'], $p['folio']]);
+        $this->assertSame(['pendiente_pago', '2026-11-14', '2026-11-16', '2026-11-17', 'Centro', 'GDL-20261109-0001'], [$p['estado'], $p['fecha_entrega'], $p['fecha_inicio'], $p['fecha_fin'], $p['zona'], $p['folio']]);
         $this->assertEquals(190.0, $p['total'], '(100 + 100) × 95 %');
-        $this->assertSame(8 * 3600, $p['segundos_para_pagar']);
-        $this->assertStringStartsWith('2026-11-09T18:00:00', $p['vence_pago_en']);
-        $this->assertSame(2, $p['entregas_totales']);
-        $this->assertCount(2, $p['dias']);
+        $this->assertSame(5 * 86400 + 8 * 3600, $p['segundos_para_pagar'], 'hasta el sábado a la hora de corte');
+        $this->assertStringStartsWith('2026-11-14T18:00:00', $p['vence_pago_en']);
+        $this->assertSame(1, $p['entregas_totales'], 'todo llega junto en una sola entrega');
+        $this->assertCount(2, $p['dias'], 'pero el cliente sigue viendo lo que eligió para cada día');
+        $this->assertSame(['2026-11-16', '2026-11-17'], array_column($p['dias'], 'fecha'));
+        $this->assertSame(['2026-11-14', '2026-11-14'], array_column($p['dias'], 'fecha_entrega'));
+    }
+
+    public function test_la_proxima_entrega_dice_el_sabado_cuando_cierra_y_los_dias_de_comida(): void
+    {
+        $this->comoRol('customer');
+
+        $this->getJson('/api/v1/cliente/proxima-entrega')->assertOk()
+            ->assertJsonPath('fecha_entrega', '2026-11-14')
+            ->assertJsonPath('dias_de_comida', ['2026-11-16', '2026-11-17', '2026-11-18', '2026-11-19', '2026-11-20', '2026-11-21'])
+            ->assertJson(fn ($j) => $j->where('cierra_en', fn ($v) => str_starts_with($v, '2026-11-14T18:00:00'))->etc());
+
+        $this->ahoraEs('2026-11-14 18:00'); // el sábado a la hora de corte ya cerró: pasa al siguiente
+        $this->getJson('/api/v1/cliente/proxima-entrega')->assertOk()->assertJsonPath('fecha_entrega', '2026-11-21')->assertJsonPath('dias_de_comida.0', '2026-11-23');
+    }
+
+    public function test_solo_un_cliente_ve_la_proxima_entrega(): void
+    {
+        $this->comoRol('employee');
+        $this->getJson('/api/v1/cliente/proxima-entrega')->assertStatus(403);
     }
 
     public function test_el_cliente_elige_cuantas_comidas_por_dia_y_el_pedido_las_devuelve_ordenadas(): void
@@ -180,7 +202,7 @@ class AppClienteTest extends TestCase
         $comida = $this->platillo(null, 'comida', ['price' => 100]);
         $cena = $this->platillo(null, 'cena', ['price' => 80]);
         foreach ([$desayuno, $comida, $cena] as $menu) {
-            $this->disponible($menu, '2026-11-10');
+            $this->disponible($menu, '2026-11-16');
         }
 
         $p = $this->postJson('/api/v1/cliente/pedidos', ['paquete_id' => $paquete->id, 'direccion_id' => $direccion, 'platillos' => [['cena' => $cena->id, 'desayuno' => $desayuno->id, 'comida' => $comida->id]]])
@@ -188,7 +210,7 @@ class AppClienteTest extends TestCase
 
         $this->assertSame(3, $p['comidas_por_dia']);
         $this->assertEquals(240.0, $p['total']);
-        $this->assertSame(1, $p['entregas_totales'], 'una entrega por día');
+        $this->assertSame(1, $p['entregas_totales'], 'una sola entrega');
         $this->assertSame(['desayuno', 'comida', 'cena'], array_column($p['dias'][0]['platillos'], 'tiempo_comida'));
         $this->assertSame([60.0, 100.0, 80.0], array_map('floatval', array_column($p['dias'][0]['platillos'], 'precio_congelado')));
 
@@ -205,7 +227,7 @@ class AppClienteTest extends TestCase
         $comida = $this->platillo(null, 'comida', ['price' => 100]);
         $postre = $this->platillo(null, 'cena', ['price' => 50]);
         foreach ([$comida, $postre] as $menu) {
-            $this->disponible($menu, '2026-11-10');
+            $this->disponible($menu, '2026-11-16');
         }
 
         $p = $this->postJson('/api/v1/cliente/pedidos', ['paquete_id' => $paquete->id, 'direccion_id' => $direccion, 'platillos' => [['comida' => $comida->id, 'extra' => $postre->id]]])
@@ -253,7 +275,7 @@ class AppClienteTest extends TestCase
         $paquete = Paquete::create(['nombre' => 'Un día', 'dias' => 1]);
         $id = $this->postJson('/api/v1/cliente/pedidos', ['paquete_id' => $paquete->id, 'direccion_id' => $direccion, 'platillos' => [['comida' => $this->menuDisponible()]]])->json('id');
 
-        $this->ahoraEs('2026-11-09 18:00:00');
+        $this->ahoraEs('2026-11-14 18:00:00'); // sábado, hora de corte
         $this->postJson("/api/v1/cliente/pedidos/{$id}/pago")->assertStatus(422)->assertJsonPath('codigo', 'pedido_vencido');
         $this->getJson("/api/v1/cliente/pedidos/{$id}")->assertOk()->assertJsonPath('estado', 'pendiente_pago');
         $this->assertSame([], $this->pasarela->intentos, 'no se crea ningún intento');

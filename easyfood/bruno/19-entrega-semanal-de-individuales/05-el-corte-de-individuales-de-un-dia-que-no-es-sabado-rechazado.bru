@@ -1,0 +1,30 @@
+meta {
+  name: Corte de individuales de un día que no es sábado rechazado
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{baseUrl}}/api/v1/admin/cortes/individuales/ejecutar
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+body:json {
+  { "fecha_entrega": "2099-01-05" }
+}
+
+tests {
+  test("responde 422 dia_sin_entrega_de_individuales", function () {
+    expect(res.getStatus()).to.equal(422);
+    expect(res.body.codigo).to.equal("dia_sin_entrega_de_individuales");
+  });
+}
+
+docs {
+  El 5 de enero de 2099 es lunes: los clientes individuales solo reciben los sábados.
+}

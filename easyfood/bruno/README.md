@@ -58,6 +58,7 @@ Clic derecho en la colección → **Run**, o corre carpeta por carpeta. **Empiez
 | 16 | Editar y desactivar | Editar y desactivar empresas, repartidores, planes, empleados y personas con acceso; capacidad del auto (usa lo creado en la 15) |
 | 17 | Platillos · fotos y precios | Subir la foto de un platillo (admin y comedor), historial de precios y programar un precio |
 | 18 | Zonas de entrega | Crear, importar varias, cambiar el polígono y desactivar zonas (GeoJSON); validaciones de coordenadas y de polígonos |
+| 19 | Entrega semanal de individuales | Los clientes individuales reciben todo en una sola entrega el sábado: próxima entrega, pedido de 2 días, corte de individuales (sábado a la hora de corte), repetirlo, y un pedido nuevo que pasa al sábado siguiente |
 | 14 | Cuentas (invitaciones y contraseña) | Invitar, reenviar y aceptar una invitación, y restablecer la contraseña; los enlaces salen en `storage/logs/enlaces.log` |
 | 13 | Dashboard e indicadores | Dashboard del administrador (10 indicadores), costos operativos, indicadores de RR. HH., calificación del menú y captura de calificaciones |
 | 09 | Administración · clientes y soporte | Clientes, pedidos, tickets y reembolso de un pedido pagado con Stripe |
@@ -78,14 +79,15 @@ Conéctate a PostgreSQL con DBeaver o TablePlus: `127.0.0.1:5432`, base `easylun
 
 - **Elegir platillo** → `elecciones_empleado` (`precio_congelado`, `porcentaje_subsidio_congelado`) y `disponibilidad_dia.porciones_tomadas`.
 - **Dirección** → `addresses` (`zona`, `sin_cobertura`, `ubicacion`).
-- **Pedido** → `pedidos` (`vence_pago_en`, `comidas_por_dia`), `pedido_dias` (la entrega de cada día) y `pedido_dia_platillos` (un platillo por comida).
-- **Corte** → `cortes`, `ordenes_produccion`, `entregas_empresa`, `rutas`, `paradas`, `incidencias`.
+- **Pedido** → `pedidos` (`vence_pago_en`, `comidas_por_dia`), `pedido_dias` (la entrega única del sábado, con su `fecha`) y `pedido_dia_platillos` (un platillo por comida, con el día en que se come: `fecha`).
+- **Corte** → `cortes` (el `tipo` es `general` para empleados y empresas o `individuales` para los clientes), `ordenes_produccion`, `entregas_empresa`, `rutas`, `paradas`, `incidencias`.
 - **Dinero** → `facturas_mensuales`, `liquidaciones_comedor`.
 - **Todo lo que hace el panel** → `registros_auditoria` (bitácora).
 
 ## Cosas que conviene saber
 
 - **El corte es a las 18:00 (hora de Guadalajara).** Se entrega de lunes a sábado. La colección calcula sola la próxima fecha con el corte abierto con la hora de tu computadora (supone que estás en hora de México). Si ya pasaron las 18:00, «mañana» ya está cerrado y se usa el siguiente día de servicio.
+- **Clientes individuales: una entrega por semana, el sábado.** Su pedido vence y se corta el sábado a la hora de corte (carpeta 19); las empresas siguen de lunes a sábado con el corte del día anterior.
 - **«Ejecutar corte ahora» cambia datos de verdad**: cierra la siguiente fecha. Si lo repites para la misma fecha responde «sin cambios»; si no pasas fecha, corta la siguiente que falte. Para volver a probar el flujo completo recarga los datos.
 - **Facturas y liquidaciones**: «Emitir» y «Pagar» responden 200 la primera vez y 422 después (una factura emitida ya no cambia; es lo correcto, por eso esas pruebas aceptan ambos).
 - **Límites**: el contacto y los endpoints públicos de `/cuentas` admiten 10 peticiones por minuto; si repites la carpeta «Cuentas» enseguida verás 429. Espera un minuto.

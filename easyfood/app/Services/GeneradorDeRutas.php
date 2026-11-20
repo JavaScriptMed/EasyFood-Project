@@ -13,8 +13,9 @@ use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Arma las rutas de una fecha con lo que todavía no tiene ruta: primero las entregas a empresas (por ventana) y después los
- * pedidos de clientes individuales, agrupando por zona y llenando un auto a la vez sin pasar de su capacidad.
+ * Arma las rutas de una fecha con lo que todavía no tiene ruta, agrupando por zona y llenando un auto a la vez sin pasar de su
+ * capacidad. Las entregas a empresas (por ventana, el corte general) y las de clientes individuales (el sábado, su propio corte)
+ * salen en rutas SEPARADAS: cada tipo se arma en su propia pasada y un repartidor puede hacer una ruta de cada tipo el mismo día.
  *
  * Lo usa el corte y también el administrador (`POST /admin/rutas/generar`) para completar las rutas cuando entra un repartidor
  * nuevo: nunca toca una ruta que ya existe (borrador o aprobada), solo crea rutas para lo que quedó sin ruta, y no duplica
@@ -22,38 +23,40 @@ use Illuminate\Support\Facades\DB;
  */
 class GeneradorDeRutas
 {
-    /** Una ruta que solo lleva entregas a clientes individuales arranca a esta hora… */
-    private const INICIO_SIN_EMPRESAS = '12:00:00';
-
     /** …y cada entrega a un cliente individual se estima esta cantidad de minutos después de la anterior (tras las de empresas). */
     private const MINUTOS_ENTRE_ENTREGAS_INDIVIDUALES = 10;
 
     public function __construct(private readonly CalendarioDeServicio $calendario) {}
 
     /**
-     * Agrupa por zona y llena un auto a la vez sin pasar de su capacidad (entregas y platillos). En cada zona van primero
-     * las entregas a empresas (por ventana) y después las de clientes individuales (cada una cuenta como 1 entrega y 1 platillo).
-     * Lo que no cabe, o una dirección sin zona, queda sin ruta y genera una incidencia abierta.
+     * Agrupa por zona y llena un auto a la vez sin pasar de su capacidad (entregas y platillos). Con `$empresas` arma las rutas de
+     * las entregas a empresas (por ventana); con `$individuales`, las de los clientes individuales (cada pedido es 1 entrega y
+     * 1 parada con todos sus platillos). Lo que no cabe, o una dirección sin zona, queda sin ruta y genera una incidencia abierta.
      *
      * @return array{0:int,1:int} rutas creadas y entregas sin ruta
      */
-    public function generar(Corte $corte, string $fecha): array
+    public function generar(Corte $corte, string $fecha, bool $empresas = true, bool $individuales = false): array
     {
         $capacidad = $this->calendario->capacidadDelAuto();
 
-        $empresas = EntregaEmpresa::query()->with('empresa')->whereDate('fecha', $fecha)->whereNull('ruta_id')->where('estado', 'programada')
+        $deEmpresas = ! $empresas ? collect() : EntregaEmpresa::query()->with('empresa')->whereDate('fecha', $fecha)->whereNull('ruta_id')->where('estado', 'programada')
             ->orderBy('ventana_inicio')->orderBy('id')->get()
             ->map(fn (EntregaEmpresa $e) => ['tipo' => 'empresa', 'zona' => $e->empresa->zona, 'peso' => (int) $e->platillos, 'modelo' => $e]);
 
-        $individuales = PedidoDia::query()->with(['pedido.cliente', 'pedido.direccion'])
+        $deClientes = ! $individuales ? collect() : PedidoDia::query()->with(['pedido.cliente', 'pedido.direccion'])->withCount('platillos')
             ->whereDate('fecha', $fecha)->where('estado', 'programada')->doesntHave('parada')
             ->whereHas('pedido', fn ($q) => $q->whereIn('estado', ['recibido', 'activo']))
             ->orderBy('id')->get()
-            ->map(fn (PedidoDia $d) => ['tipo' => 'cliente', 'zona' => $d->pedido->direccion->zona, 'peso' => 1, 'modelo' => $d]);
+            ->map(fn (PedidoDia $d) => ['tipo' => 'cliente', 'zona' => $d->pedido->direccion->zona, 'peso' => (int) $d->platillos_count, 'modelo' => $d]);
 
-        $porZona = $empresas->concat($individuales)->groupBy(fn ($item) => $item['zona'] === null ? '' : $this->zona($item['zona']));
+        $porZona = $deEmpresas->concat($deClientes)->groupBy(fn ($item) => $item['zona'] === null ? '' : $this->zona($item['zona']));
 
-        $ocupados = Ruta::query()->whereDate('fecha', $fecha)->pluck('repartidor_id')->all();
+        // Un repartidor ya ocupado con una ruta del MISMO tipo ese día no se repite; con una del otro tipo sí (las empresas se
+        // atienden por la mañana y los clientes individuales el sábado después del corte).
+        $ocupados = Ruta::query()->whereDate('fecha', $fecha)
+            ->when($empresas && ! $individuales, fn ($q) => $q->whereHas('paradas', fn ($p) => $p->whereNotNull('entrega_empresa_id')))
+            ->when($individuales && ! $empresas, fn ($q) => $q->whereHas('paradas', fn ($p) => $p->whereNotNull('pedido_dia_id')))
+            ->pluck('repartidor_id')->all();
         $repartidores = Repartidor::query()->activos()->where('estado', '<>', 'no_disponible')->whereNotIn('id', $ocupados)
             ->orderBy('id')->get()->groupBy(fn ($r) => $this->zona($r->zona_base));
 
@@ -110,9 +113,15 @@ class GeneradorDeRutas
         $empresas = $items->where('tipo', 'empresa');
         $clientes = $items->where('tipo', 'cliente')->values();
 
-        $inicio = $empresas->map(fn ($i) => $i['modelo']->ventana_inicio)->min() ?? self::INICIO_SIN_EMPRESAS;
+        // Una ruta de clientes individuales sale en cuanto cierran los pedidos del sábado (la hora de corte).
+        $inicio = $empresas->map(fn ($i) => $i['modelo']->ventana_inicio)->min() ?? $this->calendario->horaDeCorte().':00';
         $finEmpresas = $empresas->map(fn ($i) => $i['modelo']->ventana_fin)->max() ?? $inicio;
-        $horaDeCliente = fn (int $n) => CarbonImmutable::createFromTimeString($finEmpresas)->addMinutes($n * self::MINUTOS_ENTRE_ENTREGAS_INDIVIDUALES)->format('H:i:s');
+        $horaDeCliente = function (int $n) use ($finEmpresas) {
+            $base = CarbonImmutable::createFromTimeString($finEmpresas);
+            $hora = $base->addMinutes($n * self::MINUTOS_ENTRE_ENTREGAS_INDIVIDUALES);
+
+            return $hora->isSameDay($base) ? $hora->format('H:i:s') : '23:59:00'; // nunca pasa de la medianoche
+        };
         $fin = $clientes->isEmpty() ? $finEmpresas : $horaDeCliente($clientes->count());
 
         $ruta = Ruta::create([

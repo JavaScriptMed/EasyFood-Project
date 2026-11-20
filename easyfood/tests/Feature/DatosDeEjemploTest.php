@@ -129,7 +129,10 @@ class DatosDeEjemploTest extends TestCase
         $this->assertSame([2, false, 3, true], [$cecilia->comidas_por_dia, (bool) $cecilia->con_extra, $daniel->comidas_por_dia, (bool) $daniel->con_extra], 'Cecilia 2 comidas; Daniel 3 y un extra');
         foreach (Pedido::with('dias.platillos')->get() as $pedido) {
             foreach ($pedido->dias as $dia) {
-                $this->assertCount($pedido->comidas_por_dia + (int) $pedido->con_extra, $dia->platillos, "{$pedido->folio} · {$dia->fecha->toDateString()}");
+                // Cada día de comida lleva sus comidas (los pedidos nuevos traen todos sus días en la entrega del sábado).
+                foreach ($dia->platillos->groupBy(fn ($c) => $c->fecha->toDateString()) as $fecha => $comidas) {
+                    $this->assertCount($pedido->comidas_por_dia + (int) $pedido->con_extra, $comidas, "{$pedido->folio} · {$fecha}");
+                }
             }
         }
     }

@@ -1,0 +1,39 @@
+meta {
+  name: Próxima entrega del cliente (el sábado)
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/api/v1/cliente/proxima-entrega
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenCliente}}
+}
+
+script:post-response {
+  if (res.status === 200) bru.setVar("sabadoDeEntrega", res.body.fecha_entrega);
+}
+
+tests {
+  test("responde 200", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("la entrega es un sábado", function () {
+    expect(new Date(res.body.fecha_entrega + "T12:00:00Z").getUTCDay()).to.equal(6);
+  });
+
+  test("cierra ese sábado y trae 6 días de comida posteriores a la entrega", function () {
+    expect(res.body.cierra_en.slice(0, 10)).to.equal(res.body.fecha_entrega);
+    expect(res.body.dias_de_comida).to.have.length(6);
+    expect(res.body.dias_de_comida[0] > res.body.fecha_entrega).to.equal(true);
+  });
+}
+
+docs {
+  Lunes a viernes: el sábado de esa semana. Sábado antes de la hora de corte: ese sábado. Sábado desde la hora de corte (y domingo): el siguiente. `dias_de_comida` son los siguientes días de servicio después de la entrega (el domingo y los festivos no cuentan): son los días para los que se eligen platillos (`GET /menu-semanal?fecha_inicio=`).
+}

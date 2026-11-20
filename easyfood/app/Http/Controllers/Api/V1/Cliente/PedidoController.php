@@ -7,6 +7,7 @@ use App\Http\Resources\V1\Vistas;
 use App\Models\Address;
 use App\Models\Paquete;
 use App\Models\Pedido;
+use App\Services\CalendarioDeServicio;
 use App\Services\ContratacionDePaquetes;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -26,11 +27,28 @@ class PedidoController extends Controller
     }
 
     /**
+     * Cuándo llega el próximo pedido de un cliente individual: el sábado de entrega (los pedidos de lunes a viernes entran al sábado
+     * de esa semana; el sábado mismo, hasta la hora de corte), cuándo cierra y los días de comida (hasta 6) de la semana siguiente
+     * para los que hay que elegir platillos: son los de `GET /menu-semanal?fecha_inicio=` a partir del primero.
+     */
+    public function proximaEntrega(CalendarioDeServicio $calendario): JsonResponse
+    {
+        $entrega = $calendario->fechaDeEntregaDeIndividuales();
+
+        return response()->json([
+            'fecha_entrega' => $entrega->toDateString(),
+            'cierra_en' => Vistas::iso($calendario->momentoDeCierreDeIndividuales($entrega)),
+            'dias_de_comida' => array_map(fn ($f) => $f->toDateString(), $calendario->diasDeComidaDeUnPedido(6, $entrega)),
+        ]);
+    }
+
+    /**
      * Pide un paquete de 1, 2 o 6 días con 1, 2 o 3 comidas por día. `platillos` trae un elemento por día, en orden, y cada uno es
      * un objeto `{desayuno: id, comida: id, cena: id}` con los tiempos de comida que el cliente eligió (todos los días, los mismos),
      * más `extra: id` si pide un platillo adicional por día (de cualquier tiempo de comida; también en todos los días).
-     * Las fechas son las siguientes fechas de servicio con corte abierto.
-     * El pedido nace «pendiente de pago» y trae `vence_pago_en` y `segundos_para_pagar`.
+     * TODO el pedido llega en una sola entrega, el sábado (`fecha_entrega`); los días de comida son los siguientes días de servicio
+     * después de ese sábado (ver `proximaEntrega`). El pedido nace «pendiente de pago» y trae `vence_pago_en` (la hora de corte de ese
+     * sábado) y `segundos_para_pagar`.
      */
     public function store(Request $request, ContratacionDePaquetes $paquetes): JsonResponse
     {

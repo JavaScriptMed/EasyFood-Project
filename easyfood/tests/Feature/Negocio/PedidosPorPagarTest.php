@@ -11,6 +11,7 @@ use App\Models\Pedido;
 use App\Models\PedidoDia;
 use App\Models\User;
 use App\Services\ContratacionDePaquetes;
+use App\Services\CorteDeIndividuales;
 use App\Services\EjecutorDelCorte;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Concerns\ArmaEscenarios;
@@ -42,7 +43,8 @@ class PedidosPorPagarTest extends TestCase
         $this->cliente = User::findOrFail($this->usuario());
         $this->direccion = Address::create(['user_id' => $this->cliente->id, 'street_address' => 'Av. 1', 'latitude' => 20.67, 'longitude' => -103.35]);
         $this->menu = $this->platillo();
-        foreach (['2026-11-10', '2026-11-11', '2026-11-12'] as $fecha) {
+        // El pedido de hoy (lunes) llega el sábado 14 y se come desde el lunes 16; uno hecho después del sábado a las 18:00 llega el 21.
+        foreach (['2026-11-16', '2026-11-17', '2026-11-18', '2026-11-23', '2026-11-24'] as $fecha) {
             $this->disponible($this->menu, $fecha);
         }
     }
@@ -64,27 +66,28 @@ class PedidosPorPagarTest extends TestCase
         return (int) DisponibilidadDia::sum('porciones_tomadas');
     }
 
-    public function test_el_plazo_para_pagar_es_el_corte_de_la_primera_entrega(): void
+    public function test_el_plazo_para_pagar_es_la_hora_de_corte_del_sabado_de_la_entrega(): void
     {
         $pedido = $this->pedir(2);
 
-        $this->assertSame('2026-11-09 18:00', $pedido->vence_pago_en->setTimezone('America/Mexico_City')->format('Y-m-d H:i'));
+        $this->assertSame('2026-11-14', $pedido->fecha_entrega->toDateString());
+        $this->assertSame('2026-11-14 18:00', $pedido->vence_pago_en->setTimezone('America/Mexico_City')->format('Y-m-d H:i'));
     }
 
     public function test_el_estado_del_pedido_trae_los_segundos_que_le_quedan_para_pagar(): void
     {
         $pedido = $this->pedir();
 
-        $this->assertSame(8 * 3600, $pedido->segundos_para_pagar);
-        $this->assertSame(8 * 3600, $pedido->toArray()['segundos_para_pagar']);
+        $this->assertSame(5 * 86400 + 8 * 3600, $pedido->segundos_para_pagar, 'del lunes 10:00 al sábado 18:00');
+        $this->assertSame(5 * 86400 + 8 * 3600, $pedido->toArray()['segundos_para_pagar']);
         $this->assertArrayHasKey('vence_pago_en', $pedido->toArray());
 
-        $this->ahoraEs('2026-11-09 17:59:30');
+        $this->ahoraEs('2026-11-14 17:59:30');
         $this->assertSame(30, $pedido->fresh()->segundos_para_pagar);
 
-        $this->ahoraEs('2026-11-09 18:00:00');
+        $this->ahoraEs('2026-11-14 18:00:00');
         $this->assertSame(0, $pedido->fresh()->segundos_para_pagar);
-        $this->ahoraEs('2026-11-09 20:00');
+        $this->ahoraEs('2026-11-14 20:00');
         $this->assertSame(0, $pedido->fresh()->segundos_para_pagar, 'nunca negativo');
     }
 
@@ -94,29 +97,29 @@ class PedidosPorPagarTest extends TestCase
         $this->assertNull($pagado->segundos_para_pagar);
 
         $cancelado = $this->pedir();
-        $this->ahoraEs('2026-11-09 18:00');
+        $this->ahoraEs('2026-11-14 18:00');
         $this->paquetes()->cancelarVencidos();
         $this->assertSame('cancelado', $cancelado->fresh()->estado);
         $this->assertNull($cancelado->fresh()->segundos_para_pagar);
     }
 
-    public function test_se_puede_pagar_hasta_un_segundo_antes_del_corte(): void
+    public function test_se_puede_pagar_hasta_un_segundo_antes_de_la_hora_de_corte_del_sabado(): void
     {
         $pedido = $this->pedir();
 
-        $this->ahoraEs('2026-11-09 17:59:59');
+        $this->ahoraEs('2026-11-14 17:59:59');
         $pagado = $this->paquetes()->pagar($pedido, 'tarjeta', '4821');
 
         $this->assertSame('recibido', $pagado->estado);
         $this->assertNull($pagado->segundos_para_pagar);
     }
 
-    public function test_pasado_el_corte_pagar_cancela_el_pedido_y_libera_las_porciones(): void
+    public function test_pasada_la_hora_de_corte_pagar_cancela_el_pedido_y_libera_las_porciones(): void
     {
         $pedido = $this->pedir(2);
         $this->assertSame(2, $this->porcionesTomadas());
 
-        $this->ahoraEs('2026-11-09 18:00:00');
+        $this->ahoraEs('2026-11-14 18:00:00');
         try {
             $this->paquetes()->pagar($pedido, 'tarjeta', '4821');
             $this->fail('Debía fallar: el plazo terminó.');
@@ -127,7 +130,7 @@ class PedidosPorPagarTest extends TestCase
 
         $this->assertSame('cancelado', $pedido->fresh()->estado);
         $this->assertNull($pedido->fresh()->pagado_en);
-        $this->assertSame(['cancelada', 'cancelada'], PedidoDia::where('pedido_id', $pedido->id)->pluck('estado')->all());
+        $this->assertSame(['cancelada'], PedidoDia::where('pedido_id', $pedido->id)->pluck('estado')->all(), 'una sola entrega');
         $this->assertSame(0, $this->porcionesTomadas(), 'las porciones apartadas vuelven a quedar libres');
 
         try {
@@ -141,12 +144,11 @@ class PedidosPorPagarTest extends TestCase
     public function test_cancelar_los_vencidos_solo_toca_los_que_ya_vencieron_y_se_puede_repetir(): void
     {
         $vencido = $this->pedir();
-        $this->ahoraEs('2026-11-10 10:00');
-        $vigente = $this->pedir(); // primer día: miércoles 11 (corte martes 18:00)
-        $this->ahoraEs('2026-11-09 10:00');
         $pagado = $this->paquetes()->pagar($this->pedir(), 'tarjeta', '4821');
+        $this->ahoraEs('2026-11-14 19:00');
+        $vigente = $this->pedir(); // sábado después de la hora de corte → entrega del 21, vence el 21 a las 18:00
 
-        $this->ahoraEs('2026-11-09 18:00');
+        $this->assertSame('2026-11-21', $vigente->fecha_entrega->toDateString());
         $this->assertSame(1, $this->paquetes()->cancelarVencidos());
         $this->assertSame(0, $this->paquetes()->cancelarVencidos(), 'repetirlo no hace nada');
 
@@ -155,34 +157,46 @@ class PedidosPorPagarTest extends TestCase
         $this->assertSame('recibido', $pagado->fresh()->estado, 'un pedido pagado no se cancela');
     }
 
-    public function test_el_corte_cancela_los_pedidos_por_pagar_de_ese_dia_y_libera_sus_porciones(): void
+    public function test_el_corte_de_individuales_cancela_los_pedidos_por_pagar_de_ese_sabado_y_libera_sus_porciones(): void
     {
         $sinPagar = $this->pedir();
         $pagado = $this->paquetes()->pagar($this->pedir(), 'tarjeta', '4821');
         $this->assertSame(2, $this->porcionesTomadas());
 
-        $this->ahoraEs('2026-11-09 18:30');
-        app(EjecutorDelCorte::class)->ejecutar('2026-11-10');
+        $this->ahoraEs('2026-11-14 18:30');
+        app(CorteDeIndividuales::class)->ejecutar('2026-11-14');
 
         $this->assertSame('cancelado', $sinPagar->fresh()->estado);
         $this->assertSame('recibido', $pagado->fresh()->estado);
-        $this->assertSame(1, DisponibilidadDia::whereDate('fecha', '2026-11-10')->value('porciones_tomadas'), 'solo queda la del pedido pagado');
+        $this->assertSame(1, DisponibilidadDia::whereDate('fecha', '2026-11-16')->value('porciones_tomadas'), 'solo queda la del pedido pagado');
     }
 
-    public function test_un_corte_manual_anticipado_tambien_cancela_los_que_siguen_por_pagar(): void
+    public function test_el_corte_general_de_empresas_no_cancela_a_los_individuales_porque_todavia_pueden_pagar(): void
     {
         $sinPagar = $this->pedir();
 
-        app(EjecutorDelCorte::class)->ejecutar('2026-11-10', $this->usuario()); // 10:00, antes de las 18:00
+        $this->ahoraEs('2026-11-13 18:30'); // viernes: corte de empleados y empresas del sábado
+        app(EjecutorDelCorte::class)->ejecutar('2026-11-14');
+
+        $this->assertSame('pendiente_pago', $sinPagar->fresh()->estado, 'tiene hasta el sábado a la hora de corte');
+        $this->assertSame(1, $this->porcionesTomadas());
+        $this->assertSame('recibido', $this->paquetes()->pagar($sinPagar->fresh(), 'tarjeta', '4821')->estado);
+    }
+
+    public function test_un_corte_manual_anticipado_de_individuales_tambien_cancela_los_que_siguen_por_pagar(): void
+    {
+        $sinPagar = $this->pedir();
+
+        app(CorteDeIndividuales::class)->ejecutar('2026-11-14', $this->usuario()); // lunes 10:00, antes del sábado
 
         $this->assertSame('cancelado', $sinPagar->fresh()->estado);
         $this->assertSame(0, $this->porcionesTomadas());
     }
 
-    public function test_si_el_corte_manual_ya_cerro_ese_dia_pagar_cancela_el_pedido(): void
+    public function test_si_el_corte_manual_ya_cerro_ese_sabado_pagar_cancela_el_pedido(): void
     {
         $pedido = $this->pedir();
-        app(EjecutorDelCorte::class)->ejecutar('2026-11-10', $this->usuario());
+        app(CorteDeIndividuales::class)->ejecutar('2026-11-14', $this->usuario());
         $pedido->forceFill(['estado' => 'pendiente_pago'])->saveQuietly(); // como si hubiera quedado por pagar
 
         $this->expectException(ReglaDeNegocioException::class);

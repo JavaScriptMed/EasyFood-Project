@@ -16,20 +16,22 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Pedidos de clientes individuales: paquetes de 1, 2 o 6 días de servicio.
+ * Pedidos de clientes individuales: paquetes de 1, 2 o 6 días de comida.
  *
- * - Las fechas son los siguientes días de servicio consecutivos desde la primera con el corte abierto
- *   (un pedido hecho después de las 18:00 entra al siguiente ciclo).
+ * - TODO el pedido llega junto en UNA sola entrega: el sábado de cada semana. De lunes a viernes se pide para el sábado de esa
+ *   semana; el sábado mismo se pide hasta la hora de corte, y después el pedido pasa al sábado siguiente.
+ * - El cliente sigue eligiendo platillos por día. Los días de comida son los siguientes días de servicio consecutivos después de la
+ *   entrega (lunes a sábado de la semana siguiente); cada platillo aparta su porción en el día en que se come.
  * - El cliente elige cuántos días (paquete de 1, 2 o 6) y cuántas comidas por día (1, 2 o 3: desayuno, comida y/o cena).
  *   Cada día lleva un platillo por cada tiempo de comida elegido, y son los mismos tiempos todos los días.
  * - El precio de cada platillo se congela al pedir. total = suma de precios × (1 − descuento del paquete).
  * - Extra opcional: un platillo más por día, de cualquier tiempo de comida, en todos los días del pedido. Se cobra con el
  *   mismo descuento del paquete y se aparta como cualquier otro platillo.
- * - Una entrega por día: todas las comidas de ese día viajan juntas (una parada, un estado, una evidencia).
+ * - Una sola entrega por pedido (una parada, un estado, una evidencia): `pedido_dias` es esa entrega y su `fecha` es el sábado.
  * - El pago es simulado: no hay cobro real, solo se registra método y últimos 4 dígitos.
  * - La dirección debe tener cobertura (caer dentro de una zona activa).
- * - Un pedido por pagar vence en el corte de su primer día de entrega (`vence_pago_en`): si pasa sin pagarse
- *   se cancela, se liberan sus porciones y hay que pedirlo de nuevo.
+ * - Un pedido por pagar vence cuando cierran los pedidos de su sábado (`vence_pago_en`, la hora de corte de ese sábado): si pasa sin
+ *   pagarse se cancela, se liberan sus porciones y hay que pedirlo de nuevo.
  */
 class ContratacionDePaquetes
 {
@@ -65,7 +67,8 @@ class ContratacionDePaquetes
         $ahora = $this->calendario->ahora($ahora);
 
         return DB::transaction(function () use ($cliente, $paquete, $direccion, $porDia, $tiempos, $conExtra, $ahora) {
-            $fechas = $this->calendario->fechasDeUnPaquete($paquete->dias, $ahora);
+            $entrega = $this->calendario->fechaDeEntregaDeIndividuales($ahora);
+            $fechas = $this->calendario->diasDeComidaDeUnPedido($paquete->dias, $entrega); // los días en que se come, después del sábado
             $dias = [];
             $suma = 0;
 
@@ -100,15 +103,15 @@ class ContratacionDePaquetes
 
             $pedido = Pedido::create([
                 'folio' => Folios::pedido($ahora),
-                'vence_pago_en' => $this->calendario->momentoDelCorte($fechas[0]),
+                'vence_pago_en' => $this->calendario->momentoDeCierreDeIndividuales($entrega), 'fecha_entrega' => $entrega->toDateString(),
                 'cliente_id' => $cliente->id, 'paquete_id' => $paquete->id, 'direccion_id' => $direccion->id, 'comidas_por_dia' => count($tiempos), 'con_extra' => $conExtra,
                 'fecha_inicio' => $fechas[0]->toDateString(), 'fecha_fin' => end($fechas)->toDateString(),
                 'total' => Dinero::formato($total), 'estado' => 'pendiente_pago',
             ]);
+            $paradaUnica = PedidoDia::create(['pedido_id' => $pedido->id, 'fecha' => $entrega->toDateString(), 'estado' => 'programada']);
             foreach ($dias as $dia) {
-                $entrega = PedidoDia::create(['pedido_id' => $pedido->id, 'fecha' => $dia['fecha'], 'estado' => 'programada']);
                 foreach ($dia['comidas'] as $comida) {
-                    PedidoDiaPlatillo::create($comida + ['pedido_dia_id' => $entrega->id]);
+                    PedidoDiaPlatillo::create($comida + ['pedido_dia_id' => $paradaUnica->id, 'fecha' => $dia['fecha']]);
                 }
             }
 
@@ -184,8 +187,7 @@ class ContratacionDePaquetes
             throw new ReglaDeNegocioException('pedido_no_pagable', 'Solo se puede pagar un pedido pendiente de pago.');
         }
 
-        $primero = $pedido->dias()->orderBy('fecha')->first();
-        if ($this->haVencido($pedido, $primero?->fecha, $ahora)) {
+        if ($this->haVencido($pedido, $ahora)) {
             $this->cancelar($pedido); // fuera de cualquier transacción propia: la cancelación queda guardada aunque se avise del error
             throw new ReglaDeNegocioException('pedido_vencido', 'El tiempo para pagar terminó (el corte de la primera entrega ya pasó): el pedido se canceló y hay que pedirlo de nuevo.');
         }
@@ -201,10 +203,10 @@ class ContratacionDePaquetes
         return $pedido->refresh();
     }
 
-    /** ¿Ya no se puede empezar a pagar? (llegó su plazo o el corte de su primer día ya se ejecutó). No cancela nada. */
+    /** ¿Ya no se puede empezar a pagar? (llegó su plazo o el corte de individuales de su sábado ya se ejecutó). No cancela nada. */
     public function yaNoSePuedePagar(Pedido $pedido, ?CarbonInterface $ahora = null): bool
     {
-        return $this->haVencido($pedido, $pedido->dias()->orderBy('fecha')->first()?->fecha, $ahora);
+        return $this->haVencido($pedido, $ahora);
     }
 
     /** ¿El pago hecho en `$momento` llegó después del plazo del pedido? Compara contra la hora del cargo, no contra la de hoy. */
@@ -214,9 +216,9 @@ class ContratacionDePaquetes
     }
 
     /**
-     * Cancela los pedidos por pagar cuyo plazo terminó (llegó su `vence_pago_en`, o el corte de su primer día ya se ejecutó)
-     * y libera sus porciones. Es seguro repetirlo. Con $hastaFechaDeEntrega también cancela los que empiezan en esa fecha o antes
-     * (lo usa el corte: al cerrarse el día, esos pedidos ya no se pueden pagar).
+     * Cancela los pedidos por pagar cuyo plazo terminó (llegó su `vence_pago_en`, o el corte de individuales de su sábado ya se
+     * ejecutó) y libera sus porciones. Es seguro repetirlo. Con $hastaFechaDeEntrega también cancela los que se entregan en esa
+     * fecha o antes (lo usa el corte de individuales: al cerrarse el sábado, esos pedidos ya no se pueden pagar).
      *
      * @return int cuántos pedidos canceló
      */
@@ -227,10 +229,10 @@ class ContratacionDePaquetes
         /** @var Collection<int, Pedido> $vencidos */
         $vencidos = Pedido::query()->where('estado', 'pendiente_pago')
             ->where(fn ($q) => $q->where('vence_pago_en', '<=', $ahora)
-                // El corte de esa fecha se está ejecutando ahora mismo: ya no se podrán pagar.
-                ->when($hastaFechaDeEntrega, fn ($q) => $q->orWhereDate('fecha_inicio', '<=', $hastaFechaDeEntrega))
+                // El corte de individuales de ese sábado se está ejecutando ahora mismo: ya no se podrán pagar.
+                ->when($hastaFechaDeEntrega, fn ($q) => $q->orWhereDate('fecha_entrega', '<=', $hastaFechaDeEntrega))
                 ->orWhereExists(fn ($sub) => $sub->select(DB::raw(1))->from('cortes')
-                    ->whereColumn('cortes.fecha_entrega', 'pedidos.fecha_inicio')->where('cortes.sin_cambios', false)->where('cortes.estado', '<>', 'fallido')))
+                    ->whereColumn('cortes.fecha_entrega', 'pedidos.fecha_entrega')->where('cortes.tipo', 'individuales')->where('cortes.sin_cambios', false)->where('cortes.estado', '<>', 'fallido')))
             ->get();
 
         foreach ($vencidos as $pedido) {
@@ -240,17 +242,17 @@ class ContratacionDePaquetes
         return $vencidos->count();
     }
 
-    /** Cuenta como vencido si llegó su plazo o si el corte de su primer día ya se ejecutó (aunque haya sido antes de tiempo). */
-    private function haVencido(Pedido $pedido, ?CarbonInterface $primerDia, ?CarbonInterface $ahora): bool
+    /** Cuenta como vencido si llegó su plazo o si el corte de individuales de su sábado ya se ejecutó (aunque haya sido antes de tiempo). */
+    private function haVencido(Pedido $pedido, ?CarbonInterface $ahora): bool
     {
         $ahora = $this->calendario->ahora($ahora);
 
         return ($pedido->vence_pago_en && $ahora->gte($pedido->vence_pago_en))
-            || ($primerDia && $this->calendario->corteYaEjecutado($primerDia));
+            || $this->calendario->corteDeIndividualesYaEjecutado($pedido->fecha_entrega);
     }
 
     /**
-     * Cancela un pedido: sus días por entregar → cancelados y se devuelven las porciones que tenían apartadas.
+     * Cancela un pedido: su entrega por hacer → cancelada y se devuelven las porciones que tenía apartadas.
      * Lo usan el corte (pedidos sin pagar) y los reembolsos (pedidos pagados); lo ya entregado no se toca.
      */
     public function cancelar(Pedido $pedido): void
@@ -259,7 +261,7 @@ class ContratacionDePaquetes
             $dias = PedidoDia::query()->with('platillos')->where('pedido_id', $pedido->id)->where('estado', 'programada')->lockForUpdate()->get();
             foreach ($dias as $dia) {
                 foreach ($dia->platillos as $comida) {
-                    DisponibilidadDia::query()->where('menu_id', $comida->menu_id)->whereDate('fecha', $dia->fecha->toDateString())
+                    DisponibilidadDia::query()->where('menu_id', $comida->menu_id)->whereDate('fecha', $comida->fecha->toDateString()) // el día en que se iba a comer
                         ->where('porciones_tomadas', '>', 0)->decrement('porciones_tomadas');
                 }
                 $dia->update(['estado' => 'cancelada']);

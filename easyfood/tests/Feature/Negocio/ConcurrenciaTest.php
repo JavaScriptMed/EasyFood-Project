@@ -119,7 +119,7 @@ class ConcurrenciaTest extends TestCase
         $trabajos = [];
         foreach (range(1, 3) as $i) {
             $menu = $this->platillo();
-            $this->disponible($menu, '2026-11-10', 100);
+            $this->disponible($menu, '2026-11-16', 100); // el lunes en que se comería: el pedido llega el sábado 14
             $trabajos[] = ['accion' => 'pedidos', 'cliente_id' => $cliente->id, 'direccion_id' => $direccion->id, 'paquete_id' => $paquete->id, 'menu_id' => $menu->id, 'cantidad' => 6];
         }
 

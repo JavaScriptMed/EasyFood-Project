@@ -242,7 +242,7 @@ class DatosDeEjemploSeeder extends Seeder
         $publicados = array_merge($menus['comida'], $menus['desayuno'], $menus['cena']);
         $delDia = [$menus['comida'][0]->id, $menus['comida'][3]->id]; // el comedor marca un platillo del día por tiempo de comida
 
-        foreach ($this->proximosDiasDeServicio(8) as $fecha) {
+        foreach ($this->proximosDiasDeServicio(16) as $fecha) { // dos semanas: un pedido de clientes llega el sábado y se come la semana siguiente
             foreach ($publicados as $menu) {
                 DisponibilidadDia::create(['menu_id' => $menu->id, 'fecha' => $fecha->toDateString(), 'porciones_maximas' => 40, 'es_platillo_del_dia' => in_array($menu->id, $delDia, true)]);
             }

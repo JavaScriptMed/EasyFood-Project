@@ -85,6 +85,36 @@ class RutasEIncidenciasTest extends TestCase
         $this->assertSame('rutas.generadas', RegistroAuditoria::latest('id')->first()->accion);
     }
 
+    public function test_generar_arma_por_separado_las_rutas_de_empresas_y_las_de_clientes_del_sabado(): void
+    {
+        $sabado = '2026-11-14';
+        // Un empleado que eligió para el sábado y un cliente individual cuyo pedido llega ese sábado, los dos en la zona Centro.
+        $this->zonaDePruebas('Centro');
+        $menu = $this->platillo();
+        $this->disponible($menu, $sabado);
+        $this->disponible($menu, '2026-11-16');
+        app(EleccionDePlatillos::class)->elegir($this->empleadoDe($this->empresaConContrato('Centro')), $sabado, $menu->tiempo_comida, $menu);
+        $cliente = User::findOrFail($this->usuario());
+        $direccion = \App\Models\Address::create(['user_id' => $cliente->id, 'street_address' => 'Av. Vallarta 100', 'latitude' => 20.67, 'longitude' => -103.35]);
+        $servicio = app(\App\Services\ContratacionDePaquetes::class);
+        $servicio->pagar($servicio->pedir($cliente, \App\Models\Paquete::create(['nombre' => 'Un día', 'dias' => 1]), $direccion, [$menu]), 'tarjeta', '4821');
+
+        $this->ahoraEs('2026-11-13 18:30');
+        app(EjecutorDelCorte::class)->ejecutar($sabado);
+        $this->ahoraEs('2026-11-14 18:30');
+        app(\App\Services\CorteDeIndividuales::class)->ejecutar($sabado);
+        $this->assertSame(0, Ruta::count(), 'todavía no hay repartidores');
+        $this->assertSame(2, Incidencia::where('estado', 'abierta')->count());
+
+        $this->ahoraEs('2026-11-14 19:00');
+        $this->repartidorEn('Centro');
+        $respuesta = $this->postJson('/api/v1/admin/rutas/generar', ['fecha' => $sabado])->assertOk()->assertJsonPath('creadas', 2)->assertJsonPath('sin_ruta', 0);
+
+        $tipos = collect($respuesta->json('rutas'))->map(fn ($r) => collect($r['paradas'])->map(fn ($p) => $p['entrega_id'] ? 'empresa' : 'cliente')->unique()->all())->all();
+        $this->assertEqualsCanonicalizing([['empresa'], ['cliente']], $tipos, 'cada ruta lleva un solo tipo de entrega');
+        $this->assertSame(0, Incidencia::where('estado', 'abierta')->count());
+    }
+
     public function test_generar_otra_vez_no_duplica_rutas_ni_incidencias_y_no_toca_las_aprobadas(): void
     {
         $this->empresaQueEligio('Zapopan');

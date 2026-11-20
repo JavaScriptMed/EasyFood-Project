@@ -43,12 +43,12 @@ class ReembolsoDePedidosApiTest extends TestCase
         $cliente = User::findOrFail($this->usuario());
         $direccion = Address::create(['user_id' => $cliente->id, 'street_address' => 'Av. Vallarta 100', 'latitude' => 20.67, 'longitude' => -103.35]);
         $menu = $this->platillo(null, 'comida', ['price' => 100]);
-        $this->disponible($menu, '2026-11-10');
+        $this->disponible($menu, '2026-11-16');
         $paquete = Paquete::firstOrCreate(['nombre' => 'Un día'], ['dias' => 1, 'descuento_porcentaje' => 0]);
         $pedido = app(ContratacionDePaquetes::class)->pedir($cliente, $paquete, $direccion, [$menu]);
         $intento = app(PagosDePedidos::class)->iniciar($cliente, $pedido->id)['payment_intent_id'];
-        $this->pasarela->cobrar($intento, '2026-11-09T11:00:00-06:00');
-        [$cuerpo] = $this->pasarela->webhook('evt_1', 'payment_intent.succeeded', $intento, 10000, '2026-11-09T11:00:00-06:00');
+        $this->pasarela->cobrar($intento, '2026-11-14T11:00:00-06:00');
+        [$cuerpo] = $this->pasarela->webhook('evt_1', 'payment_intent.succeeded', $intento, 10000, '2026-11-14T11:00:00-06:00');
         $this->call('POST', '/api/v1/webhooks/stripe', [], [], [], ['CONTENT_TYPE' => 'application/json', 'HTTP_ACCEPT' => 'application/json', 'HTTP_STRIPE_SIGNATURE' => PasarelaFalsa::FIRMA], $cuerpo)->assertOk();
 
         return $pedido->fresh();

@@ -10,7 +10,7 @@ class CancelarPedidosVencidos extends Command
 {
     protected $signature = 'easylunch:cancelar-pedidos-vencidos';
 
-    protected $description = 'Cancela los pedidos individuales por pagar cuyo plazo (el corte de su primer día) ya pasó y libera sus porciones';
+    protected $description = 'Cancela los pedidos individuales por pagar cuyo plazo (el cierre de pedidos de su sábado) ya pasó y libera sus porciones';
 
     public function handle(ContratacionDePaquetes $paquetes): int
     {

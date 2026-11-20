@@ -127,7 +127,7 @@ class ZonasDeDireccionesTest extends TestCase
         $cliente = User::findOrFail($this->usuario());
         $lejos = $this->direccion(19.43, -99.13, $cliente->id);
         $menu = $this->platillo();
-        $this->disponible($menu, '2026-11-10');
+        $this->disponible($menu, '2026-11-16');
         $paquete = Paquete::create(['nombre' => 'Un día', 'dias' => 1]);
 
         try {
@@ -159,7 +159,7 @@ class ZonasDeDireccionesTest extends TestCase
         $cliente = User::findOrFail($this->usuario());
         $direccion = $this->direccion(20.65, -103.35, $cliente->id);
         $menu = $this->platillo();
-        $this->disponible($menu, '2026-11-10');
+        $this->disponible($menu, '2026-11-16');
         $paquete = Paquete::create(['nombre' => 'Un día', 'dias' => 1]);
 
         $pedido = app(ContratacionDePaquetes::class)->pedir($cliente, $paquete, $direccion, [$menu]);
