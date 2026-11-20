@@ -72,11 +72,17 @@ class GeneradorDeRutas
                     if (! $resto) {
                         break;
                     }
-                    [$asignados, $resto] = $this->llenarAuto($resto, $capacidad);
+                    [$asignados, $sobran] = $this->llenarAuto($resto, $capacidad);
                     if (! $asignados) {
                         break; // Ninguno cabe solo en un auto: otro auto igual tampoco serviría.
                     }
-                    $this->guardarRuta($corte, $fecha, $repartidor, $asignados, $capacidad, $this->finDeSuRutaDeEmpresas($repartidor, $fecha));
+                    $noAntesDe = $this->finDeSuRutaDeEmpresas($repartidor, $fecha);
+                    [$inicio, $fin] = $this->ventana(collect($asignados), $noAntesDe);
+                    if ($this->seEmpalma($repartidor, $fecha, $inicio, $fin)) {
+                        continue; // ya tiene otra ruta a esa hora ese día (por ejemplo, si el corte de clientes se hizo antes que el de empresas)
+                    }
+                    $resto = $sobran;
+                    $this->guardarRuta($corte, $fecha, $repartidor, $asignados, $capacidad, $noAntesDe);
                     $rutas++;
                 }
             }
@@ -109,6 +115,36 @@ class GeneradorDeRutas
         return [$asignados, $resto];
     }
 
+    /** ¿Ese repartidor ya tiene otra ruta ese día que se cruza con esta ventana? (terminar justo cuando empieza la otra no cuenta). */
+    private function seEmpalma(Repartidor $repartidor, string $fecha, string $inicio, string $fin): bool
+    {
+        return Ruta::query()->whereDate('fecha', $fecha)->where('repartidor_id', $repartidor->id)
+            ->where('ventana_inicio', '<', $fin)->where('ventana_fin', '>', $inicio)->exists();
+    }
+
+    /**
+     * Cuándo sale y cuándo termina una ruta con esas entregas, y la hora estimada del cliente número $n (1, 2…).
+     *
+     * @return array{0: string, 1: string, 2: \Closure}
+     */
+    private function ventana(\Illuminate\Support\Collection $items, ?string $noAntesDe): array
+    {
+        $empresas = $items->where('tipo', 'empresa');
+        $clientes = $items->where('tipo', 'cliente');
+
+        // Una ruta de clientes individuales sale el sábado a las 12:00, o cuando su repartidor termina la ruta de empresas de ese día.
+        $inicio = $empresas->map(fn ($i) => $i['modelo']->ventana_inicio)->min() ?? max(self::INICIO_SIN_EMPRESAS, (string) $noAntesDe);
+        $finEmpresas = $empresas->map(fn ($i) => $i['modelo']->ventana_fin)->max() ?? $inicio;
+        $horaDeCliente = function (int $n) use ($finEmpresas) {
+            $base = CarbonImmutable::createFromTimeString($finEmpresas);
+            $hora = $base->addMinutes($n * self::MINUTOS_ENTRE_ENTREGAS_INDIVIDUALES);
+
+            return $hora->isSameDay($base) ? $hora->format('H:i:s') : '23:59:00'; // nunca pasa de la medianoche
+        };
+
+        return [$inicio, $clientes->isEmpty() ? $finEmpresas : $horaDeCliente($clientes->count()), $horaDeCliente];
+    }
+
     /** A qué hora termina la ruta de empresas que ese repartidor ya tiene ese día (para que la de clientes no se le empalme). */
     private function finDeSuRutaDeEmpresas(Repartidor $repartidor, string $fecha): ?string
     {
@@ -126,16 +162,7 @@ class GeneradorDeRutas
         $empresas = $items->where('tipo', 'empresa');
         $clientes = $items->where('tipo', 'cliente')->values();
 
-        // Una ruta de clientes individuales sale el sábado a las 12:00, o cuando su repartidor termina la ruta de empresas de ese día.
-        $inicio = $empresas->map(fn ($i) => $i['modelo']->ventana_inicio)->min() ?? max(self::INICIO_SIN_EMPRESAS, (string) $noAntesDe);
-        $finEmpresas = $empresas->map(fn ($i) => $i['modelo']->ventana_fin)->max() ?? $inicio;
-        $horaDeCliente = function (int $n) use ($finEmpresas) {
-            $base = CarbonImmutable::createFromTimeString($finEmpresas);
-            $hora = $base->addMinutes($n * self::MINUTOS_ENTRE_ENTREGAS_INDIVIDUALES);
-
-            return $hora->isSameDay($base) ? $hora->format('H:i:s') : '23:59:00'; // nunca pasa de la medianoche
-        };
-        $fin = $clientes->isEmpty() ? $finEmpresas : $horaDeCliente($clientes->count());
+        [$inicio, $fin, $horaDeCliente] = $this->ventana($items, $noAntesDe);
 
         $ruta = Ruta::create([
             'fecha' => $fecha, 'repartidor_id' => $repartidor->id, 'corte_id' => $corte->id, 'zona' => $items->first()['zona'],

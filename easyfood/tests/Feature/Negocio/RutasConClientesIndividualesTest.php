@@ -326,6 +326,29 @@ class RutasConClientesIndividualesTest extends TestCase
         }
     }
 
+    public function test_si_el_corte_de_clientes_se_hizo_antes_que_el_de_empresas_el_repartidor_no_se_empalma(): void
+    {
+        $menu = $this->menuDisponible();
+        $empresa = $this->empresaConContrato('Centro', ['ventana_entrega_inicio' => '12:05', 'ventana_entrega_fin' => '12:25', 'hora_entrega' => '12:15']);
+        app(EleccionDePlatillos::class)->elegir($this->empleadoDe($empresa), self::ENTREGA, 'comida', $menu);
+        $this->pedidoPagado($menu);
+        $unico = $this->repartidorEn('Centro');
+
+        $this->corte(); // a mano y antes que el de empresas: su ruta de clientes sale de 12:00 a 12:10
+        $this->corteDeEmpresas();
+
+        $this->assertSame(1, Ruta::count(), 'el único repartidor ya está en la ruta de clientes a las 12:05');
+        $this->assertSame($unico->id, Ruta::sole()->repartidor_id);
+        $incidencia = Incidencia::where('estado', 'abierta')->sole();
+        $this->assertSame(['falta_repartidores', $empresa->id], [$incidencia->tipo, $incidencia->entregaEmpresa->empresa_id]);
+
+        $otro = $this->repartidorEn('Centro'); // con otro repartidor sí se completa
+        app(\App\Services\GeneradorDeRutas::class)->generar(\App\Models\Corte::where('tipo', 'general')->sole(), self::ENTREGA);
+
+        $this->assertSame(2, Ruta::count());
+        $this->assertSame($otro->id, Ruta::whereHas('paradas', fn ($p) => $p->whereNotNull('entrega_empresa_id'))->sole()->repartidor_id);
+    }
+
     public function test_el_corte_manual_se_puede_adelantar_pero_solo_para_sabados_de_servicio(): void
     {
         $menu = $this->menuDisponible();
