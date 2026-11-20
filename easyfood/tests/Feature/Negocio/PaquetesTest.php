@@ -186,6 +186,19 @@ class PaquetesTest extends TestCase
         $this->assertSame('180.00', $conCena->total, 'el extra puede ser de otro tiempo de comida');
     }
 
+    public function test_un_platillo_se_puede_repetir_en_todos_los_dias_y_tambien_como_extra_el_mismo_dia(): void
+    {
+        $fechas = ['2026-11-10', '2026-11-11'];
+        $comida = $this->platilloDe('comida', $fechas, 100);
+
+        // El mismo platillo los dos días y, además, otra vez como extra: cada uno aparta su propia porción.
+        $pedido = $this->paquetes()->pedir($this->cliente, $this->paquete(2), $this->direccion, array_fill(0, 2, ['comida' => $comida, 'extra' => $comida]));
+
+        $this->assertSame('400.00', $pedido->total, '(100 + 100) × 2 días');
+        $this->assertSame(4, PedidoDiaPlatillo::whereIn('pedido_dia_id', $pedido->dias()->pluck('id'))->where('menu_id', $comida->id)->count());
+        $this->assertSame(4, (int) DisponibilidadDia::where('menu_id', $comida->id)->sum('porciones_tomadas'));
+    }
+
     public function test_el_extra_se_pide_para_todos_los_dias_o_para_ninguno_y_cancelar_lo_libera(): void
     {
         $fechas = ['2026-11-10', '2026-11-11'];

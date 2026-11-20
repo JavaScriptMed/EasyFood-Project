@@ -120,4 +120,60 @@ class AuthController extends Controller
             'message' => 'Sesión cerrada exitosamente.',
         ], 200);
     }
+
+    /**
+     * Actualiza los datos del usuario y su perfil asociado.
+     */
+    public function updateProfile(Request $request)
+{
+    $user = $request->user();
+
+    // Validar datos recibidos (ahora validamos 'avatar' como archivo de imagen)
+    $validated = $request->validate([
+        'name'       => 'sometimes|required|string|max:120',
+        'first_name' => 'sometimes|required|string|max:100',
+        'last_name'  => 'sometimes|required|string|max:100',
+        'phone'      => 'nullable|string|max:20',
+        'avatar'     => 'nullable|image|mimes:jpeg,png,jpg,webp|max:2048', // Archivo de hasta 2MB
+        'bio'        => 'nullable|string',
+        'birth_date' => 'nullable|date',
+    ]);
+
+    if (isset($validated['name'])) {
+        $user->update(['name' => $validated['name']]);
+    }
+
+    $profileData = collect($validated)->only([
+        'first_name',
+        'last_name',
+        'phone',
+        'bio',
+        'birth_date',
+    ])->toArray();
+
+    // Si el usuario subió una nueva imagen de perfil
+    if ($request->hasFile('avatar')) {
+        $path = $request->file('avatar')->store('avatars', 'public');
+        $profileData['avatar_url'] = asset('storage/' . $path);
+    }
+
+    if (!empty($profileData)) {
+        UserProfile::updateOrCreate(
+            ['user_id' => $user->id],
+            $profileData
+        );
+    }
+
+    return response()->json([
+        'message' => 'Perfil actualizado exitosamente.',
+        'user'    => [
+            'id'      => $user->id,
+            'name'    => $user->name,
+            'email'   => $user->email,
+            'role'    => $user->role->name,
+            'status'  => $user->status,
+            'profile' => $user->fresh()->profile,
+        ],
+    ], 200);
+}
 }
