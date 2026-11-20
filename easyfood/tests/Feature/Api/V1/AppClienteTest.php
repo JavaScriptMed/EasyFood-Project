@@ -10,6 +10,7 @@ use App\Services\ContratacionDePaquetes;
 use App\Services\Pagos\PasarelaDePagos;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Tests\Concerns\ActuaComoUsuario;
 use Tests\Concerns\ArmaEscenarios;
 use Tests\Concerns\VerificaRestricciones;
@@ -92,8 +93,29 @@ class AppClienteTest extends TestCase
     {
         $this->comoRol('customer');
 
-        $this->postJson('/api/v1/cliente/direcciones', [])->assertStatus(422)->assertJsonStructure(['errores' => ['direccion', 'latitud', 'longitud']]);
+        $this->postJson('/api/v1/cliente/direcciones', [])->assertStatus(422)->assertJsonStructure(['errores' => ['direccion']]);
+        $this->postJson('/api/v1/cliente/direcciones', $this->direccionValida(['longitud' => null]))->assertStatus(422)->assertJsonStructure(['errores' => ['longitud']]);
         $this->postJson('/api/v1/cliente/direcciones', $this->direccionValida(['latitud' => 91]))->assertStatus(422)->assertJsonStructure(['errores' => ['latitud']]);
+    }
+
+    public function test_sin_coordenadas_la_direccion_se_ubica_por_su_texto_y_si_no_se_encuentra_se_pide_el_punto(): void
+    {
+        $this->comoRol('customer');
+        Http::fake(['nominatim.openstreetmap.org/*' => Http::sequence()
+            ->push([['lat' => '20.67', 'lon' => '-103.35']])
+            ->push([['lat' => '25.0', 'lon' => '-103.35']])
+            ->push([])]);
+        $sinPunto = ['etiqueta' => 'Casa', 'direccion' => 'Av. Vallarta 1248', 'codigo_postal' => '44100'];
+
+        $id = $this->postJson('/api/v1/cliente/direcciones', $sinPunto)->assertCreated()->assertJsonPath('zona', 'Centro')->assertJsonPath('sin_cobertura', false)->json('id');
+
+        // Al cambiar la calle sin mandar el punto, se vuelve a ubicar (aquí cae fuera de cobertura); al cambiar solo la etiqueta no se consulta nada.
+        $this->putJson("/api/v1/cliente/direcciones/{$id}", ['direccion' => 'Otra calle 5'])->assertOk()->assertJsonPath('sin_cobertura', true);
+        $this->putJson("/api/v1/cliente/direcciones/{$id}", ['etiqueta' => 'Trabajo'])->assertOk()->assertJsonPath('sin_cobertura', true);
+        Http::assertSentCount(2);
+
+        $this->postJson('/api/v1/cliente/direcciones', $sinPunto)->assertStatus(422)->assertJsonPath('codigo', 'direccion_no_encontrada');
+        $this->assertSame(1, Address::count(), 'la que no se encontró no se guardó con un punto inventado');
     }
 
     public function test_nadie_ve_ni_toca_las_direcciones_de_otro_cliente(): void

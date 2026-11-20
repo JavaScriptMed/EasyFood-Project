@@ -65,6 +65,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Gestión de sesión propia
     Route::get('/auth/profile', [AuthController::class, 'profile']);
+    Route::put('/auth/profile', [AuthController::class, 'updateProfile']);
     Route::post('/auth/logout', [AuthController::class, 'logout']);
 
     // -------------------------------------------------------------
