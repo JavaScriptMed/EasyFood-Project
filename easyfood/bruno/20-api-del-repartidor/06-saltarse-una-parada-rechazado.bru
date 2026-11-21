@@ -1,0 +1,27 @@
+meta {
+  name: Saltarse una parada rechazado
+  type: http
+  seq: 6
+}
+
+post {
+  url: {{baseUrl}}/api/v1/repartidor/paradas/{{paradaDosId}}/iniciar
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenRepartidor}}
+}
+
+tests {
+  test("responde 422 orden_de_paradas (si la ruta tiene más de una parada)", function () {
+    if (!bru.getVar("paradaDosId")) return;
+    expect(res.getStatus()).to.equal(422);
+    expect(res.body.codigo).to.equal("orden_de_paradas");
+  });
+}
+
+docs {
+  Las paradas van en orden: no se inicia una hasta que las anteriores quedaron entregadas o no entregadas.
+}

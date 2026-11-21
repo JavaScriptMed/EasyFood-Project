@@ -226,6 +226,21 @@ El `geojson` puede ser Polygon, MultiPolygon, Feature o un FeatureCollection de 
 - **Generar rutas** (`POST /admin/rutas/generar { fecha }`, solo `admin`): completa las rutas de una fecha **ya cortada** con lo que quedó sin repartidor (por ejemplo, después de dar de alta a uno). Usa el mismo `GeneradorDeRutas` que el corte: por zona, primero empresas y luego clientes, sin pasar la capacidad del auto. Nunca toca una ruta existente (borrador o aprobada), no duplica incidencias abiertas y cierra solas las de «falta de repartidores» de lo que ya tiene ruta. Rechaza una fecha sin corte (`corte_pendiente`), pasada o sin servicio.
 - **Reasignar** (`GET /admin/incidencias/{id}/candidatos`, `POST /admin/incidencias/{id}/reasignar { repartidor_id, nota }`, admin y soporte): solo para una incidencia **abierta ligada a una ruta**. Es candidato el repartidor activo, disponible, distinto del actual y con capacidad libre ese día (auto menos lo que ya lleva); «alcanza» si le cabe toda la ruta. Al reasignar, la ruta cambia de repartidor (conserva su estado), la incidencia queda `reasignada` y se registra en la bitácora.
 
+## API del repartidor
+
+Solo el rol `driver` (la app móvil del repartidor). Sin chat ni GPS. Todas las rutas son `/api/v1/repartidor/...` con `Authorization: Bearer <token>`; una cuenta `driver` sin ficha de repartidor activo responde 403.
+
+| Método y ruta | Qué hace |
+|---|---|
+| `GET /disponibilidad` | `{ en_linea, estado, ruta_en_curso_id }` (`estado`: `libre`, `en_ruta` o `no_disponible`) |
+| `PATCH /disponibilidad` `{ en_linea: bool }` | Se pone en línea o fuera de línea. Fuera de línea con una ruta en curso → 422 `ruta_en_curso`. Repetirlo no cambia nada |
+| `GET /rutas?fecha=AAAA-MM-DD` | Sus rutas de ese día (por defecto hoy) con sus paradas. Solo las aprobadas por el administrador, en curso o completadas |
+| `POST /paradas/{id}/iniciar` | Inicia la siguiente parada. La primera pasa la ruta a `en_curso` y al repartidor a `en_ruta`. No deja saltarse el orden (422 `orden_de_paradas`) |
+| `POST /paradas/{id}/entregar` (multipart, `foto`) | Confirma la entrega de una parada en camino. Foto JPG, PNG o WebP de hasta 5 MB. El pedido del cliente queda `completado` |
+| `POST /paradas/{id}/no-entregada` `{ motivo }` | Marca la parada como no entregada (`no_localizado`, motivo de 3 a 255 caracteres) y abre una incidencia `entrega_no_localizada` para el administrador |
+
+Al cerrar la última parada la ruta pasa a `completada` y el repartidor a `libre`. Errores de negocio (422 con `codigo`): `ruta_en_curso`, `fuera_de_linea`, `otra_ruta_en_curso`, `ruta_completada`, `orden_de_paradas`, `parada_en_camino`, `parada_no_iniciada`, `parada_ya_atendida`. Una parada ajena, o de una ruta en borrador, responde 404. Los estados de la parada son `pendiente`, `en_camino`, `entregado` y `no_localizado`; los de la ruta, `borrador`, `aprobada`, `en_curso` y `completada`. La carpeta 20 de Bruno recorre todo el flujo.
+
 ## Cuentas: invitaciones y contraseña
 
 - **Invitar** (`POST /api/v1/cuentas/invitaciones`): administración invita a cualquier organización; una empresa, a la suya; un comedor, al suyo. Crea la cuenta **inactiva** y manda un correo con el enlace; la persona elige su contraseña al aceptar (`POST /cuentas/invitaciones/{token}/aceptar`, mínimo 8 caracteres con letras y números) y ya entra por el portal de su rol. La invitación vence a los 7 días; **reenviar** da un enlace nuevo (el anterior deja de servir). Quien acepta una invitación de empresa o comedor ve los datos de esa organización.

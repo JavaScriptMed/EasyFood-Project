@@ -19,6 +19,7 @@ use App\Http\Controllers\Api\V1\CalificacionMenuController;
 use App\Http\Controllers\Api\V1\ContactoController;
 use App\Http\Controllers\Api\V1\Empleado;
 use App\Http\Controllers\Api\V1\Empresa;
+use App\Http\Controllers\Api\V1\Repartidor;
 use App\Http\Controllers\Api\V1\MenuSemanalController;
 use App\Http\Controllers\Api\V1\Webhooks;
 use Illuminate\Support\Facades\Route;
@@ -191,6 +192,16 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('produccion', [Comedor\ProduccionController::class, 'index'])->name('produccion.index');
         Route::post('produccion/marcar-listas', [Comedor\ProduccionController::class, 'marcarListas'])->name('produccion.marcar-listas');
         Route::get('liquidaciones', [Comedor\LiquidacionController::class, 'index'])->name('liquidaciones.index');
+    });
+
+    // ------------------------------------------------------------------------------------------ API del repartidor (app móvil; solo el rol driver)
+    Route::prefix('repartidor')->name('v1.repartidor.')->middleware('role:driver')->group(function () {
+        Route::get('disponibilidad', [Repartidor\DisponibilidadController::class, 'show'])->name('disponibilidad.show');
+        Route::patch('disponibilidad', [Repartidor\DisponibilidadController::class, 'update'])->name('disponibilidad.update');
+        Route::get('rutas', [Repartidor\RutaController::class, 'index'])->name('rutas.index');
+        Route::post('paradas/{id}/iniciar', [Repartidor\ParadaController::class, 'iniciar'])->name('paradas.iniciar');
+        Route::post('paradas/{id}/entregar', [Repartidor\ParadaController::class, 'entregar'])->name('paradas.entregar');
+        Route::post('paradas/{id}/no-entregada', [Repartidor\ParadaController::class, 'noEntregada'])->name('paradas.no-entregada');
     });
 
     // ------------------------------------------------------------------------------------------ portal de empleados

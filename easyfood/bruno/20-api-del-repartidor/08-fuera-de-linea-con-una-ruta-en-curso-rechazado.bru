@@ -1,0 +1,26 @@
+meta {
+  name: Fuera de línea con una ruta en curso rechazado
+  type: http
+  seq: 8
+}
+
+patch {
+  url: {{baseUrl}}/api/v1/repartidor/disponibilidad
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenRepartidor}}
+}
+
+body:json {
+  { "en_linea": false }
+}
+
+tests {
+  test("responde 422 ruta_en_curso", function () {
+    expect(res.getStatus()).to.equal(422);
+    expect(res.body.codigo).to.equal("ruta_en_curso");
+  });
+}

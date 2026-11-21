@@ -1,0 +1,26 @@
+meta {
+  name: Entregar una parada ya atendida rechazado
+  type: http
+  seq: 11
+}
+
+post {
+  url: {{baseUrl}}/api/v1/repartidor/paradas/{{paradaUnoId}}/entregar
+  body: multipartForm
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenRepartidor}}
+}
+
+body:multipart-form {
+  foto: @file(20-api-del-repartidor/evidencia.png)
+}
+
+tests {
+  test("responde 422 parada_ya_atendida", function () {
+    expect(res.getStatus()).to.equal(422);
+    expect(res.body.codigo).to.equal("parada_ya_atendida");
+  });
+}

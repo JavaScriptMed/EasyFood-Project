@@ -1,0 +1,25 @@
+meta {
+  name: Iniciar la siguiente parada
+  type: http
+  seq: 12
+}
+
+post {
+  url: {{baseUrl}}/api/v1/repartidor/paradas/{{paradaDosId}}/iniciar
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenRepartidor}}
+}
+
+tests {
+  test("responde 200 con la segunda parada en camino (si hay)", function () {
+    if (!bru.getVar("paradaDosId")) return;
+    expect(res.getStatus()).to.equal(200);
+    expect(res.body.parada.estado).to.equal("en_camino");
+    expect(res.body.parada.orden).to.equal(2);
+    expect(res.body.ruta.estado).to.equal("en_curso");
+  });
+}

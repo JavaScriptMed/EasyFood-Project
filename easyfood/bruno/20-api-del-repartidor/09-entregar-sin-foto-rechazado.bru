@@ -1,0 +1,26 @@
+meta {
+  name: Entregar sin foto rechazado
+  type: http
+  seq: 9
+}
+
+post {
+  url: {{baseUrl}}/api/v1/repartidor/paradas/{{paradaUnoId}}/entregar
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenRepartidor}}
+}
+
+body:json {
+  {}
+}
+
+tests {
+  test("responde 422 con el error de la foto", function () {
+    expect(res.getStatus()).to.equal(422);
+    expect(res.body.errores).to.have.property("foto");
+  });
+}
