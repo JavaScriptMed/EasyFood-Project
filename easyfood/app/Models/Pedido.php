@@ -16,6 +16,7 @@ class Pedido extends ModeloEasyLunch
         'comidas_por_dia',
         'con_extra',
         'direccion_id',
+        'fecha_entrega',
         'fecha_inicio',
         'fecha_fin',
         'total',
@@ -45,6 +46,7 @@ class Pedido extends ModeloEasyLunch
     protected function casts(): array
     {
         return [
+            'fecha_entrega' => 'date:Y-m-d',
             'fecha_inicio' => 'date:Y-m-d',
             'fecha_fin' => 'date:Y-m-d',
             'total' => 'decimal:2',

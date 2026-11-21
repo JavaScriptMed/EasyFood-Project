@@ -1,0 +1,63 @@
+meta {
+  name: Pedir 2 días: todo llega junto el sábado
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{baseUrl}}/api/v1/cliente/pedidos
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenCliente}}
+}
+
+body:json {
+  {
+    "paquete_id": "{{paqueteDosDiasId}}",
+    "direccion_id": "{{direccionSabadoId}}",
+    "platillos": [
+      { "comida": "{{platilloComidaId2}}" },
+      { "comida": "{{platilloComidaId2}}" }
+    ]
+  }
+}
+
+script:post-response {
+  if (res.status === 201) {
+    bru.setVar("pedidoSabadoId", res.body.id);
+    bru.setVar("pedidoSabadoEntrega", res.body.fecha_entrega);
+  }
+}
+
+tests {
+  test("responde 201 y nace pendiente de pago", function () {
+    expect(res.getStatus()).to.equal(201);
+    expect(res.body.estado).to.equal("pendiente_pago");
+  });
+
+  test("una sola entrega, el sábado de la próxima entrega", function () {
+    expect(res.body.entregas_totales).to.equal(1);
+    expect(res.body.fecha_entrega).to.equal(bru.getVar("sabadoDeEntrega"));
+    expect(new Date(res.body.fecha_entrega + "T12:00:00Z").getUTCDay()).to.equal(6);
+  });
+
+  test("el cliente sigue viendo un día de comida por cada día elegido, después de la entrega", function () {
+    expect(res.body.dias).to.have.length(2);
+    expect(res.body.dias[0].fecha > res.body.fecha_entrega).to.equal(true);
+    expect(res.body.dias[0].fecha_entrega).to.equal(res.body.fecha_entrega);
+    expect(res.body.fecha_inicio).to.equal(res.body.dias[0].fecha);
+  });
+
+  test("vence el viernes a la hora de corte anterior a la entrega", function () {
+    const viernes = new Date(new Date(res.body.fecha_entrega + "T12:00:00Z").getTime() - 24 * 3600 * 1000).toISOString().slice(0, 10);
+    expect(res.body.vence_pago_en.slice(0, 10)).to.equal(viernes);
+    expect(res.body.segundos_para_pagar).to.be.greaterThan(0);
+  });
+}
+
+docs {
+  Un paquete de 2 días con 1 comida por día: el cliente elige el platillo de cada día, pero los dos llegan juntos en la entrega del sábado.
+}

@@ -38,11 +38,11 @@ class PlatilloDelDiaPorRezagoTest extends TestCase
     }
 
     /** @return array{0: Provider, 1: Menu} un comedor con su platillo del día para el jueves 12 */
-    private function comedorConPlatilloDelDia(int $minimo, int $porciones = 50, string $tiempo = 'comida'): array
+    private function comedorConPlatilloDelDia(int $minimo, int $porciones = 50, string $tiempo = 'comida', string $fecha = self::ENTREGA): array
     {
         $comedor = $this->comedorConContrato($minimo);
         $menu = $this->platillo($comedor, $tiempo);
-        $this->disponible($menu, self::ENTREGA, $porciones, true);
+        $this->disponible($menu, $fecha, $porciones, true);
 
         return [$comedor, $menu];
     }
@@ -75,9 +75,9 @@ class PlatilloDelDiaPorRezagoTest extends TestCase
         return $empleados;
     }
 
-    private function asignadosPorComedor(): array
+    private function asignadosPorComedor(string $fecha = self::ENTREGA): array
     {
-        return EleccionEmpleado::query()->whereDate('fecha', self::ENTREGA)->where('origen', 'por_defecto')
+        return EleccionEmpleado::query()->whereDate('fecha', $fecha)->where('origen', 'por_defecto')
             ->join('menus', 'menus.id', '=', 'elecciones_empleado.menu_id')
             ->groupBy('menus.provider_id')->selectRaw('menus.provider_id, count(*) as total')->pluck('total', 'provider_id')
             ->map(fn ($n) => (int) $n)->all();
@@ -154,13 +154,48 @@ class PlatilloDelDiaPorRezagoTest extends TestCase
         $this->assertSame([$ultimoLugar->id => 2, $segundo->id => 3], $this->asignadosPorComedor());
     }
 
-    public function test_cuentan_las_porciones_ya_elegidas_para_ese_dia_y_los_pedidos_individuales_pagados(): void
+    public function test_cuentan_las_porciones_ya_elegidas_para_ese_dia_y_los_pedidos_individuales_pagados_de_ese_sabado(): void
+    {
+        // El corte del sábado se ejecuta el viernes a las 18:30; los clientes individuales reciben ese sábado.
+        $sabado = '2026-11-14';
+        [$a] = $this->comedorConPlatilloDelDia(100, 50, 'comida', $sabado);
+        [$b] = $this->comedorConPlatilloDelDia(100, 50, 'comida', $sabado);
+        // A ya tiene 5 elecciones manuales del sábado; B tiene 2 pedidos individuales pagados que llegan ese sábado: B va más atrás.
+        $empresa = $this->empresaConContrato();
+        $menuA = Menu::where('provider_id', $a->id)->first();
+        $menuB = Menu::where('provider_id', $b->id)->first();
+        $this->disponible($menuB, '2026-11-16', 50); // el día en que se comen
+        $this->ahoraEs('2026-11-13 10:00');
+        foreach (range(1, 5) as $i) {
+            app(EleccionDePlatillos::class)->elegir($this->empleadoDe($empresa), $sabado, 'comida', $menuA);
+        }
+        $this->zonaDePruebas();
+        $cliente = \App\Models\User::findOrFail($this->usuario());
+        $direccion = Address::create(['user_id' => $cliente->id, 'street_address' => 'Av. 1', 'latitude' => 20.67, 'longitude' => -103.35]);
+        $paquete = Paquete::create(['nombre' => 'Un día', 'dias' => 1]);
+        $servicio = app(ContratacionDePaquetes::class);
+        foreach (range(1, 2) as $i) {
+            $pedido = $servicio->pedir($cliente, $paquete, $direccion, [$menuB]);
+            $this->assertSame($sabado, $pedido->fecha_entrega->toDateString());
+            $servicio->pagar($pedido, 'tarjeta', '4821');
+        }
+        $this->ahoraEs('2026-11-13 18:30');
+        $this->empleadosSinElegir(1);
+
+        app(EjecutorDelCorte::class)->ejecutar($sabado);
+
+        $this->assertSame([$b->id => 1], $this->asignadosPorComedor($sabado));
+    }
+
+    public function test_los_pedidos_individuales_de_otro_sabado_no_cuentan_para_el_corte_de_un_dia_entre_semana(): void
     {
         [$a] = $this->comedorConPlatilloDelDia(100);
         [$b] = $this->comedorConPlatilloDelDia(100);
-        // A ya tiene 5 elecciones manuales del jueves; B tiene 2 pedidos individuales pagados: B va más atrás.
+        // A tiene 5 elecciones del jueves. B tiene 6 pedidos individuales pagados, pero se entregan el sábado: no son del jueves.
         $empresa = $this->empresaConContrato();
         $menuA = Menu::where('provider_id', $a->id)->first();
+        $menuB = Menu::where('provider_id', $b->id)->first();
+        $this->disponible($menuB, '2026-11-16', 50);
         $this->ahoraEs('2026-11-11 10:00');
         foreach (range(1, 5) as $i) {
             app(EleccionDePlatillos::class)->elegir($this->empleadoDe($empresa), self::ENTREGA, 'comida', $menuA);
@@ -170,15 +205,15 @@ class PlatilloDelDiaPorRezagoTest extends TestCase
         $direccion = Address::create(['user_id' => $cliente->id, 'street_address' => 'Av. 1', 'latitude' => 20.67, 'longitude' => -103.35]);
         $paquete = Paquete::create(['nombre' => 'Un día', 'dias' => 1]);
         $servicio = app(ContratacionDePaquetes::class);
-        foreach (range(1, 2) as $i) {
-            $servicio->pagar($servicio->pedir($cliente, $paquete, $direccion, [Menu::where('provider_id', $b->id)->first()]), 'tarjeta', '4821');
+        foreach (range(1, 6) as $i) {
+            $servicio->pagar($servicio->pedir($cliente, $paquete, $direccion, [$menuB]), 'tarjeta', '4821');
         }
         $this->ahoraEs('2026-11-11 18:30');
         $this->empleadosSinElegir(1);
 
         $this->corte();
 
-        $this->assertSame([$b->id => 1], $this->asignadosPorComedor());
+        $this->assertSame([$b->id => 1], $this->asignadosPorComedor(), 'B sigue más atrás: sus 6 pedidos son del sábado, no del jueves');
     }
 
     public function test_solo_cuentan_los_platillos_del_mes_en_curso(): void

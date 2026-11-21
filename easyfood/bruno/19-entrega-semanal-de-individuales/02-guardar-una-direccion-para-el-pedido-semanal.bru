@@ -1,0 +1,37 @@
+meta {
+  name: Guardar una dirección para el pedido semanal
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/api/v1/cliente/direcciones
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenCliente}}
+}
+
+body:json {
+  {
+    "etiqueta": "Entrega del sábado",
+    "direccion": "Av. Chapultepec 480",
+    "codigo_postal": "44100",
+    "latitud": 20.676,
+    "longitud": -103.347,
+    "referencias": "Portón azul"
+  }
+}
+
+script:post-response {
+  if (res.status === 201) bru.setVar("direccionSabadoId", res.body.id);
+}
+
+tests {
+  test("responde 201 con cobertura", function () {
+    expect(res.getStatus()).to.equal(201);
+    expect(res.body.sin_cobertura).to.equal(false);
+  });
+}

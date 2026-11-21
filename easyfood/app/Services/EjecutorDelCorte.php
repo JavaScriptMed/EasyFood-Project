@@ -26,9 +26,9 @@ use Throwable;
  *  2. cierra las elecciones (cerrada_en): desde ese momento ya no se cambian;
  *  3. genera una orden de producción por comedor y platillo;
  *  4. consolida una sola entrega por empresa;
- *  5. crea rutas respetando la capacidad del auto (entregas y platillos) y agrupando por zona: primero las entregas a empresas
- *     y después las de clientes individuales (cuya zona sale de su dirección).
- * Antes de contar nada cancela los pedidos individuales por pagar que ya no se pueden pagar.
+ *  5. crea las rutas de las empresas respetando la capacidad del auto (entregas y platillos) y agrupando por zona.
+ * Los clientes individuales NO entran aquí: reciben su pedido el sábado y tienen su propio corte ({@see CorteDeIndividuales}),
+ * que corre el mismo viernes a la hora de corte.
  *
  * Es idempotente: ejecutarlo otra vez para la misma fecha no cambia nada y deja un registro «sin_cambios».
  * Si algo falla, nada se guarda salvo un registro «fallido» con el motivo, y se puede volver a ejecutar.
@@ -42,7 +42,6 @@ class EjecutorDelCorte
 
     public function __construct(
         private readonly CalendarioDeServicio $calendario,
-        private readonly ContratacionDePaquetes $paquetes,
         private readonly GeneradorDeRutas $rutas,
     ) {}
 
@@ -90,8 +89,6 @@ class EjecutorDelCorte
             ])->refresh();
         }
 
-        $this->paquetes->cancelarVencidos($ahora, $fecha);
-
         $advertencias = [];
         $contratos = $this->contratosVigentes($dia);
 
@@ -114,7 +111,7 @@ class EjecutorDelCorte
         $ordenes = $this->generarOrdenes($corte, $fecha, $porEmpresa, $contratos);
         [$rutas, $sinRuta] = $this->rutas->generar($corte, $fecha);
         if ($sinRuta > 0) {
-            $advertencias[] = "{$sinRuta} entrega(s) quedaron sin ruta por falta de repartidores con capacidad (o por una dirección sin zona): hay una incidencia abierta por cada una.";
+            $advertencias[] = "{$sinRuta} entrega(s) quedaron sin ruta por falta de repartidores con capacidad: hay una incidencia abierta por cada una.";
         }
 
         $corte->update([
@@ -322,14 +319,9 @@ class EjecutorDelCorte
         return $total;
     }
 
-    /** Una orden por comedor y platillo. Devuelve cuántas generó. */
+    /** Una orden por comedor y platillo con lo que eligieron las empresas (las porciones de clientes las suma su propio corte). */
     private function generarOrdenes(Corte $corte, string $fecha, Collection $porEmpresa, Collection $contratos): int
     {
-        $individuales = DB::table('pedido_dias as d')
-            ->join('pedidos as p', 'p.id', '=', 'd.pedido_id')->join('pedido_dia_platillos as c', 'c.pedido_dia_id', '=', 'd.id')->join('menus as m', 'm.id', '=', 'c.menu_id')
-            ->whereDate('d.fecha', $fecha)->where('d.estado', 'programada')->whereIn('p.estado', ['recibido', 'activo'])
-            ->groupBy('c.menu_id', 'm.provider_id')->select('c.menu_id', 'm.provider_id', DB::raw('count(*) as cantidad'))->get();
-
         $primeraDelDia = $porEmpresa->pluck('empresa_id')->unique()->map(fn ($id) => $contratos->get($id)?->ventana_entrega_inicio)->filter()->min();
 
         $ordenes = [];
@@ -340,20 +332,18 @@ class EjecutorDelCorte
                 'ventana' => $ventanas->min() ?? $primeraDelDia,
             ];
         }
-        foreach ($individuales as $fila) {
-            $ordenes[$fila->menu_id] ??= ['comedor_id' => $fila->provider_id, 'empresas' => 0, 'individuales' => 0, 'ventana' => $primeraDelDia];
-            $ordenes[$fila->menu_id]['individuales'] = (int) $fila->cantidad;
-        }
 
         foreach ($ordenes as $menuId => $orden) {
             $recoleccion = CarbonImmutable::createFromTimeString($orden['ventana'] ?? self::HORA_DE_ENTREGA_SIN_DATOS)
                 ->subMinutes(self::MINUTOS_ANTES_DE_LA_VENTANA)->format('H:i:s');
 
+            // Si el corte de individuales de ese sábado se ejecutó antes (a mano), sus porciones ya están en la orden: se conservan.
+            $individuales = (int) OrdenProduccion::query()->where(['comedor_id' => $orden['comedor_id'], 'menu_id' => $menuId])->whereDate('fecha', $fecha)->value('porciones_individuales');
             OrdenProduccion::updateOrCreate(
                 ['comedor_id' => $orden['comedor_id'], 'menu_id' => $menuId, 'fecha' => $fecha],
                 [
-                    'corte_id' => $corte->id, 'porciones_empresas' => $orden['empresas'], 'porciones_individuales' => $orden['individuales'],
-                    'porciones_totales' => $orden['empresas'] + $orden['individuales'], 'hora_recoleccion' => $recoleccion,
+                    'corte_id' => $corte->id, 'porciones_empresas' => $orden['empresas'], 'porciones_individuales' => $individuales,
+                    'porciones_totales' => $orden['empresas'] + $individuales, 'hora_recoleccion' => $recoleccion,
                 ],
             );
         }

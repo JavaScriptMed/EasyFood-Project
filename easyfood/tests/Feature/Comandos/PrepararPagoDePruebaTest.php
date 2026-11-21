@@ -34,7 +34,7 @@ class PrepararPagoDePruebaTest extends TestCase
         DB::table('roles')->insertOrIgnore(['id' => 1, 'name' => 'customer', 'display_name' => 'Cliente']);
         $this->zonaDePruebas();
         $menu = $this->platillo(null, 'comida', ['price' => 100]);
-        $this->disponible($menu, '2026-11-10');
+        $this->disponible($menu, '2026-11-16');
         \App\Models\Paquete::create(['nombre' => 'Un día', 'dias' => 1, 'descuento_porcentaje' => 0]);
     }
 

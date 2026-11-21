@@ -39,12 +39,23 @@ class RutaController extends Controller
         if ($dia->lt($calendario->ahora()->startOfDay())) {
             throw new ReglaDeNegocioException('fecha_pasada', 'No se pueden generar rutas de una fecha que ya pasó.');
         }
-        $corte = Corte::query()->whereDate('fecha_entrega', $fecha)->where('sin_cambios', false)->where('estado', '<>', 'fallido')->latest('id')->first();
-        if (! $corte) {
+        $cortes = Corte::query()->whereDate('fecha_entrega', $fecha)->where('sin_cambios', false)->where('estado', '<>', 'fallido')->orderByDesc('id')->get();
+        $general = $cortes->firstWhere('tipo', 'general');
+        $deIndividuales = $cortes->firstWhere('tipo', 'individuales');
+        if (! $general && ! $deIndividuales) {
             throw new ReglaDeNegocioException('corte_pendiente', "Todavía no se ejecuta el corte del {$fecha}: sin él no hay entregas que repartir.");
         }
 
-        [$creadas, $sinRuta] = $generador->generar($corte, $fecha);
+        // Las empresas (corte general) y los clientes individuales (su corte del sábado) se arman en rutas separadas.
+        $creadas = 0;
+        $sinRuta = 0;
+        foreach ([[$general, true, false], [$deIndividuales, false, true]] as [$corte, $empresas, $individuales]) {
+            if ($corte) {
+                [$c, $s] = $generador->generar($corte, $fecha, $empresas, $individuales);
+                $creadas += $c;
+                $sinRuta += $s;
+            }
+        }
         Bitacora::registrar($request->user(), 'rutas.generadas', 'rutas', $fecha, "Generó rutas del {$fecha}: {$creadas} nueva(s), {$sinRuta} entrega(s) sin ruta.");
 
         return response()->json([

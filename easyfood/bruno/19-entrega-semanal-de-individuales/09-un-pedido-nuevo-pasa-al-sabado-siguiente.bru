@@ -1,0 +1,37 @@
+meta {
+  name: Un pedido nuevo después del corte pasa al sábado siguiente
+  type: http
+  seq: 9
+}
+
+post {
+  url: {{baseUrl}}/api/v1/cliente/pedidos
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenCliente}}
+}
+
+body:json {
+  {
+    "paquete_id": "{{paqueteUnDiaId}}",
+    "direccion_id": "{{direccionSabadoId}}",
+    "platillos": [
+      { "comida": "{{platilloComidaId2}}" }
+    ]
+  }
+}
+
+tests {
+  test("responde 201", function () {
+    expect(res.getStatus()).to.equal(201);
+  });
+
+  test("ya no entra al sábado cortado: llega el sábado siguiente", function () {
+    const anterior = new Date(bru.getVar("sabadoDeEntrega") + "T12:00:00Z").getTime();
+    const nuevo = new Date(res.body.fecha_entrega + "T12:00:00Z").getTime();
+    expect(nuevo - anterior).to.equal(7 * 24 * 3600 * 1000);
+  });
+}

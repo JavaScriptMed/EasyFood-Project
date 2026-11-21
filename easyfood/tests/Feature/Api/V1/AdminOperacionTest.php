@@ -148,6 +148,51 @@ class AdminOperacionTest extends TestCase
         $siguiente->assertJsonPath('fecha_entrega', '2026-11-13')->assertJsonPath('sin_cambios', false);
     }
 
+    /** Un pedido de un cliente individual ya pagado, con su platillo con porciones el lunes 16 (el día en que se come). */
+    private function pedidoPagadoDeCliente(): void
+    {
+        $this->zonaDePruebas();
+        $cliente = User::findOrFail($this->usuario());
+        $direccion = \App\Models\Address::create(['user_id' => $cliente->id, 'street_address' => 'Av. Vallarta 100', 'latitude' => 20.67, 'longitude' => -103.35]);
+        $menu = $this->platillo();
+        $this->disponible($menu, '2026-11-16');
+        $servicio = app(\App\Services\ContratacionDePaquetes::class);
+        $servicio->pagar($servicio->pedir($cliente, \App\Models\Paquete::create(['nombre' => 'Un día', 'dias' => 1]), $direccion, [$menu]), 'tarjeta', '4821');
+    }
+
+    public function test_ejecutar_el_corte_de_individuales_cierra_el_proximo_sabado_arma_sus_rutas_y_registra_quien_lo_hizo(): void
+    {
+        $this->pedidoPagadoDeCliente();
+        $this->repartidorEn('Centro');
+
+        $respuesta = $this->postJson('/api/v1/admin/cortes/individuales/ejecutar')->assertOk();
+
+        $respuesta->assertJsonPath('fecha_entrega', '2026-11-14')->assertJsonPath('sin_cambios', false)->assertJsonPath('corte.tipo', 'individuales')
+            ->assertJsonPath('corte.ejecutado_por', $this->admin->id)->assertJsonPath('ordenes_generadas', 1)->assertJsonPath('rutas_creadas', 1)
+            ->assertJsonCount(1, 'rutas')->assertJsonPath('rutas.0.entregas', 1);
+        $this->assertSame('corte.ejecutado', RegistroAuditoria::sole()->accion);
+
+        $this->postJson('/api/v1/admin/cortes/individuales/ejecutar', ['fecha_entrega' => '2026-11-14'])->assertOk()
+            ->assertJsonPath('sin_cambios', true)->assertJsonPath('rutas_creadas', 0);
+        $this->assertSame(1, Ruta::count(), 'repetirlo no duplica rutas');
+        $this->assertSame(['individuales', 'individuales'], array_column($this->getJson('/api/v1/admin/cortes')->assertOk()->json(), 'tipo'));
+
+        // El corte de individuales no cierra las elecciones de los empleados del sábado: el corte general sigue pendiente.
+        $this->postJson('/api/v1/admin/cortes/ejecutar', ['fecha_entrega' => '2026-11-14'])->assertOk()->assertJsonPath('sin_cambios', false)->assertJsonPath('corte.tipo', 'general');
+    }
+
+    public function test_el_corte_de_individuales_solo_acepta_sabados_de_servicio_y_solo_lo_ejecuta_un_administrador(): void
+    {
+        $this->postJson('/api/v1/admin/cortes/individuales/ejecutar', ['fecha_entrega' => '2026-11-13'])->assertStatus(422)->assertJsonPath('codigo', 'dia_sin_entrega_de_individuales');
+        $this->postJson('/api/v1/admin/cortes/individuales/ejecutar', ['fecha_entrega' => '2026-11-07'])->assertStatus(422)->assertJsonPath('codigo', 'fecha_pasada');
+        $this->postJson('/api/v1/admin/cortes/individuales/ejecutar', ['fecha_entrega' => 'mañana'])->assertStatus(422)->assertJsonStructure(['errores' => ['fecha_entrega']]);
+
+        foreach (['customer', 'company', 'provider', 'support'] as $rol) {
+            $this->comoRol($rol);
+            $this->postJson('/api/v1/admin/cortes/individuales/ejecutar')->assertStatus(403);
+        }
+    }
+
     public function test_lista_el_historial_de_cortes_del_mas_reciente_al_mas_antiguo(): void
     {
         $this->postJson('/api/v1/admin/cortes/ejecutar')->assertOk();

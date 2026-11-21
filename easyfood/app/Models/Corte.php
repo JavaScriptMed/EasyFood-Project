@@ -12,6 +12,7 @@ class Corte extends ModeloEasyLunch
     public $timestamps = false;
 
     protected $fillable = [
+        'tipo',
         'fecha_entrega',
         'ejecutado_en',
         'ejecutado_por',

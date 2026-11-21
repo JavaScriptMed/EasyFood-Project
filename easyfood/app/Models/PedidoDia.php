@@ -31,7 +31,7 @@ class PedidoDia extends ModeloEasyLunch
         return $this->belongsTo(Pedido::class, 'pedido_id');
     }
 
-    /** Lo que se come ese día: un platillo por tiempo de comida. */
+    /** Todo lo que lleva esta entrega: los platillos de cada día de comida, uno por tiempo de comida. */
     public function platillos(): HasMany
     {
         return $this->hasMany(PedidoDiaPlatillo::class, 'pedido_dia_id');

@@ -62,7 +62,7 @@ class FoliosTest extends TestCase
         $cliente = User::findOrFail($this->usuario());
         $direccion = Address::create(['user_id' => $cliente->id, 'street_address' => 'Av. 1', 'latitude' => 20.67, 'longitude' => -103.35]);
         $menu = $this->platillo();
-        foreach (['2026-11-10', '2026-11-11'] as $f) {
+        foreach (['2026-11-16', '2026-11-17'] as $f) {
             $this->disponible($menu, $f);
         }
         $paquete = Paquete::create(['nombre' => 'Un día', 'dias' => 1]);
@@ -83,7 +83,7 @@ class FoliosTest extends TestCase
         $cliente = User::findOrFail($this->usuario());
         $direccion = Address::create(['user_id' => $cliente->id, 'street_address' => 'Av. 1', 'latitude' => 20.67, 'longitude' => -103.35]);
         $menu = $this->platillo();
-        $this->disponible($menu, '2026-11-10', 0);
+        $this->disponible($menu, '2026-11-16', 0);
         $paquete = Paquete::create(['nombre' => 'Un día', 'dias' => 1]);
         $this->ahoraEs('2026-11-09 10:00');
 
