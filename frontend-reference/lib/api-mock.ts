@@ -4,6 +4,7 @@
 //
 // Para probar los estados de error: localStorage.setItem('easylunch:simular-error', '1') y recarga la vista.
 
+import { ErrorApi } from './http'
 import { AHORA_MOCK, FECHA_HOY, FECHA_MANANA, MESES, MES_ACTUAL, RETARDO_API_MS, USUARIO_ACTUAL_ID, VIGENCIA_ENLACE_RESTABLECER_MIN, VIGENCIA_INVITACION_DIAS } from './config'
 import { calcularConsumo, calcularTotales } from './facturacion'
 import { errorDeContrasena } from './contrasena'
@@ -221,8 +222,10 @@ export const editarEmpresa = (empresa_id: string, datos: EdicionEmpresa) => llam
   if (!datos.nombre.trim()) throw new Error('Escribe el nombre de la empresa.')
   if (datos.porcentaje_subsidio < 0 || datos.porcentaje_subsidio > 100) throw new Error('El subsidio debe estar entre 0 y 100 %.')
   if (datos.compra_minima_mensual < 0) throw new Error('El mínimo mensual no puede ser negativo.')
+  const zonaNueva = datos.latitud != null && datos.longitud != null ? zonaDelPuntoMock(datos.latitud, datos.longitud) : null // si el punto no cae en una zona, no se cambia nada
   const contrato = contratoEmpresaDe(empresa_id)
   Object.assign(empresa, { nombre: datos.nombre.trim(), direccion_entrega: datos.direccion_entrega.trim() })
+  if (zonaNueva) Object.assign(empresa, { latitud: datos.latitud, longitud: datos.longitud, zona: zonaNueva })
   Object.assign(contrato, { porcentaje_subsidio: datos.porcentaje_subsidio, compra_minima_mensual: datos.compra_minima_mensual, ventana_entrega_inicio: datos.ventana_entrega_inicio, ventana_entrega_fin: datos.ventana_entrega_fin, hora_entrega: datos.ventana_entrega_inicio })
   const contacto = buscarUsuario(empresa.usuario_id)
   if (contacto) Object.assign(contacto, { nombre: datos.contacto_nombre.trim() || contacto.nombre, telefono: datos.contacto_telefono.trim() || null })
@@ -246,7 +249,7 @@ function zonaDelPuntoMock(latitud: number, longitud: number): string {
     const lats = anillo.map((p) => p[1])
     if (longitud >= Math.min(...lons) && longitud <= Math.max(...lons) && latitud >= Math.min(...lats) && latitud <= Math.max(...lats)) return nombre
   }
-  throw new Error('El punto de entrega está fuera de las zonas de cobertura activas.')
+  throw new ErrorApi('El punto de entrega está fuera de las zonas de cobertura activas.', 422, 'fuera_de_cobertura')
 }
 
 export const crearEmpresa = (datos: NuevaEmpresa) => llamar<EmpresaDetalle>(() => {
