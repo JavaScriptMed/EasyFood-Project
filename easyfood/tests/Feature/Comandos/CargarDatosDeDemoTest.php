@@ -42,7 +42,7 @@ class CargarDatosDeDemoTest extends TestCase
 
     private function cargar(array $extra = [])
     {
-        return $this->artisan('easylunch:cargar-demo', ['--confirmo' => true, '--clave' => 'Demo1234'] + $extra);
+        return $this->artisan('easylunch:cargar-demo', ['--confirmo' => true, '--clave' => 'Demo1234', '--crear-zonas' => true] + $extra);
     }
 
     private function enProduccion(): void
@@ -131,7 +131,7 @@ class CargarDatosDeDemoTest extends TestCase
         $this->assertSame(3, Provider::whereHas('user', $demo)->count(), 'exactamente 3 comedores');
         $this->assertSame(3, Empresa::whereHas('usuario', $demo)->count(), 'exactamente 3 empresas');
         $this->assertSame(15, Empleado::whereHas('usuario', $demo)->count(), '5 empleados por empresa');
-        $this->assertSame(['Centro', 'Tlaquepaque', 'Zapopan'], Empresa::orderBy('zona')->pluck('zona')->all());
+        $this->assertSame(['Guadalajara', 'Tlaquepaque', 'Zapopan'], Empresa::orderBy('zona')->pluck('zona')->all());
 
         $publicados = Menu::where('estado_revision', 'publicado')->whereIn('provider_id', Provider::pluck('id'))->pluck('id');
         $this->assertSame(15, $publicados->count());
@@ -188,13 +188,15 @@ class CargarDatosDeDemoTest extends TestCase
     public function test_respeta_lo_que_ya_hay_en_el_servidor_zonas_paquetes_y_cortes_reales(): void
     {
         $this->enProduccion();
-        $this->zonaDePruebasReal();
+        $this->zonasReales();
         $paquete = \App\Models\Paquete::create(['nombre' => 'Semana real', 'dias' => 6, 'descuento_porcentaje' => 20]);
         Corte::create(['fecha_entrega' => '2026-11-18', 'estado' => 'correcto', 'sin_cambios' => false]); // un corte real de un día del historial
 
         $this->cargar()->assertExitCode(0);
 
-        $this->assertSame(1, DB::table('zonas')->whereRaw("lower(nombre) = 'centro'")->count(), 'reutiliza la zona que ya existe');
+        $this->assertSame(3, DB::table('zonas')->count(), 'reutiliza las tres zonas del servidor sin crear ninguna');
+        $this->assertSame(['Guadalajara', 'Tlaquepaque', 'Zapopan'], DB::table('zonas')->orderBy('nombre')->pluck('nombre')->all());
+        $this->assertSame(0, DB::table('addresses')->where('sin_cobertura', true)->count(), 'las direcciones de los clientes caen dentro de los polígonos reales');
         $this->assertSame(1, \App\Models\Paquete::where('dias', 6)->count(), 'reutiliza el paquete de 6 días del servidor');
         $this->assertSame($paquete->id, \App\Models\Paquete::where('dias', 6)->value('id'));
         $this->assertSame(1, Corte::whereDate('fecha_entrega', '2026-11-18')->where('tipo', 'general')->count(), 'el corte real de ese día se respeta');
@@ -246,9 +248,35 @@ class CargarDatosDeDemoTest extends TestCase
         $this->assertGreaterThan(0, Parada::where('estado', 'no_localizado')->whereNotNull('motivo_no_entrega')->count());
     }
 
-    /** Una zona «Centro» real del servidor (otro polígono que el de ejemplo). */
-    private function zonaDePruebasReal(): void
+    /** Las tres zonas reales del servidor, con polígonos distintos a los de ejemplo (más grandes y sin traslapar). */
+    private function zonasReales(): void
     {
-        DB::insert("insert into zonas (nombre, area) values ('Centro', ST_Multi(ST_GeomFromText('POLYGON((-103.40 20.60, -103.30 20.60, -103.30 20.72, -103.40 20.72, -103.40 20.60))', 4326))::geography)");
+        foreach (['Zapopan' => '-103.60 20.66, -103.40 20.66, -103.40 20.90, -103.60 20.90, -103.60 20.66', 'Guadalajara' => '-103.40 20.60, -103.30 20.60, -103.30 20.72, -103.40 20.72, -103.40 20.60', 'Tlaquepaque' => '-103.30 20.55, -103.20 20.55, -103.20 20.65, -103.30 20.65, -103.30 20.55'] as $nombre => $vertices) {
+            DB::insert("insert into zonas (nombre, area) values (?, ST_Multi(ST_GeomFromText('POLYGON(({$vertices}))', 4326))::geography)", [$nombre]);
+        }
+    }
+
+    public function test_sin_las_zonas_reales_se_detiene_antes_de_crear_nada_y_dice_cuales_faltan(): void
+    {
+        $this->enProduccion();
+        DB::insert("insert into zonas (nombre, area) values ('Zapopan', ST_Multi(ST_GeomFromText('POLYGON((-103.60 20.66, -103.40 20.66, -103.40 20.90, -103.60 20.90, -103.60 20.66))', 4326))::geography)");
+        $antes = $this->fotoDeLasTablas();
+
+        $this->artisan('easylunch:cargar-demo', ['--confirmo' => true, '--clave' => 'Demo1234'])
+            ->expectsOutputToContain('faltan las zonas Tlaquepaque, Guadalajara')->assertExitCode(1);
+
+        $this->assertSame($antes, $this->fotoDeLasTablas(), 'no creó zonas inventadas ni nada más');
+    }
+
+    public function test_con_las_zonas_reales_importadas_carga_sin_pedir_crearlas(): void
+    {
+        $this->enProduccion();
+        $this->zonasReales();
+
+        $this->artisan('easylunch:cargar-demo', ['--confirmo' => true, '--clave' => 'Demo1234'])->assertExitCode(0);
+
+        $this->assertSame(3, DB::table('zonas')->count());
+        $this->assertSame(['Guadalajara', 'Tlaquepaque', 'Zapopan'], Provider::orderBy('zona')->pluck('zona')->unique()->values()->all());
+        $this->assertSame(3, Ruta::whereDate('fecha', '2026-11-24')->count(), 'una ruta por cada zona real');
     }
 }

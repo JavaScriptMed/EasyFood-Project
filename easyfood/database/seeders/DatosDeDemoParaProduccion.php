@@ -48,6 +48,14 @@ class DatosDeDemoParaProduccion extends DatosDeEjemploSeeder
 {
     public const DOMINIO = 'demo.easylunch.test';
 
+    /**
+     * Las zonas que usa la demo: las del servidor (Zapopan, Tlaquepaque y Guadalajara, importadas con su polígono real). Los rectángulos
+     * solo sirven para `--crear-zonas` en un entorno sin zonas reales (desarrollo o pruebas).
+     *
+     * @var array<string, array{0: float, 1: float, 2: float, 3: float}>
+     */
+    public const ZONAS_DE_DEMO = ['Zapopan' => [-103.50, 20.66, -103.38, 20.80], 'Tlaquepaque' => [-103.34, 20.60, -103.26, 20.65], 'Guadalajara' => [-103.38, 20.65, -103.31, 20.70]];
+
     /** Si esta cuenta existe, la demo ya se cargó. */
     public const MARCADOR = 'comedor.norte@demo.easylunch.test';
 
@@ -73,7 +81,7 @@ class DatosDeDemoParaProduccion extends DatosDeEjemploSeeder
     /**
      * @return array<string, int> lo que se creó, por concepto
      */
-    public function cargar(string $contrasena, User $admin, string $desde, string $hasta): array
+    public function cargar(string $contrasena, User $admin, string $desde, string $hasta, bool $crearZonas = false): array
     {
         $this->contrasena = $contrasena;
         $this->calendario = app(CalendarioDeServicio::class);
@@ -84,6 +92,7 @@ class DatosDeDemoParaProduccion extends DatosDeEjemploSeeder
         $this->conteos = [];
 
         $this->exigirQueNoChoque();
+        $this->exigirZonas($crearZonas);
 
         DB::transaction(function () {
             // El historial inserta elecciones de días pasados, y en un servidor que ya opera esos días pueden tener su corte real:
@@ -91,7 +100,7 @@ class DatosDeDemoParaProduccion extends DatosDeEjemploSeeder
             DB::unprepared('ALTER TABLE elecciones_empleado DISABLE TRIGGER elecciones_empleado_tras_corte');
 
             app(InitialDataSeeder::class)->run(); // los siete roles (insertOrIgnore)
-            $this->zonasSinDuplicar();
+            $this->crearZonasFaltantes();
             $comedores = $this->comedoresDeDemo();
             $empresas = $this->empresasDeDemo();
             $empleados = $this->empleadosDeDemo($empresas);
@@ -142,14 +151,27 @@ class DatosDeDemoParaProduccion extends DatosDeEjemploSeeder
 
     // ------------------------------------------------------------------ zonas, comedores, empresas y personas
 
-    /** Usa las zonas del servidor (por nombre); solo crea las que no existen. */
-    private function zonasSinDuplicar(): void
+    /** @return array<int, string> las zonas de la demo que todavía no existen en el servidor */
+    private function zonasFaltantes(): array
     {
-        foreach (self::ZONAS as $nombre => $rectangulo) {
-            if (! DB::table('zonas')->whereRaw('lower(nombre) = ?', [mb_strtolower($nombre)])->exists()) {
-                $this->crearZona($nombre, $rectangulo);
-                $this->contar('zonas creadas');
-            }
+        return array_values(array_filter(array_keys(self::ZONAS_DE_DEMO), fn ($nombre) => ! DB::table('zonas')->whereRaw('lower(nombre) = ?', [mb_strtolower($nombre)])->exists()));
+    }
+
+    /** La demo usa las zonas reales del servidor: si falta alguna se detiene antes de crear nada (salvo con --crear-zonas). */
+    private function exigirZonas(bool $crearZonas): void
+    {
+        $faltan = $this->zonasFaltantes();
+        if ($faltan && ! $crearZonas) {
+            throw new RuntimeException('No se cargó nada: faltan las zonas '.implode(', ', $faltan).'. Impórtalas primero en el panel (Zonas → Importar varias), o usa --crear-zonas para crear unos rectángulos de ejemplo (solo para desarrollo).');
+        }
+    }
+
+    /** Con --crear-zonas, las que falten se crean como rectángulos de ejemplo; las que ya existen no se tocan. */
+    private function crearZonasFaltantes(): void
+    {
+        foreach ($this->zonasFaltantes() as $nombre) {
+            $this->crearZona($nombre, self::ZONAS_DE_DEMO[$nombre]);
+            $this->contar('zonas creadas');
         }
     }
 
@@ -170,7 +192,7 @@ class DatosDeDemoParaProduccion extends DatosDeEjemploSeeder
         $comedores = [];
         foreach ([
             ['norte', 'Laura', 'Gómez', 'Cocina La Estancia S.A. de C.V.', 'Cocina La Estancia', 'Zapopan', 20.72, -103.42],
-            ['centro', 'Andrés', 'Valdés', 'Sazón del Centro S.A.', 'Sazón del Centro', 'Centro', 20.675, -103.35],
+            ['centro', 'Andrés', 'Valdés', 'Sazón del Centro S.A.', 'Sazón del Centro', 'Guadalajara', 20.675, -103.35],
             ['tlaquepaque', 'Rosa', 'Medina', 'Fogón de Tlaquepaque S.A. de C.V.', 'Fogón de Tlaquepaque', 'Tlaquepaque', 20.63, -103.30],
         ] as [$clave, $contacto, $apellido, $negocio, $marca, $zona, $lat, $lon]) {
             $correo = $this->correo('comedor.'.$clave);
@@ -194,7 +216,7 @@ class DatosDeDemoParaProduccion extends DatosDeEjemploSeeder
         $empresas = [];
         foreach ([
             ['nexo', 'Mariana', 'Ortega', 'Manufacturas Nexo', 'Zapopan', 60, 420, '12:00', '12:20', '12:10'],
-            ['pacifico', 'Ricardo', 'Salas', 'Pacífico Logística', 'Centro', 50, 300, '13:00', '13:20', '13:10'],
+            ['pacifico', 'Ricardo', 'Salas', 'Pacífico Logística', 'Guadalajara', 50, 300, '13:00', '13:20', '13:10'],
             ['alameda', 'Lorena', 'Beltrán', 'Corporativo Alameda', 'Tlaquepaque', 55, 250, '13:30', '13:50', '13:40'],
         ] as [$clave, $nombre, $apellido, $razon, $zona, $subsidio, $minimo, $inicio, $fin, $hora]) {
             $usuario = $this->persona('company', $nombre, $apellido, $this->correo('rrhh.'.$clave));
@@ -300,7 +322,7 @@ class DatosDeDemoParaProduccion extends DatosDeEjemploSeeder
     private function repartidoresDeDemo(): array
     {
         $repartidores = [];
-        foreach ([['zapopan', 'Héctor', 'Jiménez', 'Zapopan'], ['centro', 'Paola', 'Reyes', 'Centro'], ['tlaquepaque', 'Iván', 'Ortiz', 'Tlaquepaque']] as $i => [$clave, $nombre, $apellido, $zona]) {
+        foreach ([['zapopan', 'Héctor', 'Jiménez', 'Zapopan'], ['guadalajara', 'Paola', 'Reyes', 'Guadalajara'], ['tlaquepaque', 'Iván', 'Ortiz', 'Tlaquepaque']] as $i => [$clave, $nombre, $apellido, $zona]) {
             $usuario = $this->persona('driver', $nombre, $apellido, $this->correo('repartidor.'.$clave));
             $repartidores[$clave] = Repartidor::create(['usuario_id' => $usuario->id, 'numero_empleado' => 'DEMO-R'.($i + 1), 'placas' => 'DEMO-'.(100 + $i), 'zona_base' => $this->zona($zona)]);
             $this->contar('repartidores');
@@ -313,7 +335,7 @@ class DatosDeDemoParaProduccion extends DatosDeEjemploSeeder
     private function clientesDeDemo(): array
     {
         $clientes = [];
-        foreach ([['cecilia', 'Cecilia', 'Navarro', 'Centro', 'Av. Vallarta 1248'], ['daniel', 'Daniel', 'Ibarra', 'Zapopan', 'Av. Patria 1500'], ['elisa', 'Elisa', 'Montes', 'Tlaquepaque', 'Av. Revolución 800']] as [$clave, $nombre, $apellido, $zona, $calle]) {
+        foreach ([['cecilia', 'Cecilia', 'Navarro', 'Guadalajara', 'Av. Vallarta 1248'], ['daniel', 'Daniel', 'Ibarra', 'Zapopan', 'Av. Patria 1500'], ['elisa', 'Elisa', 'Montes', 'Tlaquepaque', 'Av. Revolución 800']] as [$clave, $nombre, $apellido, $zona, $calle]) {
             $usuario = $this->persona('customer', $nombre, $apellido, $this->correo('cliente.'.$clave));
             $punto = $this->puntoDe($zona);
             $direccion = Address::create(['user_id' => $usuario->id, 'label' => 'Casa', 'street_address' => $calle, 'postal_code' => '44100', 'latitude' => $punto->lat, 'longitude' => $punto->lon, 'delivery_instructions' => 'Timbre azul', 'is_default' => true]);

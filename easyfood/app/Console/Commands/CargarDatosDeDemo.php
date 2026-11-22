@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\Validator;
 
 class CargarDatosDeDemo extends Command
 {
-    protected $signature = 'easylunch:cargar-demo {--confirmo : Confirma que quieres cargar datos de demo en ESTE servidor} {--clave= : Contraseña de las cuentas de demo (si no, se pide sin mostrarla)} {--desde=2026-11-24 : Primer día de la ventana activa} {--hasta=2026-12-06 : Último día de la ventana activa}';
+    protected $signature = 'easylunch:cargar-demo {--confirmo : Confirma que quieres cargar datos de demo en ESTE servidor} {--clave= : Contraseña de las cuentas de demo (si no, se pide sin mostrarla)} {--desde=2026-11-24 : Primer día de la ventana activa} {--hasta=2026-12-06 : Último día de la ventana activa} {--crear-zonas : Si faltan Zapopan, Tlaquepaque o Guadalajara, crea rectángulos de ejemplo (solo desarrollo; en el servidor importa las zonas reales)}';
 
     protected $description = 'Carga datos de demo (3 comedores, 3 empresas con empleados, platillos con porciones, historial y rutas activas). Corre en producción solo con --confirmo; se puede repetir sin duplicar nada';
 
@@ -28,6 +28,7 @@ class CargarDatosDeDemo extends Command
 
         if (! $this->option('confirmo')) {
             $this->warn('Esto carga datos de demo en el servidor «'.config('app.env').'» (base «'.config('database.connections.'.config('database.default').'.database').'»):');
+            $this->line('  · usa las zonas Zapopan, Tlaquepaque y Guadalajara (tienen que existir; impórtalas antes);');
             $this->line('  · 3 comedores y 3 empresas con 5 empleados cada una, platillos publicados y sus porciones;');
             $this->line('  · historial de varias semanas: pedidos, entregas, rutas, incidencias y liquidaciones;');
             $this->line("  · elecciones, entregas y rutas aprobadas del {$desde} al {$hasta}.");
@@ -58,7 +59,7 @@ class CargarDatosDeDemo extends Command
         }
 
         try {
-            $conteos = $demo->cargar($contrasena, $admin, $desde, $hasta);
+            $conteos = $demo->cargar($contrasena, $admin, $desde, $hasta, (bool) $this->option('crear-zonas'));
         } catch (\RuntimeException $e) {
             $this->error($e->getMessage());
 
@@ -67,7 +68,7 @@ class CargarDatosDeDemo extends Command
 
         $this->info('Datos de demo cargados.');
         $this->table(['Concepto', 'Cantidad'], collect($conteos)->map(fn ($n, $concepto) => [$concepto, $n])->values()->all());
-        $this->line('Cuentas de demo (@'.DatosDeDemoParaProduccion::DOMINIO.'): comedor.norte, rrhh.nexo, repartidor.centro, cliente.cecilia… con la contraseña que diste.');
+        $this->line('Cuentas de demo (@'.DatosDeDemoParaProduccion::DOMINIO.'): comedor.norte, rrhh.nexo, repartidor.centro, cliente.cecilia… con la contraseña que diste (repartidor.guadalajara, repartidor.zapopan, repartidor.tlaquepaque).');
 
         return self::SUCCESS;
     }
