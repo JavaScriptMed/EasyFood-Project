@@ -18,6 +18,17 @@ class AvanceDeRutasTest extends TestCase
         return DB::table('paradas')->insertGetId($extra + ['ruta_id' => $ruta, 'orden' => 1, 'entrega_empresa_id' => $this->entrega(), 'nombre_destinatario' => 'Nexo', 'direccion' => 'Av. 1', 'hora_estimada' => '12:30']);
     }
 
+    public function test_las_restricciones_de_las_paradas_no_revalidan_lo_que_ya_existia_pero_exigen_todo_lo_nuevo(): void
+    {
+        // NOT VALID: un historial cargado antes de la migración (paradas entregadas sin evidencia) no la hace fallar.
+        $sinValidar = DB::selectOne("select count(*) as n from pg_constraint where conrelid = 'paradas'::regclass and not convalidated and conname in ('paradas_inicio_coherente', 'paradas_cierre_coherente', 'paradas_entregada_con_evidencia', 'paradas_no_entregada_con_motivo')");
+        $this->assertSame(4, (int) $sinValidar->n);
+
+        // …pero siguen aplicándose a toda fila nueva.
+        $this->rechaza('paradas_entregada_con_evidencia', fn () => $this->parada($this->ruta(), ['estado' => 'entregado', 'iniciada_en' => now(), 'cerrada_en' => now()]));
+        $this->rechaza('paradas_inicio_coherente', fn () => $this->parada($this->ruta(), ['estado' => 'en_camino']));
+    }
+
     public function test_una_ruta_en_curso_trae_su_inicio_y_una_completada_su_fin(): void
     {
         $inicio = now();

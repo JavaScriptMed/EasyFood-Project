@@ -33,10 +33,16 @@ return new class extends Migration
         });
         DB::unprepared('ALTER TABLE paradas DROP CONSTRAINT paradas_estado_valido');
         Esquema::enumerado('paradas', 'estado', ['pendiente', 'en_camino', 'entregado', 'no_localizado']);
-        Esquema::check('paradas', 'inicio_coherente', "(estado = 'pendiente') = (iniciada_en IS NULL)");
-        Esquema::check('paradas', 'cierre_coherente', "(estado IN ('entregado', 'no_localizado')) = (cerrada_en IS NOT NULL)");
-        Esquema::check('paradas', 'entregada_con_evidencia', "estado <> 'entregado' OR evidencia_foto_url IS NOT NULL");
-        Esquema::check('paradas', 'no_entregada_con_motivo', "estado <> 'no_localizado' OR (motivo_no_entrega IS NOT NULL AND length(btrim(motivo_no_entrega)) > 0)");
+        // NOT VALID: las paradas que ya estaban cerradas antes de esta migración (por ejemplo, un historial de demo) no traen inicio, cierre,
+        // evidencia ni motivo y no se revalidan; toda parada nueva, y toda fila que se edite, sí tiene que cumplirlas.
+        foreach ([
+            'inicio_coherente' => "(estado = 'pendiente') = (iniciada_en IS NULL)",
+            'cierre_coherente' => "(estado IN ('entregado', 'no_localizado')) = (cerrada_en IS NOT NULL)",
+            'entregada_con_evidencia' => "estado <> 'entregado' OR evidencia_foto_url IS NOT NULL",
+            'no_entregada_con_motivo' => "estado <> 'no_localizado' OR (motivo_no_entrega IS NOT NULL AND length(btrim(motivo_no_entrega)) > 0)",
+        ] as $nombre => $expresion) {
+            DB::unprepared("ALTER TABLE paradas ADD CONSTRAINT paradas_{$nombre} CHECK ({$expresion}) NOT VALID");
+        }
     }
 
     public function down(): void
