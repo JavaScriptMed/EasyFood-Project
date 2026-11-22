@@ -28,6 +28,16 @@ tests {
     expect(res.body[0].paradas.length).to.be.greaterThan(0);
     expect(res.body[0].entregas_asignadas).to.be.at.most(res.body[0].capacidad_entregas);
   });
+
+  test("cada parada trae la foto de evidencia y el motivo de no entrega (null si no aplican)", function () {
+    res.body.forEach((ruta) => ruta.paradas.forEach((parada) => {
+      expect(parada).to.have.property("evidencia_foto_url");
+      expect(parada).to.have.property("motivo_no_entrega");
+      if (parada.estado === "entregado") expect(parada.evidencia_foto_url).to.be.a("string");
+      if (parada.estado === "no_localizado") expect(parada.motivo_no_entrega).to.be.a("string");
+      if (parada.estado === "pendiente") { expect(parada.evidencia_foto_url).to.equal(null); expect(parada.motivo_no_entrega).to.equal(null); }
+    }));
+  });
 }
 
 docs {

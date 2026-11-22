@@ -22,4 +22,13 @@ tests {
   test("con su zona", function () {
     expect(res.body[0]).to.have.property("zona");
   });
+
+  test("con la evidencia de entrega (null si todavía no hay)", function () {
+    res.body.forEach((p) => {
+      expect(p).to.have.property("tiene_evidencia");
+      expect(p).to.have.property("evidencia_foto_url");
+      if (p.evidencia_foto_url !== null) expect(p.evidencia_foto_url).to.be.a("string").and.to.match(/^https?:\/\//);
+      expect(p.tiene_evidencia).to.equal(p.evidencia_foto_url !== null);
+    });
+  });
 }
