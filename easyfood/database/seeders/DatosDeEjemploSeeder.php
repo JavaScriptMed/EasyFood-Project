@@ -49,11 +49,11 @@ class DatosDeEjemploSeeder extends Seeder
 {
     private const ROLES = ['customer' => 1, 'admin' => 2, 'driver' => 3, 'provider' => 4, 'support' => 5, 'company' => 6, 'employee' => 7];
 
-    private string $contrasena;
+    protected string $contrasena;
 
-    private CarbonImmutable $hoy;
+    protected CarbonImmutable $hoy;
 
-    private CalendarioDeServicio $calendario;
+    protected CalendarioDeServicio $calendario;
 
     public function run(CalendarioDeServicio $calendario, EleccionDePlatillos $elecciones, ContratacionDePaquetes $paquetes): void
     {
@@ -97,7 +97,7 @@ class DatosDeEjemploSeeder extends Seeder
 
     // ------------------------------------------------------------------ personas y organizaciones
 
-    private function persona(string $rol, string $nombre, string $apellido, string $correo, ?string $telefono = null): User
+    protected function persona(string $rol, string $nombre, string $apellido, string $correo, ?string $telefono = null): User
     {
         $usuario = User::create(['role_id' => self::ROLES[$rol], 'name' => "{$nombre} {$apellido}", 'email' => $correo, 'password' => $this->contrasena, 'status' => 'active']);
         UserProfile::create(['user_id' => $usuario->id, 'first_name' => $nombre, 'last_name' => $apellido, 'phone' => $telefono ?? '33 '.random_int(1000, 9999).' '.random_int(1000, 9999)]);
@@ -105,15 +105,23 @@ class DatosDeEjemploSeeder extends Seeder
         return $usuario;
     }
 
-    private function zonas(): void
+    /** lon mínima, lat mínima, lon máxima, lat máxima (rectángulos aproximados, de ejemplo) */
+    protected const ZONAS = ['Centro' => [-103.38, 20.65, -103.31, 20.70], 'Zapopan' => [-103.50, 20.66, -103.38, 20.80], 'Tlaquepaque' => [-103.34, 20.60, -103.26, 20.65]];
+
+    protected function zonas(): void
     {
-        // lon mínima, lat mínima, lon máxima, lat máxima (rectángulos aproximados, de ejemplo)
-        $zonas = ['Centro' => [-103.38, 20.65, -103.31, 20.70], 'Zapopan' => [-103.50, 20.66, -103.38, 20.80], 'Tlaquepaque' => [-103.34, 20.60, -103.26, 20.65]];
-        foreach ($zonas as $nombre => [$x1, $y1, $x2, $y2]) {
-            DB::insert('insert into zonas (nombre, area) values (?, ST_Multi(ST_GeomFromText(?, 4326))::geography)', [
-                $nombre, "POLYGON(({$x1} {$y1}, {$x2} {$y1}, {$x2} {$y2}, {$x1} {$y2}, {$x1} {$y1}))",
-            ]);
+        foreach (self::ZONAS as $nombre => $rectangulo) {
+            $this->crearZona($nombre, $rectangulo);
         }
+    }
+
+    /** @param  array{0: float, 1: float, 2: float, 3: float}  $rectangulo */
+    protected function crearZona(string $nombre, array $rectangulo): void
+    {
+        [$x1, $y1, $x2, $y2] = $rectangulo;
+        DB::insert('insert into zonas (nombre, area) values (?, ST_Multi(ST_GeomFromText(?, 4326))::geography)', [
+            $nombre, "POLYGON(({$x1} {$y1}, {$x2} {$y1}, {$x2} {$y2}, {$x1} {$y2}, {$x1} {$y1}))",
+        ]);
     }
 
     /** @return array{0: Provider, 1: Provider} */
@@ -214,7 +222,7 @@ class DatosDeEjemploSeeder extends Seeder
      *
      * @return array<string, CatalogCategory> categorías de platillo por código
      */
-    private function catalogos(): array
+    protected function catalogos(): array
     {
         $tipos = [];
         foreach (['PLATO_FUERTE' => 'Plato fuerte', 'SOPA_Y_CALDO' => 'Sopa y caldo', 'ANTOJITO' => 'Antojito', 'SANDWICH' => 'Sándwich', 'ENSALADA' => 'Ensalada', 'POSTRE' => 'Postre', 'BEBIDA' => 'Bebida'] as $codigo => $nombre) {
@@ -242,7 +250,7 @@ class DatosDeEjemploSeeder extends Seeder
         $publicados = array_merge($menus['comida'], $menus['desayuno'], $menus['cena']);
         $delDia = [$menus['comida'][0]->id, $menus['comida'][3]->id]; // el comedor marca un platillo del día por tiempo de comida
 
-        foreach ($this->proximosDiasDeServicio(16) as $fecha) { // dos semanas: un pedido de clientes llega el sábado y se come la semana siguiente
+        foreach ($this->proximosDiasDeServicio(24) as $fecha) { // cuatro semanas: un pedido de clientes llega el sábado (o el siguiente, si hay un festivo) y se come la semana posterior
             foreach ($publicados as $menu) {
                 DisponibilidadDia::create(['menu_id' => $menu->id, 'fecha' => $fecha->toDateString(), 'porciones_maximas' => 40, 'es_platillo_del_dia' => in_array($menu->id, $delDia, true)]);
             }
@@ -250,7 +258,7 @@ class DatosDeEjemploSeeder extends Seeder
     }
 
     /** @return array<int, CarbonImmutable> */
-    private function proximosDiasDeServicio(int $cuantos): array
+    protected function proximosDiasDeServicio(int $cuantos): array
     {
         $fechas = [];
         for ($dia = $this->hoy->addDay(); count($fechas) < $cuantos; $dia = $dia->addDay()) {
@@ -265,7 +273,7 @@ class DatosDeEjemploSeeder extends Seeder
     // ------------------------------------------------------------------ historial (para facturar, liquidar y repetir el último platillo)
 
     /** @param  array<int, Empleado>  $empleados */
-    private function historial(array $empleados, array $menus): void
+    protected function historial(array $empleados, array $menus): void
     {
         $inicioMesPasado = $this->hoy->subMonthNoOverflow()->startOfMonth();
         $fechas = [];
@@ -318,8 +326,11 @@ class DatosDeEjemploSeeder extends Seeder
                     'porciones_empresas' => $lista->count(), 'porciones_individuales' => 0, 'hora_recoleccion' => '11:00', 'estado' => 'lista',
                 ]);
             }
-            Corte::create(['fecha_entrega' => $fecha->toDateString(), 'ejecutado_en' => $fecha->subDay()->setTime(18, 0), 'estado' => 'correcto', 'sin_cambios' => false,
-                'elecciones_cerradas' => count($empleados), 'ordenes_generadas' => count($porEmpresa), 'entregas_consolidadas' => count($porEmpresa)]);
+            // Si ya hay un corte real de ese día (en un servidor que ya opera) se respeta: solo puede haber uno por día.
+            if (! Corte::query()->where('tipo', 'general')->where('sin_cambios', false)->where('estado', '<>', 'fallido')->whereDate('fecha_entrega', $fecha->toDateString())->exists()) {
+                Corte::create(['fecha_entrega' => $fecha->toDateString(), 'ejecutado_en' => $fecha->subDay()->setTime(18, 0), 'estado' => 'correcto', 'sin_cambios' => false,
+                    'elecciones_cerradas' => count($empleados), 'ordenes_generadas' => count($porEmpresa), 'entregas_consolidadas' => count($porEmpresa)]);
+            }
         }
     }
 
