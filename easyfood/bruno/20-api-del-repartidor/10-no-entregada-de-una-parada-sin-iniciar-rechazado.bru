@@ -1,0 +1,26 @@
+meta {
+  name: No entregada de una parada sin iniciar rechazado
+  type: http
+  seq: 10
+}
+
+post {
+  url: {{baseUrl}}/api/v1/repartidor/paradas/{{paradaUnoId}}/no-entregada
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenRepartidor}}
+}
+
+body:json {
+  { "motivo": "Nadie abrió la puerta" }
+}
+
+tests {
+  test("responde 422 parada_no_iniciada", function () {
+    expect(res.getStatus()).to.equal(422);
+    expect(res.body.codigo).to.equal("parada_no_iniciada");
+  });
+}

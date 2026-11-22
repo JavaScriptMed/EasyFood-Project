@@ -32,6 +32,9 @@ tests {
   test("ya no entra al sábado cortado: llega el sábado siguiente", function () {
     const anterior = new Date(bru.getVar("sabadoDeEntrega") + "T12:00:00Z").getTime();
     const nuevo = new Date(res.body.fecha_entrega + "T12:00:00Z").getTime();
-    expect(nuevo - anterior).to.equal(7 * 24 * 3600 * 1000);
+    const semana = 7 * 24 * 3600 * 1000;
+    expect(nuevo).to.be.greaterThan(anterior); // el siguiente sábado de servicio (se salta uno festivo, por eso puede ser en 7 o 14 días)
+    expect((nuevo - anterior) % semana).to.equal(0);
+    expect(new Date(res.body.fecha_entrega + "T12:00:00Z").getUTCDay()).to.equal(6);
   });
 }

@@ -1,0 +1,30 @@
+meta {
+  name: Entregar una parada sin iniciar rechazado
+  type: http
+  seq: 7
+}
+
+post {
+  url: {{baseUrl}}/api/v1/repartidor/paradas/{{paradaUnoId}}/entregar
+  body: multipartForm
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenRepartidor}}
+}
+
+body:multipart-form {
+  foto: @file(20-api-del-repartidor/evidencia.png)
+}
+
+tests {
+  test("responde 422 parada_no_iniciada", function () {
+    expect(res.getStatus()).to.equal(422);
+    expect(res.body.codigo).to.equal("parada_no_iniciada");
+  });
+}
+
+docs {
+  Primero se inicia la parada; después se confirma la entrega con la foto (JPG, PNG o WebP de hasta 5 MB en el campo `foto`).
+}
