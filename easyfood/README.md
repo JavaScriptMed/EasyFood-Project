@@ -208,6 +208,8 @@ El correo es el acceso de la cuenta, así que solo se corrige **mientras la pers
 
 ## Zonas de entrega
 
+**Punto de entrega de las empresas.** `POST /admin/empresas` y `PUT /admin/empresas/{id}` aceptan `latitud` y `longitud` (opcionales, las dos o ninguna; -90 a 90 y -180 a 180; se guardan con 6 decimales). Con punto, la zona se calcula sola con PostGIS (`ST_Covers`, igual que las direcciones de clientes: gana la zona activa más pequeña) y **manda sobre cualquier `zona` que se envíe**; un punto fuera de toda zona activa responde 422 `fuera_de_cobertura`. Sin punto, el alta sigue pidiendo `zona` y la edición conserva la que tenía. Editar el polígono de una zona nunca mueve empresas: la zona de una empresa solo cambia al guardar un punto nuevo. `GET /admin/rutas` trae `ubicacion` (`{ latitud, longitud }` o `null`) en cada parada (clientes: el punto de la dirección; empresas: su punto guardado), y `GET /repartidor/rutas` la rellena para las paradas de empresa que ya tienen punto. El front usa Mapbox (`NEXT_PUBLIC_MAPBOX_TOKEN`, token público `pk.`; sin él los mapas muestran un aviso).
+
 Un polígono por zona (PostGIS). Su **nombre** es el texto que se escribe en empresas, comedores, repartidores y direcciones, así que **no se renombra**. Solo `admin`.
 
 | Qué | Endpoint |

@@ -92,11 +92,15 @@ final class VistaDelRepartidor
     private static function paradaDeEmpresa(Parada $p, ?EntregaEmpresa $entrega, ?object $punto, Collection $platillosDeEmpresas): array
     {
         $platillos = $platillosDeEmpresas->get($entrega ? "{$entrega->empresa_id}|{$entrega->fecha->toDateString()}" : '', []);
+        $empresa = $entrega?->empresa;
+        if ($punto === null && $empresa && $empresa->latitud !== null && $empresa->longitud !== null) {
+            $punto = (object) ['lat' => $empresa->latitud, 'lon' => $empresa->longitud];
+        }
 
         return self::base($p, 'empresa', $punto, $platillos) + [
             'referencias' => null,
-            'contacto_nombre' => $entrega?->empresa?->usuario?->name, // RR. HH.: por quién preguntar en la entrada
-            'telefono' => $entrega?->empresa?->usuario?->profile?->phone,
+            'contacto_nombre' => $empresa?->usuario?->name, // RR. HH.: por quién preguntar en la entrada
+            'telefono' => $empresa?->usuario?->profile?->phone,
             'folio' => null,
         ];
     }
@@ -117,7 +121,7 @@ final class VistaDelRepartidor
 
     // ------------------------------------------------------------------ consultas en lote
 
-    /** El punto en el mapa de cada parada (PostGIS). Las empresas no tienen punto guardado: salen sin él. */
+    /** El punto en el mapa de cada parada (PostGIS). Para empresas sin punto en `paradas` se usa `empresas.latitud`/`longitud` si existen. */
     private static function puntos(Collection $paradas): Collection
     {
         if ($paradas->isEmpty()) {
