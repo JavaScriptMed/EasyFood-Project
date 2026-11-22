@@ -208,6 +208,8 @@ El correo es el acceso de la cuenta, así que solo se corrige **mientras la pers
 
 ## Zonas de entrega
 
+**Punto de entrega de las empresas.** `POST /admin/empresas` y `PUT /admin/empresas/{id}` aceptan `latitud` y `longitud` (opcionales, las dos o ninguna; -90 a 90 y -180 a 180; se guardan con 6 decimales). Con punto, la zona se calcula sola con PostGIS (`ST_Covers`, igual que las direcciones de clientes: gana la zona activa más pequeña) y **manda sobre cualquier `zona` que se envíe**; un punto fuera de toda zona activa responde 422 `fuera_de_cobertura`. Sin punto, el alta sigue pidiendo `zona` y la edición conserva la que tenía. Editar el polígono de una zona nunca mueve empresas: la zona de una empresa solo cambia al guardar un punto nuevo. `GET /admin/rutas` trae `ubicacion` (`{ latitud, longitud }` o `null`) en cada parada (clientes: el punto de la dirección; empresas: su punto guardado), y `GET /repartidor/rutas` la rellena para las paradas de empresa que ya tienen punto. El front usa Mapbox (`NEXT_PUBLIC_MAPBOX_TOKEN`, token público `pk.`; sin él los mapas muestran un aviso).
+
 Un polígono por zona (PostGIS). Su **nombre** es el texto que se escribe en empresas, comedores, repartidores y direcciones, así que **no se renombra**. Solo `admin`.
 
 | Qué | Endpoint |
@@ -234,7 +236,22 @@ Qué deja: **3 comedores** (Cocina La Estancia, Sazón del Centro, Fogón de Tla
 
 Reglas: todas las cuentas son `@demo.easylunch.test` (nunca toca otras, como las `*.prueba@easylunch.test`); **se puede repetir sin duplicar ni borrar nada** (si ya está cargada, no hace nada) y va en una sola transacción (si algo falla, no queda nada). Usa las zonas reales del servidor (**Zapopan, Tlaquepaque y Guadalajara**: impórtalas antes; si falta alguna se detiene sin crear nada, salvo con `--crear-zonas`, que crea rectángulos de ejemplo y es solo para desarrollo) y los paquetes que ya existan, y solo crea lo que falta; si un nombre de empresa o comedor de la demo ya existe, se detiene antes de crear nada. Sus contratos vencen en varios meses para no disparar avisos. Para quitarla, desactiva esas cuentas y organizaciones desde el panel (nada se borra).
 
-**Orden con la API del repartidor:** carga la demo *después* de migrar esa API (rama `feat/api-repartidor`). Si el historial ya existe cuando se aplica su migración, las restricciones nuevas de las paradas (evidencia y motivo) no validan las paradas ya entregadas y la migración falla.
+**Con la API del repartidor:** esa API ya está en `master`, así que la demo se carga con su migración aplicada. El historial de rutas queda `completada` y cada parada cerrada trae su inicio, su cierre y su evidencia (la foto de ejemplo `public/demo/evidencia.png`) o su motivo, como piden las restricciones de las paradas.
+
+## API del repartidor
+
+Solo el rol `driver` (la app móvil del repartidor). Sin chat ni GPS. Todas las rutas son `/api/v1/repartidor/...` con `Authorization: Bearer <token>`; una cuenta `driver` sin ficha de repartidor activo responde 403.
+
+| Método y ruta | Qué hace |
+|---|---|
+| `GET /disponibilidad` | `{ en_linea, estado, ruta_en_curso_id }` (`estado`: `libre`, `en_ruta` o `no_disponible`) |
+| `PATCH /disponibilidad` `{ en_linea: bool }` | Se pone en línea o fuera de línea. Fuera de línea con una ruta en curso → 422 `ruta_en_curso`. Repetirlo no cambia nada |
+| `GET /rutas?fecha=AAAA-MM-DD` | Sus rutas de ese día (por defecto hoy) con sus paradas. Solo las aprobadas por el administrador, en curso o completadas |
+| `POST /paradas/{id}/iniciar` | Inicia la siguiente parada. La primera pasa la ruta a `en_curso` y al repartidor a `en_ruta`. No deja saltarse el orden (422 `orden_de_paradas`) |
+| `POST /paradas/{id}/entregar` (multipart, `foto`) | Confirma la entrega de una parada en camino. Foto JPG, PNG o WebP de hasta 5 MB. El pedido del cliente queda `completado` |
+| `POST /paradas/{id}/no-entregada` `{ motivo }` | Marca la parada como no entregada (`no_localizado`, motivo de 3 a 255 caracteres) y abre una incidencia `entrega_no_localizada` para el administrador |
+
+Una ruta solo se empieza el día que le toca (422 `ruta_de_otro_dia`); una ya empezada se puede seguir aunque pase la medianoche. Cada parada trae además `contacto_nombre` (el cliente, o el contacto de RR. HH. de la empresa). Al cerrar la última parada la ruta pasa a `completada` y el repartidor a `libre`. Errores de negocio (422 con `codigo`): `ruta_en_curso`, `fuera_de_linea`, `otra_ruta_en_curso`, `ruta_completada`, `ruta_de_otro_dia`, `orden_de_paradas`, `parada_en_camino`, `parada_no_iniciada`, `parada_ya_atendida`. Una parada ajena, o de una ruta en borrador, responde 404. Los estados de la parada son `pendiente`, `en_camino`, `entregado` y `no_localizado`; los de la ruta, `borrador`, `aprobada`, `en_curso` y `completada`. La carpeta 20 de Bruno prueba la lectura y los rechazos; el recorrido completo (iniciar, entregar, no entregada) está en `RepartidorApiTest`.
 
 ## Cuentas: invitaciones y contraseña
 

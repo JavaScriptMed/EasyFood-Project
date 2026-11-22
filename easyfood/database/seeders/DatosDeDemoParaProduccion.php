@@ -38,8 +38,8 @@ use RuntimeException;
  * - Se puede repetir sin duplicar ni borrar nada: si la demo ya está cargada, no hace nada. Todo va en una sola transacción.
  * - No toca lo que ya existe: reutiliza las zonas y los paquetes del servidor y solo crea lo que falta. Los contratos de la demo
  *   vencen dentro de varios meses (no disparan avisos de contratos por vencer a nadie).
- * - Orden con la API del repartidor: carga la demo DESPUÉS de migrar esa API. Si el historial ya existe cuando se aplica su migración, las
- *   restricciones nuevas de las paradas (evidencia y motivo) no validan las paradas ya entregadas y la migración falla.
+ * - API del repartidor: el historial cumple las restricciones de sus paradas y rutas (rutas completadas; paradas cerradas con inicio, cierre y
+ *   evidencia o motivo). Si el esquema todavía no las tiene (una base anterior a esa migración), carga igual sin esas columnas.
  * - Las porciones llegan hasta 13 días después del fin de la ventana: un pedido de cliente llega el sábado y se come la semana siguiente.
  * - Para los días de la ventana cuyo corte sigue abierto deja las elecciones de los empleados, sus entregas y sus rutas aprobadas;
  *   los cortes los hace el sistema a su hora. Las rutas de clientes del sábado las arma el corte de individuales del viernes.

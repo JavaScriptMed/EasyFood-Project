@@ -9,8 +9,8 @@ export type EstadoEntrega = 'programada' | 'en_consolidacion' | 'en_ruta' | 'ent
 export type TipoVehiculo = 'bicicleta' | 'motocicleta' | 'automovil'
 export type EstadoRepartidor = 'libre' | 'asignado' | 'en_ruta' | 'no_disponible'
 export type BloqueHorario = 'manana' | 'mediodia' | 'tarde'
-export type EstadoRuta = 'borrador' | 'aprobada'
-export type EstadoParada = 'pendiente' | 'entregado' | 'no_localizado'
+export type EstadoRuta = 'borrador' | 'aprobada' | 'en_curso' | 'completada'
+export type EstadoParada = 'pendiente' | 'en_camino' | 'entregado' | 'no_localizado'
 export type EstadoOrdenProduccion = 'pendiente' | 'lista'
 export type EstadoFactura = 'borrador' | 'emitida' | 'pagada'
 export type EstadoLiquidacion = 'pendiente' | 'pagado'
@@ -45,6 +45,8 @@ export interface Empresa {
   dominio: string
   zona: string
   direccion_entrega: string
+  latitud?: number | null
+  longitud?: number | null
   activo?: boolean // si falta, se trata como activa
 }
 
@@ -175,8 +177,10 @@ export interface Parada {
   ruta_id: string
   orden: number
   entrega_id: string | null
+  pedido_dia_id?: string | null
   nombre_destinatario: string
   direccion: string
+  ubicacion?: { latitud: number; longitud: number } | null
   hora_estimada: string
   estado: EstadoParada
 }
@@ -598,7 +602,9 @@ export interface NuevaEmpresa {
   compra_minima_mensual: number
   porcentaje_subsidio: number
   direccion_entrega: string
-  zona?: string // nombre de una zona cargada (el backend exige que exista)
+  zona?: string // opcional si se mandan latitud y longitud (el servidor la calcula con PostGIS)
+  latitud?: number | null
+  longitud?: number | null
   horario_entrega: string // "12:30–13:15"
 }
 
@@ -659,6 +665,8 @@ export interface NuevoRepartidor {
 export interface EdicionEmpresa {
   nombre: string
   direccion_entrega: string
+  latitud?: number | null
+  longitud?: number | null
   contacto_nombre: string
   contacto_correo?: string // solo se cambia mientras el contacto no acepte su invitación
   contacto_telefono: string

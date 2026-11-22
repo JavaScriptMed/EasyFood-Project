@@ -28,6 +28,8 @@ use App\Models\Ruta;
 use App\Models\Ticket;
 use App\Models\User;
 use Carbon\CarbonInterface;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Cómo sale cada entidad por la API: los nombres de campo son los de /lib/types.ts del front (snake_case en español),
@@ -111,6 +113,8 @@ final class Vistas
         return [
             'id' => $e->id, 'usuario_id' => $e->usuario_id, 'nombre' => $e->nombre, 'dominio' => $e->dominio,
             'zona' => $e->zona, 'direccion_entrega' => $e->direccion_entrega, 'activo' => $e->activo,
+            'latitud' => $e->latitud === null ? null : round((float) $e->latitud, 6),
+            'longitud' => $e->longitud === null ? null : round((float) $e->longitud, 6),
         ];
     }
 
@@ -240,25 +244,91 @@ final class Vistas
         ];
     }
 
-    public static function parada(Parada $p): array
+    /** @param  array{latitud: float, longitud: float}|null  $ubicacion */
+    public static function parada(Parada $p, ?array $ubicacion): array
     {
         return [
             'id' => $p->id, 'ruta_id' => $p->ruta_id, 'orden' => $p->orden, 'entrega_id' => $p->entrega_empresa_id, 'pedido_dia_id' => $p->pedido_dia_id,
-            'nombre_destinatario' => $p->nombre_destinatario, 'direccion' => $p->direccion, 'hora_estimada' => self::hora($p->hora_estimada), 'estado' => $p->estado,
+            'nombre_destinatario' => $p->nombre_destinatario, 'direccion' => $p->direccion, 'ubicacion' => $ubicacion,
+            'hora_estimada' => self::hora($p->hora_estimada), 'estado' => $p->estado,
         ];
+    }
+
+    /**
+     * Presenta varias rutas en lote. Cuando lleva paradas, calcula `ubicacion` al presentar (sin alterar el armado de rutas):
+     * para clientes usa el punto PostGIS de `paradas`; para empresas usa `empresas.latitud`/`longitud` si existen, o null.
+     *
+     * @param  Collection<int, Ruta>  $rutas
+     * @return array<int, array<string, mixed>>
+     */
+    public static function rutas(Collection $rutas, bool $conParadas = false): array
+    {
+        if (! $conParadas || $rutas->isEmpty()) {
+            return $rutas->map(fn (Ruta $r) => self::ruta($r, false))->values()->all();
+        }
+
+        $paradas = $rutas->flatMap(fn (Ruta $r) => $r->paradas);
+        $ubicaciones = self::ubicacionesDeParadas($paradas);
+
+        return $rutas->map(fn (Ruta $r) => self::rutaConUbicaciones($r, $ubicaciones))->values()->all();
     }
 
     public static function ruta(Ruta $r, bool $conParadas = false): array
     {
-        $datos = [
+        if ($conParadas) {
+            return self::rutas(collect([$r]), true)[0];
+        }
+
+        return [
             'id' => $r->id, 'fecha' => $r->fecha->toDateString(), 'repartidor_id' => $r->repartidor_id, 'repartidor_nombre' => $r->repartidor?->usuario?->name,
             'tipo_vehiculo' => 'automovil', 'zona' => $r->zona, 'ventana_inicio' => self::hora($r->ventana_inicio), 'ventana_fin' => self::hora($r->ventana_fin),
             'capacidad_entregas' => $r->capacidad_entregas, 'capacidad_platillos' => $r->capacidad_platillos, 'entregas_asignadas' => $r->entregas_asignadas,
             'platillos_asignados' => $r->platillos_asignados, 'distancia_km' => $r->distancia_km === null ? null : self::dinero($r->distancia_km),
             'hora_fin_estimada' => self::hora($r->hora_fin_estimada), 'excede_bloque' => $r->excede_bloque, 'estado' => $r->estado,
         ];
+    }
 
-        return $conParadas ? $datos + ['paradas' => $r->paradas->sortBy('orden')->map(fn (Parada $p) => self::parada($p))->values()->all()] : $datos;
+    /**
+     * @param  array<int, array{latitud: float, longitud: float}>  $ubicaciones  por parada.id
+     * @return array<string, mixed>
+     */
+    private static function rutaConUbicaciones(Ruta $r, array $ubicaciones): array
+    {
+        return self::ruta($r, false) + [
+            'paradas' => $r->paradas->sortBy('orden')->map(fn (Parada $p) => self::parada($p, $ubicaciones[$p->id] ?? null))->values()->all(),
+        ];
+    }
+
+    /**
+     * @param  Collection<int, Parada>  $paradas
+     * @return array<int, array{latitud: float, longitud: float}>
+     */
+    private static function ubicacionesDeParadas(Collection $paradas): array
+    {
+        if ($paradas->isEmpty()) {
+            return [];
+        }
+
+        $puntosParada = DB::table('paradas')->whereIn('id', $paradas->pluck('id'))->whereNotNull('ubicacion')
+            ->selectRaw('id, ST_X(ubicacion::geometry) as lon, ST_Y(ubicacion::geometry) as lat')->get()->keyBy('id');
+
+        $entregaIds = $paradas->pluck('entrega_empresa_id')->filter()->unique()->values();
+        $puntosEmpresa = $entregaIds->isEmpty()
+            ? collect()
+            : DB::table('entregas_empresa as ee')->join('empresas as e', 'e.id', '=', 'ee.empresa_id')
+                ->whereIn('ee.id', $entregaIds)->whereNotNull('e.latitud')->whereNotNull('e.longitud')
+                ->select('ee.id', 'e.latitud', 'e.longitud')->get()->keyBy('id');
+
+        $resultado = [];
+        foreach ($paradas as $parada) {
+            if ($punto = $puntosParada->get($parada->id)) {
+                $resultado[$parada->id] = ['latitud' => round((float) $punto->lat, 6), 'longitud' => round((float) $punto->lon, 6)];
+            } elseif ($parada->entrega_empresa_id && ($emp = $puntosEmpresa->get($parada->entrega_empresa_id))) {
+                $resultado[$parada->id] = ['latitud' => round((float) $emp->latitud, 6), 'longitud' => round((float) $emp->longitud, 6)];
+            }
+        }
+
+        return $resultado;
     }
 
     public static function incidencia(Incidencia $i): array

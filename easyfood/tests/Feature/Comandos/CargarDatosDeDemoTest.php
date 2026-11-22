@@ -220,32 +220,20 @@ class CargarDatosDeDemoTest extends TestCase
         $this->assertSame(1, DB::selectOne("select count(*) as n from pg_trigger where tgname = 'elecciones_empleado_tras_corte' and tgenabled = 'O'")->n);
     }
 
-    public function test_con_la_api_del_repartidor_instalada_el_historial_cumple_sus_restricciones(): void
+    public function test_el_historial_cumple_las_restricciones_de_rutas_y_paradas_de_la_api_del_repartidor(): void
     {
-        // La migración de la rama feat/api-repartidor (rutas en_curso/completada y paradas con evidencia y motivo) todavía no está aquí:
-        // se simula en esta transacción para comprobar que la demo cargada DESPUÉS de esa migración cumple sus restricciones. (Cargada
-        // ANTES, esa migración fallaría al validar las paradas ya entregadas sin evidencia: por eso se carga la demo después.)
-        DB::unprepared(<<<'SQL'
-            ALTER TABLE rutas ADD COLUMN iniciada_en timestamptz, ADD COLUMN completada_en timestamptz;
-            ALTER TABLE rutas DROP CONSTRAINT rutas_estado_valido;
-            ALTER TABLE rutas ADD CONSTRAINT rutas_estado_valido CHECK (estado IN ('borrador', 'aprobada', 'en_curso', 'completada'));
-            ALTER TABLE rutas ADD CONSTRAINT rutas_avance_coherente CHECK (((estado IN ('en_curso', 'completada')) = (iniciada_en IS NOT NULL)) AND ((estado = 'completada') = (completada_en IS NOT NULL)));
-            ALTER TABLE paradas ADD COLUMN iniciada_en timestamptz, ADD COLUMN cerrada_en timestamptz, ADD COLUMN evidencia_foto_url varchar(255), ADD COLUMN motivo_no_entrega varchar(255);
-            ALTER TABLE paradas DROP CONSTRAINT paradas_estado_valido;
-            ALTER TABLE paradas ADD CONSTRAINT paradas_estado_valido CHECK (estado IN ('pendiente', 'en_camino', 'entregado', 'no_localizado'));
-            ALTER TABLE paradas ADD CONSTRAINT paradas_inicio_coherente CHECK ((estado = 'pendiente') = (iniciada_en IS NULL));
-            ALTER TABLE paradas ADD CONSTRAINT paradas_cierre_coherente CHECK ((estado IN ('entregado', 'no_localizado')) = (cerrada_en IS NOT NULL));
-            ALTER TABLE paradas ADD CONSTRAINT paradas_entregada_con_evidencia CHECK (estado <> 'entregado' OR evidencia_foto_url IS NOT NULL);
-            ALTER TABLE paradas ADD CONSTRAINT paradas_no_entregada_con_motivo CHECK (estado <> 'no_localizado' OR (motivo_no_entrega IS NOT NULL AND length(btrim(motivo_no_entrega)) > 0));
-        SQL);
+        // La migración de la API del repartidor ya es parte del esquema: sus restricciones (evidencia, motivo, inicio y cierre de las
+        // paradas; avance de las rutas) se aplican a todo lo que inserta la demo, y se comprueba que no se salta ninguna.
         $this->enProduccion();
 
         $this->cargar()->assertExitCode(0);
 
         $this->assertSame(0, Ruta::whereDate('fecha', '<', '2026-11-21')->where('estado', '<>', 'completada')->count(), 'las rutas del historial quedan completadas');
         $this->assertSame(0, Ruta::whereDate('fecha', '>=', '2026-11-24')->where('estado', '<>', 'aprobada')->count(), 'las de la ventana quedan aprobadas, sin empezar');
-        $this->assertGreaterThan(0, Parada::where('estado', 'entregado')->whereNotNull('evidencia_foto_url')->count());
+        $this->assertGreaterThan(0, Parada::where('estado', 'entregado')->whereNotNull('evidencia_foto_url')->whereNotNull('iniciada_en')->whereNotNull('cerrada_en')->count());
+        $this->assertSame(0, Parada::where('estado', 'entregado')->whereNull('evidencia_foto_url')->count(), 'toda parada entregada trae su evidencia');
         $this->assertGreaterThan(0, Parada::where('estado', 'no_localizado')->whereNotNull('motivo_no_entrega')->count());
+        $this->assertSame(0, Parada::where('estado', 'no_localizado')->whereNull('motivo_no_entrega')->count(), 'toda parada no entregada trae su motivo');
     }
 
     /** Las tres zonas reales del servidor, con polígonos distintos a los de ejemplo (más grandes y sin traslapar). */

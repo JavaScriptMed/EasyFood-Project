@@ -68,7 +68,7 @@ class CargarDatosDeDemo extends Command
 
         $this->info('Datos de demo cargados.');
         $this->table(['Concepto', 'Cantidad'], collect($conteos)->map(fn ($n, $concepto) => [$concepto, $n])->values()->all());
-        $this->line('Cuentas de demo (@'.DatosDeDemoParaProduccion::DOMINIO.'): comedor.norte, rrhh.nexo, repartidor.centro, cliente.cecilia… con la contraseña que diste (repartidor.guadalajara, repartidor.zapopan, repartidor.tlaquepaque).');
+        $this->line('Cuentas de demo (@'.DatosDeDemoParaProduccion::DOMINIO.'): comedor.norte, rrhh.nexo, repartidor.guadalajara (también .zapopan y .tlaquepaque), cliente.cecilia… con la contraseña que diste.');
 
         return self::SUCCESS;
     }

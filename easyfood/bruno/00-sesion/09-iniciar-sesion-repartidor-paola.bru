@@ -1,0 +1,34 @@
+meta {
+  name: Iniciar sesión · repartidor (Paola, zona Centro)
+  type: http
+  seq: 9
+}
+
+post {
+  url: {{baseUrl}}/api/auth/login
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "email": "{{correoRepartidor}}",
+    "password": "{{contrasena}}"
+  }
+}
+
+script:post-response {
+  bru.setVar("tokenRepartidor", res.body.token);
+}
+
+tests {
+  test("responde 200 con el rol de repartidor", function () {
+    expect(res.getStatus()).to.equal(200);
+    expect(res.body.token).to.be.a("string");
+    expect(res.body.user.role).to.equal("driver");
+  });
+}
+
+docs {
+  Los repartidores usan la app móvil: su cuenta no tiene portal web. Con este token se prueba la carpeta «API del repartidor».
+}

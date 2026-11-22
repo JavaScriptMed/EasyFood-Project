@@ -1,0 +1,17 @@
+meta {
+  name: Sin sesión rechazado
+  type: http
+  seq: 13
+}
+
+get {
+  url: {{baseUrl}}/api/v1/repartidor/rutas
+  body: none
+  auth: none
+}
+
+tests {
+  test("responde 401", function () {
+    expect(res.getStatus()).to.equal(401);
+  });
+}

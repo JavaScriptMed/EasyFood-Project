@@ -24,6 +24,8 @@ class Ruta extends ModeloEasyLunch
         'hora_fin_estimada',
         'excede_bloque',
         'estado',
+        'iniciada_en',
+        'completada_en',
     ];
 
     protected function casts(): array
@@ -36,6 +38,8 @@ class Ruta extends ModeloEasyLunch
             'platillos_asignados' => 'integer',
             'distancia_km' => 'decimal:2',
             'excede_bloque' => 'boolean',
+            'iniciada_en' => 'datetime',
+            'completada_en' => 'datetime',
         ];
     }
 

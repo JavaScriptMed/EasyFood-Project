@@ -1,0 +1,26 @@
+meta {
+  name: Iniciar una ruta de otro día rechazado
+  type: http
+  seq: 6
+}
+
+post {
+  url: {{baseUrl}}/api/v1/repartidor/paradas/{{paradaUnoId}}/iniciar
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenRepartidor}}
+}
+
+tests {
+  test("responde 422 ruta_de_otro_dia", function () {
+    expect(res.getStatus()).to.equal(422);
+    expect(res.body.codigo).to.equal("ruta_de_otro_dia");
+  });
+}
+
+docs {
+  Una ruta solo se empieza el día que le toca (`fecha`). Estas rutas son del sábado de entrega, que todavía no llega.
+}
