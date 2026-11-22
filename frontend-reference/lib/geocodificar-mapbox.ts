@@ -260,6 +260,194 @@ export async function resolverParadasMapa(
   return { paradas, sinUbicacion }
 }
 
+// ---------------------------------------------------------------- buscador de lugares y direcciones (Search Box API de Mapbox)
+
+export interface LugarSugerido {
+  id: string
+  nombre: string
+  /** Segunda línea de la sugerencia: la dirección completa o, si no la hay, el municipio. */
+  detalle: string
+}
+
+export interface LugarElegido {
+  nombre: string
+  calle: string
+  colonia: string
+  cp: string
+  municipio: string
+  latitud: number
+  longitud: number
+}
+
+/** Dirección de un punto del mapa (sin el nombre del negocio ni las coordenadas). */
+export type DireccionDePunto = Omit<LugarElegido, 'nombre' | 'latitud' | 'longitud'>
+
+export type ResultadoDeBusqueda<T> = { estado: 'ok'; datos: T } | { estado: 'sin_token' } | { estado: 'cancelado' } | { estado: 'error' }
+
+const SEARCH_BOX = 'https://api.mapbox.com/search/searchbox/v1'
+const PREFIJO_CACHE_BUSQUEDA = 'easylunch.searchbox.v1:'
+/** Misma zona de búsqueda que la geocodificación: el Área Metropolitana de Guadalajara. */
+const PARAMETROS_DE_ZONA = { country: 'mx', language: 'es', proximity: '-103.3496,20.6597', bbox: '-103.75,20.40,-103.05,20.95' }
+const MAX_SUGERENCIAS = 5
+const MAX_CONSULTAS_EN_MEMORIA = 100
+const cacheSugerencias = new Map<string, LugarSugerido[]>()
+const cacheLugares = new Map<string, LugarElegido | null>()
+const cacheDirecciones = new Map<string, DireccionDePunto | null>()
+
+/** Identificador de una sesión de búsqueda: Mapbox cobra por sesión (varias sugerencias y una selección), así que se renueva al elegir. */
+export function nuevaSesionDeBusqueda(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID()
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = Math.floor(Math.random() * 16)
+    return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16)
+  })
+}
+
+function guardarEnMemoria<T>(cache: Map<string, T>, clave: string, valor: T): void {
+  if (cache.size >= MAX_CONSULTAS_EN_MEMORIA) cache.delete(cache.keys().next().value as string)
+  cache.set(clave, valor)
+}
+
+function leerCacheDeSesion<T>(clave: string): { encontrado: boolean; valor: T | null } {
+  if (typeof window === 'undefined') return { encontrado: false, valor: null }
+  try {
+    const crudo = window.sessionStorage.getItem(PREFIJO_CACHE_BUSQUEDA + clave)
+    if (crudo !== null) return { encontrado: true, valor: JSON.parse(crudo) as T | null }
+  } catch {
+    // storage bloqueado o JSON inválido: se consulta de nuevo
+  }
+  return { encontrado: false, valor: null }
+}
+
+function guardarCacheDeSesion(clave: string, valor: unknown): void {
+  if (typeof window === 'undefined') return
+  try {
+    window.sessionStorage.setItem(PREFIJO_CACHE_BUSQUEDA + clave, JSON.stringify(valor))
+  } catch {
+    // cuota excedida o navegación privada
+  }
+}
+
+function texto(valor: unknown): string {
+  return typeof valor === 'string' ? valor.trim() : ''
+}
+
+/** Algunos negocios traen la dirección completa en `address` («Av. Fray Antonio Alcalde 10, 44100 Guadalajara…»): solo interesa lo de antes de la primera coma. */
+function soloCalle(direccion: string): string {
+  return direccion.split(',')[0].trim()
+}
+
+/** Extrae calle y número, colonia, código postal y municipio de un resultado de la Search Box API. */
+function direccionDeFeature(props: any): DireccionDePunto {
+  const contexto = props?.context ?? {}
+  const tipo = texto(props?.feature_type)
+  const calle = soloCalle(
+    texto(contexto.address?.name) ||
+    (tipo === 'address' ? texto(props?.name) : '') ||
+    (tipo === 'poi' ? texto(props?.address) : '') ||
+    texto(contexto.street?.name) ||
+    (tipo === 'street' ? texto(props?.name) : ''),
+  )
+  return {
+    calle,
+    colonia: texto(contexto.neighborhood?.name) || texto(contexto.locality?.name),
+    cp: texto(contexto.postcode?.name),
+    municipio: texto(contexto.place?.name) || texto(contexto.district?.name) || (tipo === 'place' ? texto(props?.name) : ''),
+  }
+}
+
+/**
+ * Sugerencias de lugares (negocios, direcciones, calles y municipios) mientras se escribe.
+ * Nunca lanza excepciones: sin token, con la red caída o con Mapbox fallando devuelve el estado correspondiente.
+ */
+export async function sugerirLugares(consulta: string, sesion: string, senal?: AbortSignal): Promise<ResultadoDeBusqueda<LugarSugerido[]>> {
+  const q = consulta.trim()
+  if (!q) return { estado: 'ok', datos: [] }
+  const token = obtenerTokenMapbox()
+  if (!token) return { estado: 'sin_token' }
+
+  const clave = normalizarDireccion(q)
+  const guardadas = cacheSugerencias.get(clave)
+  if (guardadas) return { estado: 'ok', datos: guardadas }
+
+  const parametros = new URLSearchParams({ q, access_token: token, session_token: sesion, limit: String(MAX_SUGERENCIAS), types: 'poi,address,street,place', ...PARAMETROS_DE_ZONA })
+  try {
+    const res = await fetch(`${SEARCH_BOX}/suggest?${parametros}`, { signal: senal })
+    if (!res.ok) return { estado: 'error' }
+    const data = await res.json()
+    const lista: LugarSugerido[] = (Array.isArray(data?.suggestions) ? data.suggestions : [])
+      .filter((s: any) => texto(s?.mapbox_id) && texto(s?.name))
+      .slice(0, MAX_SUGERENCIAS)
+      .map((s: any) => {
+        const completa = texto(s.full_address)
+        const nombre = texto(s.name)
+        return { id: texto(s.mapbox_id), nombre, detalle: completa && completa !== nombre ? completa : [texto(s.address), texto(s.place_formatted)].filter(Boolean).join(', ') || texto(s.place_formatted) }
+      })
+    guardarEnMemoria(cacheSugerencias, clave, lista)
+    return { estado: 'ok', datos: lista }
+  } catch (error) {
+    return (error as { name?: string })?.name === 'AbortError' ? { estado: 'cancelado' } : { estado: 'error' }
+  }
+}
+
+/** Coordenadas y dirección de la sugerencia elegida (cierra la sesión de búsqueda). */
+export async function recuperarLugar(id: string, sesion: string): Promise<ResultadoDeBusqueda<LugarElegido | null>> {
+  const token = obtenerTokenMapbox()
+  if (!token) return { estado: 'sin_token' }
+  if (cacheLugares.has(id)) return { estado: 'ok', datos: cacheLugares.get(id) ?? null }
+  const guardado = leerCacheDeSesion<LugarElegido>(`retrieve:${id}`)
+  if (guardado.encontrado) {
+    guardarEnMemoria(cacheLugares, id, guardado.valor)
+    return { estado: 'ok', datos: guardado.valor }
+  }
+
+  const parametros = new URLSearchParams({ access_token: token, session_token: sesion, language: 'es' })
+  try {
+    const res = await fetch(`${SEARCH_BOX}/retrieve/${encodeURIComponent(id)}?${parametros}`)
+    if (!res.ok) return { estado: 'error' }
+    const data = await res.json()
+    const feature = data?.features?.[0]
+    const [longitud, latitud] = Array.isArray(feature?.geometry?.coordinates) ? feature.geometry.coordinates : []
+    const lugar: LugarElegido | null =
+      typeof latitud === 'number' && typeof longitud === 'number'
+        ? { nombre: texto(feature.properties?.name), ...direccionDeFeature(feature.properties), latitud: Math.round(latitud * 1e6) / 1e6, longitud: Math.round(longitud * 1e6) / 1e6 }
+        : null
+    guardarEnMemoria(cacheLugares, id, lugar)
+    guardarCacheDeSesion(`retrieve:${id}`, lugar)
+    return { estado: 'ok', datos: lugar }
+  } catch {
+    return { estado: 'error' }
+  }
+}
+
+/** Dirección más cercana a un punto del mapa (cuando el pin se arrastra o se hace clic). */
+export async function direccionDelPunto(latitud: number, longitud: number): Promise<ResultadoDeBusqueda<DireccionDePunto | null>> {
+  const token = obtenerTokenMapbox()
+  if (!token) return { estado: 'sin_token' }
+  const clave = `${latitud.toFixed(5)},${longitud.toFixed(5)}`
+  if (cacheDirecciones.has(clave)) return { estado: 'ok', datos: cacheDirecciones.get(clave) ?? null }
+  const guardado = leerCacheDeSesion<DireccionDePunto>(`reverse:${clave}`)
+  if (guardado.encontrado) {
+    guardarEnMemoria(cacheDirecciones, clave, guardado.valor)
+    return { estado: 'ok', datos: guardado.valor }
+  }
+
+  const parametros = new URLSearchParams({ access_token: token, longitude: String(longitud), latitude: String(latitud), language: 'es', limit: '1', types: 'address' })
+  try {
+    const res = await fetch(`${SEARCH_BOX}/reverse?${parametros}`)
+    if (!res.ok) return { estado: 'error' }
+    const data = await res.json()
+    const props = data?.features?.[0]?.properties
+    const direccion = props ? direccionDeFeature(props) : null
+    const util = direccion && (direccion.calle || direccion.colonia || direccion.cp || direccion.municipio) ? direccion : null
+    guardarEnMemoria(cacheDirecciones, clave, util)
+    guardarCacheDeSesion(`reverse:${clave}`, util)
+    return { estado: 'ok', datos: util }
+  } catch {
+    return { estado: 'error' }
+  }
+}
+
 // ---------------------------------------------------------------- vista previa local de zona (la definitiva la calcula PostGIS en el servidor)
 
 function puntoEnAnillo(lon: number, lat: number, anillo: number[][]): boolean {
