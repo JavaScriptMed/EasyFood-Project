@@ -79,6 +79,7 @@ final class VistaDelRepartidor
 
         return self::base($p, 'cliente', $punto, $platillos) + [
             'referencias' => $pedido?->direccion?->delivery_instructions,
+            'contacto_nombre' => $pedido?->cliente?->name,
             'telefono' => $pedido?->cliente?->profile?->phone,
             'folio' => $pedido?->folio,
         ];
@@ -94,6 +95,7 @@ final class VistaDelRepartidor
 
         return self::base($p, 'empresa', $punto, $platillos) + [
             'referencias' => null,
+            'contacto_nombre' => $entrega?->empresa?->usuario?->name, // RR. HH.: por quién preguntar en la entrada
             'telefono' => $entrega?->empresa?->usuario?->profile?->phone,
             'folio' => null,
         ];

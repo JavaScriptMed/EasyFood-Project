@@ -199,8 +199,8 @@ class RepartidorApiTest extends TestCase
         $this->assertNull($deEmpresa['iniciada_en']);
 
         $cliente = $deCliente['paradas'][0];
-        $this->assertSame([1, 'pendiente', 'cliente', 'Clara Cliente', 'Av. Vallarta 100 int. 4B', '33 1111 2222', 'Portón negro', $this->pedido->folio], [
-            $cliente['orden'], $cliente['estado'], $cliente['tipo'], $cliente['destinatario'], $cliente['direccion'], $cliente['telefono'], $cliente['referencias'], $cliente['folio'],
+        $this->assertSame([1, 'pendiente', 'cliente', 'Clara Cliente', 'Av. Vallarta 100 int. 4B', '33 1111 2222', 'Portón negro', $this->pedido->folio, 'Clara Cliente'], [
+            $cliente['orden'], $cliente['estado'], $cliente['tipo'], $cliente['destinatario'], $cliente['direccion'], $cliente['telefono'], $cliente['referencias'], $cliente['folio'], $cliente['contacto_nombre'],
         ]);
         $this->assertEqualsWithDelta(20.67, $cliente['ubicacion']['latitud'], 0.000001);
         $this->assertEqualsWithDelta(-103.35, $cliente['ubicacion']['longitud'], 0.000001);
@@ -213,6 +213,7 @@ class RepartidorApiTest extends TestCase
         $this->assertSame(['empresa', '33 3000 0001', 2, null], [$empresa['tipo'], $empresa['telefono'], $empresa['total_platillos'], $empresa['ubicacion']], 'las empresas no tienen punto guardado');
         $this->assertSame([['nombre' => 'Pollo en mole', 'tiempo_comida' => 'comida', 'cantidad' => 2, 'dia_de_comida' => self::SABADO, 'es_extra' => false]], $empresa['platillos']);
         $this->assertSame(EntregaEmpresa::sole()->empresa->nombre, $empresa['destinatario']);
+        $this->assertSame(EntregaEmpresa::sole()->empresa->usuario->name, $empresa['contacto_nombre'], 'por quién preguntar en la entrada: el contacto de RR. HH.');
         foreach (['iniciada_en', 'cerrada_en', 'evidencia_foto_url', 'motivo_no_entrega'] as $campo) {
             $this->assertNull($empresa[$campo]);
         }
@@ -292,6 +293,39 @@ class RepartidorApiTest extends TestCase
         $this->rutaEmpresa->update(['estado' => 'borrador']);
         $this->postJson("/api/v1/repartidor/paradas/{$parada->id}/iniciar")->assertStatus(404);
         $this->assertSame('pendiente', $parada->fresh()->estado);
+    }
+
+    public function test_una_ruta_solo_se_empieza_el_dia_que_le_toca(): void
+    {
+        $parada = $this->paradaDeEmpresa();
+        $this->comoRepartidor();
+
+        $this->ahoraEs('2026-11-13 20:00'); // viernes: la ruta es de mañana
+        $this->postJson("/api/v1/repartidor/paradas/{$parada->id}/iniciar")->assertStatus(422)->assertJsonPath('codigo', 'ruta_de_otro_dia')
+            ->assertJsonPath('mensaje', 'Esa ruta es del 2026-11-14: solo puedes iniciar las rutas de hoy.');
+        $this->ahoraEs('2026-11-16 08:00'); // lunes: la ruta ya pasó
+        $this->postJson("/api/v1/repartidor/paradas/{$parada->id}/iniciar")->assertStatus(422)->assertJsonPath('codigo', 'ruta_de_otro_dia');
+
+        $this->assertSame(['aprobada', 'pendiente', 'libre'], [$this->rutaEmpresa->fresh()->estado, $parada->fresh()->estado, $this->repartidor->fresh()->estado], 'ningún intento rechazado cambió nada');
+        $this->getJson('/api/v1/repartidor/rutas?fecha='.self::SABADO)->assertOk()->assertJsonCount(2); // verlas de otro día sí se puede
+
+        $this->ahoraEs('2026-11-14 12:00'); // el sábado, sí
+        $this->postJson("/api/v1/repartidor/paradas/{$parada->id}/iniciar")->assertOk()->assertJsonPath('ruta.estado', 'en_curso');
+    }
+
+    public function test_una_ruta_que_ya_empezo_se_puede_seguir_aunque_pase_la_medianoche(): void
+    {
+        $segunda = $this->parada($this->rutaCliente, 2, 'Segunda');
+        $primera = $this->paradaDeClienteOrden1();
+        $this->comoRepartidor();
+
+        $this->ahoraEs('2026-11-14 23:50');
+        $this->postJson("/api/v1/repartidor/paradas/{$primera->id}/iniciar")->assertOk();
+        $this->entregar($primera)->assertOk();
+
+        $this->ahoraEs('2026-11-15 00:10'); // ya es domingo
+        $this->postJson("/api/v1/repartidor/paradas/{$segunda->id}/iniciar")->assertOk()->assertJsonPath('ruta.estado', 'en_curso');
+        $this->postJson("/api/v1/repartidor/paradas/{$segunda->id}/no-entregada", ['motivo' => 'Cerrado'])->assertOk()->assertJsonPath('ruta.estado', 'completada');
     }
 
     public function test_fuera_de_linea_no_inicia_y_con_una_ruta_en_curso_no_empieza_otra(): void

@@ -59,7 +59,7 @@ Clic derecho en la colección → **Run**, o corre carpeta por carpeta. **Empiez
 | 17 | Platillos · fotos y precios | Subir la foto de un platillo (admin y comedor), historial de precios y programar un precio |
 | 18 | Zonas de entrega | Crear, importar varias, cambiar el polígono y desactivar zonas (GeoJSON); validaciones de coordenadas y de polígonos |
 | 19 | Entrega semanal de individuales | Los clientes individuales reciben todo en una sola entrega el sábado: próxima entrega, pedido de 2 días, corte de individuales (viernes a la hora de corte), repetirlo, y un pedido nuevo que pasa al sábado siguiente |
-| 20 | API del repartidor | La app del repartidor (rol `driver`): en línea o fuera de línea, sus rutas del día con paradas, iniciar la siguiente parada en orden, entregar con foto y marcar como no entregada con motivo |
+| 20 | API del repartidor | La app del repartidor (rol `driver`): en línea o fuera de línea, sus rutas con paradas y los rechazos (ruta de otro día, parada sin iniciar, sin foto o sin motivo, sin permiso). El recorrido completo lo prueba PHPUnit, que controla la hora |
 | 14 | Cuentas (invitaciones y contraseña) | Invitar, reenviar y aceptar una invitación, y restablecer la contraseña; los enlaces salen en `storage/logs/enlaces.log` |
 | 13 | Dashboard e indicadores | Dashboard del administrador (10 indicadores), costos operativos, indicadores de RR. HH., calificación del menú y captura de calificaciones |
 | 09 | Administración · clientes y soporte | Clientes, pedidos, tickets y reembolso de un pedido pagado con Stripe |

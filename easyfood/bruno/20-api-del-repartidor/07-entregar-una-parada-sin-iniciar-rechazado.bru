@@ -1,7 +1,7 @@
 meta {
-  name: Entregar una parada ya atendida rechazado
+  name: Entregar una parada sin iniciar rechazado
   type: http
-  seq: 11
+  seq: 7
 }
 
 post {
@@ -19,8 +19,12 @@ body:multipart-form {
 }
 
 tests {
-  test("responde 422 parada_ya_atendida", function () {
+  test("responde 422 parada_no_iniciada", function () {
     expect(res.getStatus()).to.equal(422);
-    expect(res.body.codigo).to.equal("parada_ya_atendida");
+    expect(res.body.codigo).to.equal("parada_no_iniciada");
   });
+}
+
+docs {
+  Primero se inicia la parada; después se confirma la entrega con la foto (JPG, PNG o WebP de hasta 5 MB en el campo `foto`).
 }

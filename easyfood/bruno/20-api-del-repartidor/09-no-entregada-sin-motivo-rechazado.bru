@@ -1,11 +1,11 @@
 meta {
   name: No entregada sin motivo rechazado
   type: http
-  seq: 13
+  seq: 9
 }
 
 post {
-  url: {{baseUrl}}/api/v1/repartidor/paradas/{{paradaDosId}}/no-entregada
+  url: {{baseUrl}}/api/v1/repartidor/paradas/{{paradaUnoId}}/no-entregada
   body: json
   auth: bearer
 }
@@ -19,8 +19,7 @@ body:json {
 }
 
 tests {
-  test("responde 422 con el error del motivo (si hay segunda parada)", function () {
-    if (!bru.getVar("paradaDosId")) return;
+  test("responde 422 con el error del motivo", function () {
     expect(res.getStatus()).to.equal(422);
     expect(res.body.errores).to.have.property("motivo");
   });

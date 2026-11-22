@@ -23,6 +23,7 @@ use Throwable;
  * Lo que hace el repartidor desde su sesión: ponerse en línea o fuera de línea y recorrer su ruta parada por parada.
  *
  * - Solo ve y toca sus propias rutas, y solo las aprobadas por el administrador (en un borrador no hay nada que hacer todavía).
+ * - Una ruta solo se empieza el día que le toca (`fecha`); una ya empezada se puede seguir aunque pase la medianoche.
  * - Una parada se atiende en orden: no se inicia hasta que las anteriores quedaron entregadas o no entregadas. Iniciar la primera
  *   pasa la ruta a «en_curso» (y al repartidor a «en_ruta»); cerrar la última la pasa a «completada» (y al repartidor a «libre»).
  * - Una parada se cierra con la foto de evidencia («entregado») o con un motivo («no_localizado», que además abre una incidencia
@@ -103,6 +104,10 @@ class EntregasDelRepartidor
             }
             if ($ruta->estado === 'completada') {
                 throw new ReglaDeNegocioException('ruta_completada', 'Esa ruta ya se completó.');
+            }
+            // Solo se empieza una ruta el día que le toca. Una que ya empezó se puede seguir aunque pase la medianoche.
+            if ($ruta->estado === 'aprobada' && $ruta->fecha->toDateString() !== $ahora->toDateString()) {
+                throw new ReglaDeNegocioException('ruta_de_otro_dia', "Esa ruta es del {$ruta->fecha->toDateString()}: solo puedes iniciar las rutas de hoy.");
             }
             if ($parada->estado === 'en_camino') {
                 throw new ReglaDeNegocioException('parada_en_camino', 'Esa parada ya está en camino: confirma la entrega o márcala como no entregada.');

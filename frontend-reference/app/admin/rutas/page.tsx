@@ -17,7 +17,7 @@ import type { EstadoParada, RutaDetalle } from "@/lib/types"
 import { useAsync } from "@/lib/use-async"
 
 const colores = ["#eab308", "#2563eb", "#16a34a"]
-const etiquetasParada: Record<EstadoParada, string> = { pendiente: "Pendiente", entregado: "Entregado", no_localizado: "No localizado" }
+const etiquetasParada: Record<EstadoParada, string> = { pendiente: "Pendiente", en_camino: "En camino", entregado: "Entregado", no_localizado: "No localizado" }
 
 const points = [{ x: 31, y: 64, n: 1 }, { x: 43, y: 41, n: 2 }, { x: 55, y: 57, n: 3 }, { x: 66, y: 32, n: 4 }, { x: 76, y: 48, n: 5 }, { x: 84, y: 69, n: 6 }]
 

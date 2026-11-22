@@ -1,0 +1,25 @@
+meta {
+  name: Una parada que no existe responde 404
+  type: http
+  seq: 11
+}
+
+post {
+  url: {{baseUrl}}/api/v1/repartidor/paradas/999999/iniciar
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenRepartidor}}
+}
+
+tests {
+  test("responde 404", function () {
+    expect(res.getStatus()).to.equal(404);
+  });
+}
+
+docs {
+  Igual responde 404 una parada de otro repartidor o de una ruta en borrador.
+}

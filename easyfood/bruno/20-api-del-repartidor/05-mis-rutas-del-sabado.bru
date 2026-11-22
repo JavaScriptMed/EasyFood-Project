@@ -41,6 +41,7 @@ tests {
     expect(p.ubicacion.latitud).to.be.a("number");
     expect(p.ubicacion.longitud).to.be.a("number");
     expect(p.telefono).to.be.a("string");
+    expect(p.contacto_nombre).to.be.a("string");
     expect(p.platillos.length).to.be.greaterThan(0);
     expect(p.platillos[0]).to.have.all.keys("nombre", "tiempo_comida", "cantidad", "dia_de_comida", "es_extra");
     expect(p.total_platillos).to.be.greaterThan(0);
