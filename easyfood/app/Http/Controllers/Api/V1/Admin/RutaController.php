@@ -20,7 +20,7 @@ class RutaController extends Controller
         $fecha = $request->validate(['fecha' => 'required|date_format:Y-m-d'])['fecha'];
 
         return response()->json(
-            Ruta::query()->with(['repartidor.usuario', 'paradas'])->whereDate('fecha', $fecha)->orderBy('id')->get()->map(fn ($r) => Vistas::ruta($r, true))->values()
+            Vistas::rutas(Ruta::query()->with(['repartidor.usuario', 'paradas'])->whereDate('fecha', $fecha)->orderBy('id')->get(), true)
         );
     }
 
@@ -61,7 +61,7 @@ class RutaController extends Controller
         return response()->json([
             'creadas' => $creadas, 'sin_ruta' => $sinRuta,
             'mensaje' => $creadas ? "Se crearon {$creadas} ruta(s) nueva(s)." : 'No se creó ninguna ruta nueva: no había entregas pendientes o no hay repartidores con capacidad.',
-            'rutas' => Ruta::query()->with(['repartidor.usuario', 'paradas'])->whereDate('fecha', $fecha)->orderBy('id')->get()->map(fn ($r) => Vistas::ruta($r, true))->values(),
+            'rutas' => Vistas::rutas(Ruta::query()->with(['repartidor.usuario', 'paradas'])->whereDate('fecha', $fecha)->orderBy('id')->get(), true),
         ]);
     }
 

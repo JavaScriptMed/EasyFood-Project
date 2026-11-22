@@ -103,9 +103,12 @@ const real: typeof mock = {
     if (!correo) throw new ErrorApi('Escribe el nombre y el correo del contacto de RR. HH. (por ejemplo, «Mariana Ortega mariana@empresa.mx»).', 422, 'validacion')
     const [inicio, fin] = datos.horario_entrega.split(/\s*[–-]\s*/).map((h) => h.trim().padStart(5, '0'))
     if (!inicio || !fin) throw new ErrorApi('Escribe el horario de entrega, por ejemplo 12:30–13:15.', 422, 'validacion')
+    const conCoordenadas = datos.latitud != null && datos.longitud != null
     return ids(await post<EmpresaDetalle>('/api/v1/admin/empresas', {
       nombre: datos.nombre, contacto_nombre: datos.contacto_rrhh.replace(correo, '').replace(/[,;<>]/g, ' ').replace(/\s+/g, ' ').trim() || 'Contacto de RR. HH.', contacto_correo: correo,
-      direccion_entrega: datos.direccion_entrega, zona: datos.zona ?? '', vigencia_inicio: datos.vigencia_inicio, compra_minima_mensual: datos.compra_minima_mensual,
+      direccion_entrega: datos.direccion_entrega,
+      ...(conCoordenadas ? { latitud: datos.latitud, longitud: datos.longitud } : { zona: datos.zona ?? '' }),
+      vigencia_inicio: datos.vigencia_inicio, compra_minima_mensual: datos.compra_minima_mensual,
       porcentaje_subsidio: datos.porcentaje_subsidio, ventana_entrega_inicio: inicio, ventana_entrega_fin: fin,
     }))
   },
@@ -188,6 +191,7 @@ const real: typeof mock = {
   listarComedores: async () => leer<ComedorDetalle[]>('/api/v1/admin/comedores'),
   obtenerComedor: async (id) => leer<ComedorDetalle>(esRol('comedor') ? '/api/v1/comedor/perfil' : `/api/v1/admin/comedores/${id}`),
   listarZonas: async () => leer<ZonaDetalle[]>('/api/v1/admin/zonas'),
+  obtenerZona: async (id) => leer<ZonaDetalle>(`/api/v1/admin/zonas/${id}`),
   crearZona: async (nombre, geojson) => ids(await post<ZonaDetalle>('/api/v1/admin/zonas', { nombre, geojson })),
   reemplazarPoligonoZona: async (id, geojson) => ids(await put<ZonaDetalle>(`/api/v1/admin/zonas/${id}`, { geojson })),
   importarZonas: async (coleccion) => ids(await post<ResultadoImportarZonas>('/api/v1/admin/zonas/importar', coleccion)),
@@ -386,6 +390,7 @@ export const crearPlan = elegir('crearPlan')
 export const cambiarEstadoPlan = elegir('cambiarEstadoPlan')
 export const crearComedor = elegir('crearComedor')
 export const listarZonas = elegir('listarZonas')
+export const obtenerZona = elegir('obtenerZona')
 export const crearZona = elegir('crearZona')
 export const reemplazarPoligonoZona = elegir('reemplazarPoligonoZona')
 export const importarZonas = elegir('importarZonas')

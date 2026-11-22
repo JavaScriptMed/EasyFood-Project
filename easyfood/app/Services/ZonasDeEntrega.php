@@ -103,6 +103,20 @@ class ZonasDeEntrega
         return $this->vista($z) + ['geojson' => ['type' => 'Feature', 'properties' => ['nombre' => $z->nombre], 'geometry' => json_decode($geometria, true)]];
     }
 
+    /**
+     * Calcula qué zona activa cubre un punto (PostGIS ST_Covers). Si dos zonas se traslapan, gana la más pequeña
+     * (la más específica); a igualdad, la de menor id. Devuelve null si el punto está fuera de cobertura.
+     */
+    public function zonaParaPunto(float $latitud, float $longitud): ?string
+    {
+        $fila = DB::selectOne(
+            'select z.nombre from zonas z where z.activo and ST_Covers(z.area, ST_SetSRID(ST_MakePoint(?, ?), 4326)::geography) order by ST_Area(z.area), z.id limit 1',
+            [$longitud, $latitud]
+        );
+
+        return $fila?->nombre;
+    }
+
     /** Desactivar una zona deja sin cobertura las direcciones que cubría: no se puede mientras haya empresas, comedores o repartidores activos en ella. */
     public function cambiarEstado(?User $actor, int $id, bool $activo): array
     {

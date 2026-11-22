@@ -30,15 +30,17 @@ class EdicionDeRegistros
         private readonly AltaDeCuentas $altas,
         private readonly Invitaciones $invitaciones,
         private readonly CalendarioDeServicio $calendario,
+        private readonly ZonasDeEntrega $zonas,
     ) {}
 
     // ------------------------------------------------------------------ empresas
 
     /**
      * Cambia los datos de la empresa, de su contacto y de su contrato vigente. Lo ya elegido conserva el precio y el subsidio con que se
-     * eligió (se congelan al elegir): el cambio vale para lo que se elija desde ahora.
+     * eligió (se congelan al elegir): el cambio vale para lo que se elija desde ahora. Si se mandan `latitud` y `longitud`, se recalcula
+     * su zona con PostGIS (`ST_Covers`) y se rechaza si cae fuera de cobertura; si no se mandan, conserva su zona y punto actuales.
      *
-     * @param  array{nombre: string, direccion_entrega: string, contacto_nombre?: ?string, contacto_correo?: ?string, contacto_telefono?: ?string, porcentaje_subsidio: float|int|string, compra_minima_mensual: int, ventana_entrega_inicio: string, ventana_entrega_fin: string}  $d
+     * @param  array{nombre: string, direccion_entrega: string, latitud?: float|int|string|null, longitud?: float|int|string|null, contacto_nombre?: ?string, contacto_correo?: ?string, contacto_telefono?: ?string, porcentaje_subsidio: float|int|string, compra_minima_mensual: int, ventana_entrega_inicio: string, ventana_entrega_fin: string}  $d
      */
     public function editarEmpresa(User $actor, Empresa $empresa, array $d): Empresa
     {
@@ -52,10 +54,21 @@ class EdicionDeRegistros
         $contrato = ContratoEmpresa::query()->activos()->where('empresa_id', $empresa->id)->orderByDesc('vigencia_inicio')->first()
             ?? throw new ReglaDeNegocioException('sin_contrato', 'La empresa no tiene un contrato activo que editar: renueva el contrato primero.');
 
+        $datosEmpresa = ['nombre' => $nombre, 'direccion_entrega' => trim($d['direccion_entrega'])];
+        if (isset($d['latitud'], $d['longitud']) && $d['latitud'] !== '' && $d['longitud'] !== '') {
+            $latitud = round((float) $d['latitud'], 6);
+            $longitud = round((float) $d['longitud'], 6);
+            $zona = $this->zonas->zonaParaPunto($latitud, $longitud);
+            if ($zona === null) {
+                throw new ReglaDeNegocioException('fuera_de_cobertura', 'El punto de entrega está fuera de las zonas de cobertura activas.');
+            }
+            $datosEmpresa += ['latitud' => $latitud, 'longitud' => $longitud, 'zona' => $zona];
+        }
+
         $correoNuevo = ! empty($d['contacto_correo']) && $empresa->usuario ? $this->invitaciones->validarCambioDeCorreo($empresa->usuario, $d['contacto_correo']) : null;
 
-        DB::transaction(function () use ($actor, $empresa, $contrato, $d, $nombre) {
-            $empresa->update(['nombre' => $nombre, 'direccion_entrega' => trim($d['direccion_entrega'])]);
+        DB::transaction(function () use ($actor, $empresa, $contrato, $d, $datosEmpresa) {
+            $empresa->update($datosEmpresa);
             $contrato->update([
                 'porcentaje_subsidio' => $d['porcentaje_subsidio'], 'compra_minima_mensual' => $d['compra_minima_mensual'],
                 'ventana_entrega_inicio' => $d['ventana_entrega_inicio'], 'ventana_entrega_fin' => $d['ventana_entrega_fin'], 'hora_entrega' => $d['ventana_entrega_inicio'],

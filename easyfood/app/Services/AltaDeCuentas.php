@@ -23,14 +23,19 @@ use Illuminate\Support\Str;
  */
 class AltaDeCuentas
 {
-    public function __construct(private readonly Invitaciones $invitaciones, private readonly CalendarioDeServicio $calendario) {}
+    public function __construct(
+        private readonly Invitaciones $invitaciones,
+        private readonly CalendarioDeServicio $calendario,
+        private readonly ZonasDeEntrega $zonas,
+    ) {}
 
     // ------------------------------------------------------------------ empresa
 
     /**
      * Da de alta una empresa: su contacto de RR. HH., la empresa y su contrato de 6 meses con el mínimo y el subsidio acordados.
+     * Si se mandan coordenadas (`latitud` y `longitud`), la zona se calcula con PostGIS (`ST_Covers`) y un punto fuera de cobertura se rechaza.
      *
-     * @param  array{nombre: string, contacto_nombre: string, contacto_correo: string, contacto_telefono?: ?string, direccion_entrega: string, zona: string, vigencia_inicio: string, compra_minima_mensual: int, porcentaje_subsidio: float|int|string, precio_por_platillo?: float|int|string|null, ventana_entrega_inicio: string, ventana_entrega_fin: string, hora_entrega?: ?string}  $d
+     * @param  array{nombre: string, contacto_nombre: string, contacto_correo: string, contacto_telefono?: ?string, direccion_entrega: string, zona?: ?string, latitud?: float|int|string|null, longitud?: float|int|string|null, vigencia_inicio: string, compra_minima_mensual: int, porcentaje_subsidio: float|int|string, precio_por_platillo?: float|int|string|null, ventana_entrega_inicio: string, ventana_entrega_fin: string, hora_entrega?: ?string}  $d
      */
     public function crearEmpresa(User $admin, array $d): Empresa
     {
@@ -38,17 +43,33 @@ class AltaDeCuentas
         if (Empresa::query()->whereRaw('lower(nombre) = ?', [Str::lower($nombre)])->exists()) {
             throw new ReglaDeNegocioException('empresa_repetida', 'Ya hay una empresa con ese nombre.');
         }
-        $zona = $this->zonaExistente($d['zona']);
+
+        $latitud = null;
+        $longitud = null;
+        if (isset($d['latitud'], $d['longitud']) && $d['latitud'] !== '' && $d['longitud'] !== '') {
+            $latitud = round((float) $d['latitud'], 6);
+            $longitud = round((float) $d['longitud'], 6);
+            $zona = $this->zonas->zonaParaPunto($latitud, $longitud);
+            if ($zona === null) {
+                throw new ReglaDeNegocioException('fuera_de_cobertura', 'El punto de entrega está fuera de las zonas de cobertura activas.');
+            }
+        } else {
+            $zona = $this->zonaExistente((string) ($d['zona'] ?? ''));
+        }
+
         $correo = Str::lower(trim($d['contacto_correo']));
         $inicio = CarbonImmutable::parse($d['vigencia_inicio']);
 
-        [$empresa, $invitacion, $token] = DB::transaction(function () use ($admin, $d, $nombre, $zona, $correo, $inicio) {
+        [$empresa, $invitacion, $token] = DB::transaction(function () use ($admin, $d, $nombre, $zona, $latitud, $longitud, $correo, $inicio) {
             $contacto = $this->invitaciones->prepararCuenta($d['contacto_nombre'], $correo, 'empresa');
             if (! empty($d['contacto_telefono'])) {
                 UserProfile::query()->where('user_id', $contacto->id)->update(['phone' => $d['contacto_telefono']]);
             }
 
-            $empresa = Empresa::create(['usuario_id' => $contacto->id, 'nombre' => $nombre, 'dominio' => Str::after($correo, '@'), 'zona' => $zona, 'direccion_entrega' => trim($d['direccion_entrega'])]);
+            $empresa = Empresa::create([
+                'usuario_id' => $contacto->id, 'nombre' => $nombre, 'dominio' => Str::after($correo, '@'), 'zona' => $zona,
+                'direccion_entrega' => trim($d['direccion_entrega']), 'latitud' => $latitud, 'longitud' => $longitud,
+            ]);
             ContratoEmpresa::create([
                 'empresa_id' => $empresa->id, 'porcentaje_subsidio' => $d['porcentaje_subsidio'], 'compra_minima_mensual' => $d['compra_minima_mensual'],
                 'precio_por_platillo' => $d['precio_por_platillo'] ?? config('easylunch.precio_por_platillo_empresa'),

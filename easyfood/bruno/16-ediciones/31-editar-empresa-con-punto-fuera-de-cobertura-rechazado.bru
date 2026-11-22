@@ -1,0 +1,41 @@
+meta {
+  name: Editar empresa con punto fuera de cobertura (rechazado)
+  type: http
+  seq: 31
+}
+
+put {
+  url: {{baseUrl}}/api/v1/admin/empresas/{{empresaConPuntoId}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+body:json {
+  {
+    "nombre": "{{nombreEmpresaConPuntoEditada}}",
+    "direccion_entrega": "Av. Reforma 100, CDMX",
+    "latitud": 19.4326,
+    "longitud": -99.1332,
+    "contacto_nombre": "Contacto Mapa Editado",
+    "contacto_telefono": "33 4444 5555",
+    "porcentaje_subsidio": 55,
+    "compra_minima_mensual": 220,
+    "ventana_entrega_inicio": "12:00",
+    "ventana_entrega_fin": "12:45"
+  }
+}
+
+tests {
+  test("responde 422 fuera_de_cobertura", function () {
+    expect(res.getStatus()).to.equal(422);
+    expect(res.body.codigo).to.equal("fuera_de_cobertura");
+  });
+}
+
+docs {
+  Al editar una empresa con un punto fuera de cobertura, se rechaza con 422 y conserva su punto y zona anteriores.
+}

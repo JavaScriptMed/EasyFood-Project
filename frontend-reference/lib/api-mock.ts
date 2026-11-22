@@ -238,13 +238,26 @@ export const cambiarEstadoEmpresa = (empresa_id: string, activo: boolean) => lla
   return detalleEmpresa(empresa)
 })
 
+/** La zona que cubre un punto en la maqueta (los polígonos de ejemplo son rectángulos): misma regla que el servidor, fuera de zonas no hay cobertura. */
+function zonaDelPuntoMock(latitud: number, longitud: number): string {
+  for (const [nombre, feature] of Object.entries(poligonosMock)) {
+    const anillo = (feature as any).geometry.coordinates[0] as number[][]
+    const lons = anillo.map((p) => p[0])
+    const lats = anillo.map((p) => p[1])
+    if (longitud >= Math.min(...lons) && longitud <= Math.max(...lons) && latitud >= Math.min(...lats) && latitud <= Math.max(...lats)) return nombre
+  }
+  throw new Error('El punto de entrega está fuera de las zonas de cobertura activas.')
+}
+
 export const crearEmpresa = (datos: NuevaEmpresa) => llamar<EmpresaDetalle>(() => {
   if (!datos.nombre.trim()) throw new Error('Escribe el nombre de la empresa.')
+  const conPunto = datos.latitud != null && datos.longitud != null
+  const zonaMock = conPunto ? zonaDelPuntoMock(datos.latitud as number, datos.longitud as number) : datos.zona?.trim() || 'Guadalajara'
   const id = siguienteId('EMP-', db.empresas.map((e) => e.id))
   const correo = datos.contacto_rrhh.match(/[^\s@]+@[^\s@]+\.[^\s@]+/)?.[0] ?? `rrhh@${id.toLowerCase()}.mx`
   const nombreContacto = datos.contacto_rrhh.replace(correo, '').replace(/[,;<>]/g, ' ').trim() || 'Contacto de RR. HH.'
   const usuario: Usuario = { id: `USR-${id}`, nombre: nombreContacto, correo, telefono: null, rol: 'empresa', activo: true }
-  const empresa: Empresa = { id, usuario_id: usuario.id, nombre: datos.nombre.trim(), dominio: correo.split('@')[1], zona: datos.zona?.trim() || 'Guadalajara', direccion_entrega: datos.direccion_entrega.trim() }
+  const empresa: Empresa = { id, usuario_id: usuario.id, nombre: datos.nombre.trim(), dominio: correo.split('@')[1], zona: zonaMock, direccion_entrega: datos.direccion_entrega.trim(), latitud: conPunto ? datos.latitud : null, longitud: conPunto ? datos.longitud : null }
   const [ventana_inicio = '12:30', ventana_fin = '13:15'] = datos.horario_entrega.split(/\s*[–-]\s*/)
   const inicio = datos.vigencia_inicio || FECHA_HOY
   const fin = new Date(`${inicio}T00:00:00Z`)
@@ -1068,6 +1081,10 @@ export const subirImagenPlatillo = (platillo_id: string, archivo: File) => llama
 })
 
 // ---------------------------------------------------------------- zonas de entrega (en la maqueta no hay mapa: solo se valida la forma del GeoJSON)
+const poligonosMock: Record<string, unknown> = {
+  Centro: { type: 'Feature', properties: { nombre: 'Centro' }, geometry: { type: 'Polygon', coordinates: [[[-103.38, 20.65], [-103.31, 20.65], [-103.31, 20.70], [-103.38, 20.70], [-103.38, 20.65]]] } },
+  Zapopan: { type: 'Feature', properties: { nombre: 'Zapopan' }, geometry: { type: 'Polygon', coordinates: [[[-103.50, 20.66], [-103.38, 20.66], [-103.38, 20.80], [-103.50, 20.80], [-103.50, 20.66]]] } },
+}
 const zonasMock: ZonaDetalle[] = [
   { id: 'ZON-001', nombre: 'Centro', activo: true, area_km2: 42.1, direcciones: 18, empresas: 1, comedores: 1, repartidores: 1 },
   { id: 'ZON-002', nombre: 'Zapopan', activo: true, area_km2: 115.4, direcciones: 9, empresas: 1, comedores: 1, repartidores: 1 },
@@ -1079,6 +1096,11 @@ function exigirPoligono(g: unknown) {
 }
 
 export const listarZonas = () => llamar<ZonaDetalle[]>(() => [...zonasMock].sort((a, b) => a.nombre.localeCompare(b.nombre)))
+export const obtenerZona = (id: string) => llamar<ZonaDetalle>(() => {
+  const zona = zonasMock.find((z) => z.id === id)
+  if (!zona) throw new Error('La zona no existe.')
+  return { ...zona, geojson: poligonosMock[zona.nombre] }
+})
 
 export const crearZona = (nombre: string, geojson: unknown) => llamar<ZonaDetalle>(() => {
   if (!nombre.trim()) throw new Error('Escribe el nombre de la zona.')
