@@ -401,15 +401,22 @@ export interface MapaSelectorPuntoProps {
   zonas: ZonaConPoligono[]
   latitud: number | null
   longitud: number | null
+  /** Solo se llama cuando la persona mueve el punto (clic en el mapa o arrastrar el pin), no cuando el punto llega de afuera. */
   onChange: (punto: { latitud: number; longitud: number }) => void
+  /** Cada vez que cambia este número el mapa se acerca al punto (por ejemplo al elegir una sugerencia del buscador). */
+  enfoque?: number
+  /** Avisa cuando el mapa no se pudo iniciar (mensaje) o cuando ya está disponible (null). */
+  onFalla?: (mensaje: string | null) => void
 }
 
 /**
- * Selector de punto de entrega con pin arrastrable (B.2 Nueva Empresa, paso 3).
- * Si falta el token público de Mapbox muestra un aviso y permite ingresar latitud y longitud a mano.
+ * Mapa del selector de punto de entrega: pin arrastrable y clic para colocarlo (Nueva empresa, paso 3, y Editar empresa).
+ * Si falta el token público de Mapbox o el mapa no arranca, muestra un aviso y avisa con `onFalla`.
  */
-export function MapaSelectorPunto({ zonas, latitud, longitud, onChange }: MapaSelectorPuntoProps) {
+export function MapaSelectorPunto({ zonas, latitud, longitud, onChange, enfoque, onFalla }: MapaSelectorPuntoProps) {
   const token = obtenerTokenMapbox()
+  const onFallaRef = useRef(onFalla)
+  onFallaRef.current = onFalla
   const contenedorRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<MapboxMap | null>(null)
   const mapboxRef = useRef<MapboxModule["default"] | null>(null)
@@ -439,7 +446,7 @@ export function MapaSelectorPunto({ zonas, latitud, longitud, onChange }: MapaSe
           container: contenedorRef.current,
           style: estiloMapboxActual(),
           center: centroInicial,
-          zoom: 11.8,
+          zoom: latitud !== null && longitud !== null ? 15 : 11.2,
         })
         mapaLocal.addControl(new mapboxgl.NavigationControl({ showCompass: false }), "top-right")
 
@@ -477,12 +484,12 @@ export function MapaSelectorPunto({ zonas, latitud, longitud, onChange }: MapaSe
 
         mapaLocal.on("error", () => {
           if (!cancelado && !mapRef.current) {
-            setErrorMapa("No se pudo cargar Mapbox. Puedes escribir la latitud y longitud a mano debajo.")
+            setErrorMapa("No se pudo cargar el mapa de Mapbox. Revisa tu conexión y que el token sea válido para este sitio.")
           }
         })
       } catch {
         if (!cancelado) {
-          setErrorMapa("Este navegador no soporta WebGL para el mapa. Puedes escribir la latitud y longitud a mano debajo.")
+          setErrorMapa("Este navegador no puede mostrar el mapa (necesita WebGL).")
         }
       }
     })()
@@ -498,18 +505,16 @@ export function MapaSelectorPunto({ zonas, latitud, longitud, onChange }: MapaSe
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token])
 
-  // Dibujar polígonos de zonas activas
+  // Avisar a quien lo usa si el mapa no está disponible
+  useEffect(() => {
+    onFallaRef.current?.(errorMapa)
+  }, [errorMapa])
+
+  // Dibujar polígonos de zonas activas (sin mover el mapa: sin punto abre centrado en Guadalajara)
   useEffect(() => {
     const map = mapRef.current
-    const mapboxgl = mapboxRef.current
-    if (!listo || !map || !mapboxgl) return
+    if (!listo || !map) return
     aplicarPoligonosZonas(map, zonas)
-    if (latitud === null && longitud === null && zonas.length > 0) {
-      const bounds = new mapboxgl.LngLatBounds()
-      zonas.forEach((z) => extenderLimitesConGeometria(bounds, z))
-      if (!bounds.isEmpty()) map.fitBounds(bounds, { padding: 36, maxZoom: 13, duration: 400 })
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [listo, zonas])
 
   // Sincronizar pin cuando el usuario escribe latitud/longitud manualmente
@@ -536,23 +541,31 @@ export function MapaSelectorPunto({ zonas, latitud, longitud, onChange }: MapaSe
     map.easeTo({ center: [longitud, latitud], duration: 300 })
   }, [listo, latitud, longitud])
 
+  // Acercar el mapa al punto cuando llega del buscador
+  useEffect(() => {
+    const map = mapRef.current
+    if (!listo || !map || !enfoque || latitud === null || longitud === null) return
+    map.easeTo({ center: [longitud, latitud], zoom: 16, duration: 600 })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [listo, enfoque])
+
   if (!token) {
     return (
       <AvisoSinToken
         alturaMinima="min-h-44"
-        titulo="Mapa interactivo no disponible (falta NEXT_PUBLIC_MAPBOX_TOKEN)"
-        detalle="Configura el token público de Mapbox en .env.local para arrastrar el pin en el mapa. Mientras tanto, escribe la latitud y longitud a mano en los campos de abajo; el servidor calculará la zona con PostGIS."
+        titulo="Mapa no disponible (falta NEXT_PUBLIC_MAPBOX_TOKEN)"
+        detalle="Configura el token público de Mapbox (NEXT_PUBLIC_MAPBOX_TOKEN en .env.local y en Vercel) para buscar la dirección y colocar el punto de entrega en el mapa."
       />
     )
   }
 
   if (errorMapa) {
-    return <AvisoSinToken alturaMinima="min-h-44" titulo="Mapa interactivo no disponible" detalle={errorMapa} />
+    return <AvisoSinToken alturaMinima="min-h-44" titulo="Mapa no disponible" detalle={errorMapa} />
   }
 
   return (
-    <div className="relative h-56 w-full overflow-hidden rounded-lg border border-border bg-muted/40">
-      <div ref={contenedorRef} className="h-full w-full" />
+    <div className="relative h-64 w-full overflow-hidden rounded-lg border border-border bg-muted/40">
+      <div ref={contenedorRef} className="h-full w-full" data-mapa-selector />
       <div className="pointer-events-none absolute left-2.5 top-2.5 flex items-center gap-1.5 rounded-md border bg-background/90 px-2.5 py-1 text-[11px] font-medium text-foreground shadow-sm backdrop-blur-sm">
         <MapPin className="size-3.5 text-primary" />
         Haz clic en el mapa o arrastra el pin dentro de una zona activa
