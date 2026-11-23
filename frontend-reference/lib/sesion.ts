@@ -42,6 +42,13 @@ export function leerUsuario(): UsuarioSesion | null {
   return leerCrudo()?.usuario ?? null
 }
 
+/** Quién entró y con qué rol (se lee ya montada la página, porque la sesión vive en sessionStorage). Sin sesión o en la maqueta, `usuario` es null. */
+export function useUsuarioSesion(): { usuario: UsuarioSesion | null; rol: Rol | null } {
+  const [datos, setDatos] = useState<{ usuario: UsuarioSesion | null; rol: Rol | null }>({ usuario: null, rol: null })
+  useEffect(() => { setDatos({ usuario: leerUsuario(), rol: leerCrudo()?.rol ?? null }) }, [])
+  return datos
+}
+
 /** La API dijo 401: el token ya no sirve. Marca la sesión como expirada para que el portal lo muestre. */
 export function marcarSesionExpirada(): Rol | null {
   const sesion = leerCrudo()

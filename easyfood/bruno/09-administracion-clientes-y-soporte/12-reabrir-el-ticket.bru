@@ -1,0 +1,31 @@
+meta {
+  name: Reabrir el ticket
+  type: http
+  seq: 12
+}
+
+patch {
+  url: {{baseUrl}}/api/v1/admin/tickets/{{ticketId}}/estado
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenSoporte}}
+}
+
+body:json {
+  {
+    "estado": "en_proceso"
+  }
+}
+
+tests {
+  test("responde 200", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("el ticket vuelve a estar en proceso", function () {
+    expect(res.body.estado).to.equal("en_proceso");
+  });
+}

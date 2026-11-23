@@ -17,7 +17,7 @@ import type {
   CalificacionPendiente, CalificarEntrega, CalificarPlatillo, CostoOperativo, IndicadoresEmpresa, NuevoCostoOperativo, ProgramarPrecio, EdicionComedor, EdicionEmpleado, EdicionEmpresa, EdicionPlan, EdicionRepartidor, EdicionUsuarioAcceso, EntregaDetalle, EstadoContrato, FacturaConEmpresa, FacturaDetalle, FacturaMensual, FilaReporteProveedor, GuardarPlatillo, HistorialPrecio,
   LiquidacionComedor, LiquidacionConComedor, MenuSemanalDia, MensajeTicket, NuevaEmpresa, NuevoComedor, ResultadoImportarZonas, ZonaDetalle, NuevoPlan, NuevoRepartidor, OrdenProduccionDetalle, PedidoDetalle,
   CorreoOmitido, NuevasInvitaciones, ResultadoInvitacionesEnLote, PedidosMananaEmpresa, Plan, Platillo, PlatilloDetalle, RegistroAuditoriaDetalle, RepartidorDetalle, ResultadoAltaEmpleados, ResultadoCorte, RutaDetalle,
-  MensajeContacto, NuevoMensajeContacto, ClienteDetalle, ClienteResumen, ConsumoDiario, EstadoInvitacion, Incidencia, MiEleccion, MiMenu, OpcionMenu, InvitacionDetalle, InvitacionPublica, Invitacion, NuevaInvitacion, Portal, ResultadoAceptacion, SolicitudRestablecimiento, TipoOrganizacion, UsuarioAcceso, ValidacionToken, RegistroAuditoria, Repartidor, Ruta, TicketDetalle, TicketResumen, TiempoComida, TipoVehiculo, Usuario, UsuarioResumen,
+  EstadoTicket, Ticket, MensajeContacto, NuevoMensajeContacto, ClienteDetalle, ClienteResumen, ConsumoDiario, EstadoInvitacion, Incidencia, MiEleccion, MiMenu, OpcionMenu, InvitacionDetalle, InvitacionPublica, Invitacion, NuevaInvitacion, Portal, ResultadoAceptacion, SolicitudRestablecimiento, TipoOrganizacion, UsuarioAcceso, ValidacionToken, RegistroAuditoria, Repartidor, Ruta, TicketDetalle, TicketResumen, TiempoComida, TipoVehiculo, Usuario, UsuarioResumen,
 } from './types'
 
 // ---------------------------------------------------------------- infraestructura
@@ -1367,6 +1367,14 @@ export const enviarMensajeTicket = (ticket_id: string, texto: string, adjunto?: 
   ticket.actualizado_en = mensaje.enviado_en
   ticket.mensajes_sin_leer = 0
   return mensaje
+})
+
+export const cambiarEstadoTicket = (ticket_id: string, estado: EstadoTicket) => llamar<Ticket>(() => {
+  const ticket = db.tickets.find((t) => t.id === ticket_id)
+  if (!ticket) throw new Error('El ticket no existe.')
+  ticket.estado = estado
+  ticket.actualizado_en = ahora()
+  return ticket
 })
 
 // ---------------------------------------------------------------- portal del empleado

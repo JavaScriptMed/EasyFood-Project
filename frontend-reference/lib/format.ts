@@ -51,6 +51,9 @@ export const sumarDias = (fecha: string, dias: number) => {
   return new Date(Date.UTC(y, m, d + dias)).toISOString().slice(0, 10)
 }
 
+/** El lunes de la semana de una fecha (AAAA-MM-DD). */
+export const lunesDe = (fecha: string) => sumarDias(fecha, -((new Date(`${fecha}T00:00:00Z`).getUTCDay() + 6) % 7))
+
 export const mesesEntre = (inicio: string, fin: string) => {
   const a = partes(inicio)
   const b = partes(fin)

@@ -293,6 +293,16 @@ export interface Pedido {
   tiene_evidencia: boolean
   evidencia_foto_url?: string | null // la foto de entrega (null si todavía no hay); solo la entrega la API de administración
   entregada_en?: string | null // cuándo se cerró la entrega (ISO); solo si la API lo entrega
+  fecha_entrega?: string // el sábado en que llega todo el pedido (clientes individuales)
+  dias?: DiaDePedido[] // un elemento por día de comida; los pedidos nuevos comparten una sola entrega (mismo id)
+}
+
+export interface DiaDePedido {
+  id: string | number
+  fecha: string // el día en que se come
+  fecha_entrega: string
+  estado: 'programada' | 'en_ruta' | 'entregada' | 'no_localizado' | 'cancelada'
+  platillos: { tiempo_comida: TiempoComida; es_extra: boolean; platillo_id: string | number; platillo_nombre: string | null; precio_congelado: number }[]
 }
 
 export interface HistorialPrecio {

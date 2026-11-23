@@ -161,6 +161,7 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('tickets', [Admin\TicketController::class, 'index'])->name('tickets.index');
             Route::get('tickets/{id}', [Admin\TicketController::class, 'show'])->name('tickets.show');
             Route::post('tickets/{id}/mensajes', [Admin\TicketController::class, 'mensaje'])->name('tickets.mensaje');
+            Route::patch('tickets/{id}/estado', [Admin\TicketController::class, 'estado'])->name('tickets.estado');
         });
     });
 

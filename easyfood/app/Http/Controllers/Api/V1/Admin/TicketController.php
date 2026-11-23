@@ -39,6 +39,24 @@ class TicketController extends Controller
     }
 
     /**
+     * Cambia el estado de un ticket: marcarlo resuelto, cerrarlo o reabrirlo (abierto / en proceso). Queda en la bitácora con quién lo hizo.
+     * Repetir el mismo estado no hace nada. Un mensaje nuevo del agente sigue pasando un ticket abierto a «en proceso».
+     */
+    public function estado(Request $request, int $id): JsonResponse
+    {
+        $estado = $request->validate(['estado' => 'required|in:abierto,en_proceso,resuelto,cerrado'])['estado'];
+        $ticket = Ticket::query()->findOrFail($id);
+
+        if ($ticket->estado !== $estado) {
+            $antes = $ticket->estado;
+            $ticket->update(['estado' => $estado]);
+            Bitacora::registrar($request->user(), 'ticket.estado', 'tickets', $ticket->id, "Cambió el ticket {$ticket->folio} de «{$antes}» a «{$estado}».");
+        }
+
+        return response()->json(Vistas::ticket($ticket->refresh()->load(['cliente', 'pedido'])));
+    }
+
+    /**
      * Responde al cliente como agente, con texto, con un archivo (foto o PDF de hasta 5 MB, campo `adjunto`) o con ambos.
      * Si el ticket estaba abierto pasa a «en proceso» y se limpian sus mensajes sin leer.
      */
