@@ -183,6 +183,9 @@ export interface Parada {
   ubicacion?: { latitud: number; longitud: number } | null
   hora_estimada: string
   estado: EstadoParada
+  evidencia_foto_url?: string | null // la foto que dejó el repartidor al entregar (null si no hay)
+  motivo_no_entrega?: string | null // el motivo si quedó «no localizado»
+  cerrada_en?: string | null // cuándo se cerró la parada (ISO); solo si la API lo entrega
 }
 
 export interface Incidencia {
@@ -288,6 +291,8 @@ export interface Pedido {
   metodo_pago: string
   ultimos_digitos: string | null
   tiene_evidencia: boolean
+  evidencia_foto_url?: string | null // la foto de entrega (null si todavía no hay); solo la entrega la API de administración
+  entregada_en?: string | null // cuándo se cerró la entrega (ISO); solo si la API lo entrega
 }
 
 export interface HistorialPrecio {

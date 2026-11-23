@@ -234,12 +234,12 @@ export const rutas: Ruta[] = [
 ]
 
 export const paradas: Parada[] = [
-  { id: 'PAR-01-1', ruta_id: 'R-01', orden: 1, entrega_id: null, nombre_destinatario: 'Mariana López', direccion: 'Av. Vallarta 1248', hora_estimada: '07:18', estado: 'entregado' },
+  { id: 'PAR-01-1', ruta_id: 'R-01', orden: 1, entrega_id: null, nombre_destinatario: 'Mariana López', direccion: 'Av. Vallarta 1248', hora_estimada: '07:18', estado: 'entregado', evidencia_foto_url: '/placeholder.jpg', cerrada_en: '2026-11-16T07:21:00-06:00' },
   { id: 'PAR-01-2', ruta_id: 'R-01', orden: 2, entrega_id: null, nombre_destinatario: 'Ana Paula Silva', direccion: 'Morelos 88', hora_estimada: '07:42', estado: 'pendiente' },
   { id: 'PAR-01-3', ruta_id: 'R-01', orden: 3, entrega_id: null, nombre_destinatario: 'Luis Navarro', direccion: 'Federalismo 331', hora_estimada: '08:16', estado: 'pendiente' },
-  { id: 'PAR-02-1', ruta_id: 'R-02', orden: 1, entrega_id: null, nombre_destinatario: 'Sofía Hernández', direccion: 'Rubén Darío 742', hora_estimada: '07:25', estado: 'pendiente' },
+  { id: 'PAR-02-1', ruta_id: 'R-02', orden: 1, entrega_id: null, nombre_destinatario: 'Sofía Hernández', direccion: 'Rubén Darío 742', hora_estimada: '07:25', estado: 'no_localizado', motivo_no_entrega: 'Nadie abrió el portón y no contestaron el teléfono' },
   { id: 'PAR-02-2', ruta_id: 'R-02', orden: 2, entrega_id: null, nombre_destinatario: 'Pablo Castro', direccion: 'Lerdo de Tejada 68', hora_estimada: '07:51', estado: 'pendiente' },
-  { id: 'PAR-03-1', ruta_id: 'R-03', orden: 1, entrega_id: null, nombre_destinatario: 'Jorge Ramírez', direccion: 'Calz. Federalismo 220', hora_estimada: '11:54', estado: 'pendiente' },
+  { id: 'PAR-03-1', ruta_id: 'R-03', orden: 1, entrega_id: null, nombre_destinatario: 'Jorge Ramírez', direccion: 'Calz. Federalismo 220', hora_estimada: '11:54', estado: 'entregado', evidencia_foto_url: '/evidencias/no-existe.jpg' },
   { id: 'PAR-03-2', ruta_id: 'R-03', orden: 2, entrega_id: null, nombre_destinatario: 'Elena García', direccion: 'Patria 845', hora_estimada: '12:36', estado: 'pendiente' },
 ]
 
@@ -338,9 +338,9 @@ export const planes: Plan[] = [
 ]
 
 export const pedidos: Pedido[] = [
-  { folio: 'GDL-20261116-0001', cliente_id: 'USR-CLI-01', plan_id: 'PLAN-7', fecha_inicio: '2026-11-16', fecha_fin: '2026-11-21', zona: 'Centro', bloque: 'manana', total: 1194, estado: 'activo', entregas_totales: 6, entregas_completadas: 3, direccion_entrega: 'Av. Vallarta 1248, Americana', referencias: 'Portón negro, casa verde', metodo_pago: 'Mercado Pago', ultimos_digitos: '4821', tiene_evidencia: true },
+  { folio: 'GDL-20261116-0001', cliente_id: 'USR-CLI-01', plan_id: 'PLAN-7', fecha_inicio: '2026-11-16', fecha_fin: '2026-11-21', zona: 'Centro', bloque: 'manana', total: 1194, estado: 'activo', entregas_totales: 6, entregas_completadas: 3, direccion_entrega: 'Av. Vallarta 1248, Americana', referencias: 'Portón negro, casa verde', metodo_pago: 'Mercado Pago', ultimos_digitos: '4821', tiene_evidencia: true, evidencia_foto_url: '/placeholder.jpg', entregada_en: '2026-11-18T07:58:00-06:00' },
   { folio: 'GDL-20261116-0002', cliente_id: 'USR-CLI-02', plan_id: 'PLAN-2', fecha_inicio: '2026-11-16', fecha_fin: '2026-11-17', zona: 'Zapopan', bloque: 'mediodia', total: 398, estado: 'recibido', entregas_totales: 2, entregas_completadas: 0, direccion_entrega: 'Calz. del Federalismo 220', referencias: 'Timbre junto a la cochera', metodo_pago: 'Stripe', ultimos_digitos: '0914', tiene_evidencia: false },
-  { folio: 'GDL-20261116-0003', cliente_id: 'USR-CLI-03', plan_id: 'PLAN-1', fecha_inicio: '2026-11-16', fecha_fin: '2026-11-16', zona: 'Providencia', bloque: 'tarde', total: 219, estado: 'completado', entregas_totales: 1, entregas_completadas: 1, direccion_entrega: 'Av. Rubén Darío 742', referencias: 'Recepción del edificio', metodo_pago: 'Mercado Pago', ultimos_digitos: '7730', tiene_evidencia: true },
+  { folio: 'GDL-20261116-0003', cliente_id: 'USR-CLI-03', plan_id: 'PLAN-1', fecha_inicio: '2026-11-16', fecha_fin: '2026-11-16', zona: 'Providencia', bloque: 'tarde', total: 219, estado: 'completado', entregas_totales: 1, entregas_completadas: 1, direccion_entrega: 'Av. Rubén Darío 742', referencias: 'Recepción del edificio', metodo_pago: 'Mercado Pago', ultimos_digitos: '7730', tiene_evidencia: true, evidencia_foto_url: '/evidencias/no-existe.jpg' },
   { folio: 'GDL-20261116-0004', cliente_id: 'USR-CLI-04', plan_id: 'PLAN-7', fecha_inicio: '2026-11-16', fecha_fin: '2026-11-21', zona: 'Chapalita', bloque: 'manana', total: 1194, estado: 'pendiente_pago', entregas_totales: 6, entregas_completadas: 0, direccion_entrega: 'Tepeyac 1850, Chapalita', referencias: 'Casa esquina, fachada gris', metodo_pago: 'Stripe', ultimos_digitos: null, tiene_evidencia: false },
   { folio: 'GDL-20261115-0048', cliente_id: 'USR-CLI-05', plan_id: 'PLAN-2', fecha_inicio: '2026-11-15', fecha_fin: '2026-11-16', zona: 'Centro', bloque: 'manana', total: 398, estado: 'cancelado', entregas_totales: 2, entregas_completadas: 1, direccion_entrega: 'Morelos 88, Centro', referencias: 'Local con toldo azul', metodo_pago: 'Mercado Pago', ultimos_digitos: '2210', tiene_evidencia: true },
 ]

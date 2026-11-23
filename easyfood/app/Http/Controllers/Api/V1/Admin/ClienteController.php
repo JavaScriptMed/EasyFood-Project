@@ -26,7 +26,7 @@ class ClienteController extends Controller
         $tickets = Ticket::query()->with(['cliente', 'pedido'])->where('cliente_id', $id)->orderByDesc('actualizado_en')->get();
 
         return response()->json(self::resumen($cliente) + [
-            'pedidos' => $pedidos->map(fn ($p) => Vistas::pedido($p))->values(), 'tickets' => $tickets->map(fn ($t) => Vistas::ticket($t))->values(),
+            'pedidos' => $pedidos->map(fn ($p) => Vistas::pedido($p, true))->values(), 'tickets' => $tickets->map(fn ($t) => Vistas::ticket($t))->values(),
         ]);
     }
 

@@ -251,6 +251,8 @@ final class Vistas
             'id' => $p->id, 'ruta_id' => $p->ruta_id, 'orden' => $p->orden, 'entrega_id' => $p->entrega_empresa_id, 'pedido_dia_id' => $p->pedido_dia_id,
             'nombre_destinatario' => $p->nombre_destinatario, 'direccion' => $p->direccion, 'ubicacion' => $ubicacion,
             'hora_estimada' => self::hora($p->hora_estimada), 'estado' => $p->estado,
+            // Lo que dejó el repartidor al cerrar la parada, tal como se guardó (la foto con el mismo criterio de URL que su API).
+            'evidencia_foto_url' => $p->evidencia_foto_url, 'motivo_no_entrega' => $p->motivo_no_entrega,
         ];
     }
 
@@ -382,7 +384,10 @@ final class Vistas
         ];
     }
 
-    public static function pedido(Pedido $p): array
+    /**
+     * @param  bool  $conEvidencia  agrega `evidencia_foto_url` (la foto de entrega que dejó el repartidor, o null): solo la ve la administración.
+     */
+    public static function pedido(Pedido $p, bool $conEvidencia = false): array
     {
         $dias = $p->relationLoaded('dias') ? $p->dias : collect();
 
@@ -393,6 +398,7 @@ final class Vistas
             'entregas_totales' => $dias->count(), 'entregas_completadas' => $dias->where('estado', 'entregada')->count(),
             'direccion_entrega' => $p->direccion?->street_address, 'referencias' => $p->direccion?->delivery_instructions,
             'metodo_pago' => $p->metodo_pago, 'ultimos_digitos' => $p->ultimos_digitos, 'tiene_evidencia' => $dias->contains(fn ($d) => $d->evidencia_foto_url !== null),
+            ...($conEvidencia ? ['evidencia_foto_url' => self::fotoDeEntrega($dias)] : []),
             'vence_pago_en' => self::iso($p->vence_pago_en), 'segundos_para_pagar' => $p->segundos_para_pagar,
             'comidas_por_dia' => $p->comidas_por_dia, 'con_extra' => (bool) $p->con_extra,
             'reembolsado_en' => self::iso($p->reembolsado_en), 'monto_reembolsado' => $p->monto_reembolsado === null ? null : self::dinero($p->monto_reembolsado), 'stripe_refund_id' => $p->stripe_refund_id,
@@ -407,6 +413,12 @@ final class Vistas
                 ])->values()
                 : [['id' => $d->id, 'fecha' => $d->fecha->toDateString(), 'fecha_entrega' => $d->fecha->toDateString(), 'estado' => $d->estado, 'platillos' => []]])->values()->all(),
         ];
+    }
+
+    /** La foto de entrega de un pedido: la de la entrega más reciente que la tenga (los pedidos de ahora tienen una sola), o null. */
+    private static function fotoDeEntrega(Collection $dias): ?string
+    {
+        return $dias->filter(fn ($d) => $d->evidencia_foto_url !== null)->sortByDesc('id')->first()?->evidencia_foto_url;
     }
 
     // ------------------------------------------------------------------ soporte y bitácora

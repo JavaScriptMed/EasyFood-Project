@@ -66,10 +66,10 @@ const repartidor = (r: any): RepartidorDetalle => ({
 })
 const ruta = (r: any): RutaDetalle => ({
   ...r, capacidad_maxima: r.capacidad_entregas, distancia_km: r.distancia_km ?? 0, hora_fin_estimada: r.hora_fin_estimada ?? r.ventana_fin,
-  bloque: bloqueDe(r.ventana_inicio ?? '12:00'), paradas: (r.paradas ?? []).map((p: any) => ({ ...p, entrega_id: p.entrega_id ?? null })),
+  bloque: bloqueDe(r.ventana_inicio ?? '12:00'), paradas: (r.paradas ?? []).map((p: any) => ({ ...p, entrega_id: p.entrega_id ?? null, evidencia_foto_url: p.evidencia_foto_url ?? null, motivo_no_entrega: p.motivo_no_entrega ?? null })),
 })
 const pedido = (p: any): PedidoDetalle => ({
-  ...p, bloque: 'mediodia' as BloqueHorario, zona: p.zona ?? '', referencias: p.referencias ?? '', metodo_pago: p.metodo_pago ?? '', ultimos_digitos: p.ultimos_digitos ?? null, direccion_entrega: p.direccion_entrega ?? '',
+  ...p, bloque: 'mediodia' as BloqueHorario, zona: p.zona ?? '', referencias: p.referencias ?? '', metodo_pago: p.metodo_pago ?? '', ultimos_digitos: p.ultimos_digitos ?? null, direccion_entrega: p.direccion_entrega ?? '', evidencia_foto_url: p.evidencia_foto_url ?? null,
 })
 const platillo = (p: any): PlatilloDetalle => ({ ...p, calorias: p.calorias ?? 0 })
 const ticket = (t: any): TicketResumen => ({ ...t, pedido_folio: t.pedido_folio ?? '' })
