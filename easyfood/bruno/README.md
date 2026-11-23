@@ -23,10 +23,11 @@ Para empezar de cero otra vez: `docker compose exec app php artisan migrate:fres
 | Cuentas (todas con `SEED_PASSWORD`) | `admin@easylunch.test` · `soporte@easylunch.test` · `comedor@easylunch.test` (Cocina Norte) · `comedor.sur@easylunch.test` (Sabor Casero Centro) · `rrhh@nexo.test` (Grupo Industrial Nexo) · `rrhh@pacifico.test` · `ana@nexo.test` y 5 empleados más · `cliente@easylunch.test` · `cliente2@easylunch.test` · `repartidor@easylunch.test` · `repartidor2@easylunch.test` |
 | Zonas | Centro, Zapopan y Tlaquepaque (rectángulos **aproximados**, solo de ejemplo) |
 | Contratos | Nexo (subsidio 60 %, mínimo 420) y Pacífico (50 %, mínimo 300, **vence en 12 días**); comedores a $49 con mínimo de 200 (Sabor Casero **vence en 20 días**) |
-| Platillos | 9 publicados, 1 en revisión, 1 borrador y 1 rechazado; con porciones y «platillo del día» para los próximos 8 días de servicio |
+| Platillos | 9 publicados, 1 en revisión, 1 borrador y 1 rechazado, cada uno con su categoría del catálogo (plato fuerte, sopa y caldo, antojito, sándwich); con porciones y «platillo del día» para los próximos 8 días de servicio |
+| Catálogos | Categorías de platillo y catálogos de tiempos de comida, alérgenos y dietas con sus items |
 | Historial | 12 días de servicio del mes pasado entregados (para facturar y liquidar) y 3 días recientes (para «último platillo») |
 | Próxima entrega | Ana, Beto y Elena ya eligieron; los demás los resuelve la regla «sin elección» al hacer el corte |
-| Clientes | 3 paquetes (1, 2 y 6 días), 3 direcciones (una **sin cobertura**), un pedido pagado y otro por pagar, un ticket |
+| Clientes | 3 paquetes (1, 2 y 6 días), 3 direcciones (una **sin cobertura**), un pedido pagado (2 días con desayuno y comida) y otro por pagar (1 día con desayuno, comida, cena y un extra), un ticket |
 | Soporte | 2 incidencias abiertas, un festivo futuro, un mensaje de contacto |
 
 Las fechas son relativas a hoy, así que el ejemplo siempre sirve.
@@ -48,15 +49,22 @@ Clic derecho en la colección → **Run**, o corre carpeta por carpeta. **Empiez
 | 01 | Administración · catálogo | Empresas, comedores, contratos por vencer, crear/editar/aprobar/rechazar platillos |
 | 02 | Administración · configuración y calendario | Hora de corte, capacidad del auto, días sin servicio y cierres de empresa |
 | 03 | Portal de empleados | Menú, elegir, cambiar y quitar platillo; el precio y el subsidio se congelan al elegir |
-| 04 | App móvil · clientes | Paquetes, direcciones (zona automática y «sin cobertura») y pedidos con pago simulado |
+| 04 | App móvil · clientes | Paquetes, direcciones (zona automática y «sin cobertura») y pedidos (el pago es con Stripe en modo de prueba: sin claves, «iniciar el pago» responde 503) |
 | 05 | Portal de comedores | Perfil, platillos, porciones por día, pagos |
 | 06 | **Corte y reparto** | **Ejecutar el corte**: cierra elecciones, órdenes de producción, entregas por empresa, rutas por zona e incidencias |
 | 07 | Administración · dinero | Facturas a empresas y liquidaciones a comedores (total, partes y diferencia por mínimo) |
 | 08 | Portal de empresas | Empleados (activar/desactivar) y facturas propias |
-| 09 | Administración · clientes y soporte | Clientes, pedidos, tickets |
+| 15 | Altas (empresa, comedor, repartidor, empleados y planes) | Dar de alta una empresa y un comedor con su contrato, un repartidor, empleados y planes; cada persona recibe su invitación |
+| 16 | Editar y desactivar | Editar y desactivar empresas, repartidores, planes, empleados y personas con acceso; capacidad del auto (usa lo creado en la 15) |
+| 17 | Platillos · fotos y precios | Subir la foto de un platillo (admin y comedor), historial de precios y programar un precio |
+| 18 | Zonas de entrega | Crear, importar varias, cambiar el polígono y desactivar zonas (GeoJSON); validaciones de coordenadas y de polígonos |
+| 19 | Entrega semanal de individuales | Los clientes individuales reciben todo en una sola entrega el sábado: próxima entrega, pedido de 2 días, corte de individuales (viernes a la hora de corte), repetirlo, y un pedido nuevo que pasa al sábado siguiente |
+| 20 | API del repartidor | La app del repartidor (rol `driver`): en línea o fuera de línea, sus rutas con paradas y los rechazos (ruta de otro día, parada sin iniciar, sin foto o sin motivo, sin permiso). El recorrido completo lo prueba PHPUnit, que controla la hora |
+| 14 | Cuentas (invitaciones y contraseña) | Invitar, reenviar y aceptar una invitación, y restablecer la contraseña; los enlaces salen en `storage/logs/enlaces.log` |
+| 13 | Dashboard e indicadores | Dashboard del administrador (10 indicadores), costos operativos, indicadores de RR. HH., calificación del menú y captura de calificaciones |
+| 09 | Administración · clientes y soporte | Clientes, pedidos, tickets y reembolso de un pedido pagado con Stripe |
 | 10 | Administración · bitácora | Todo lo que hicieron las carpetas anteriores |
 | 11 | Público y errores de ejemplo | Contacto y ejemplos de 401, 403, 404 y 422 |
-| 12 | Pendientes (501) | Los 18 endpoints configurados pero **todavía no construidos**: deben responder 501 |
 
 Cada petición tiene su descripción (pestaña **Docs**) y sus pruebas (pestaña **Tests**; ✓ verde = respondió como se espera). Las respuestas salen en español y con la forma `{ mensaje, codigo, errores }`.
 
@@ -72,16 +80,17 @@ Conéctate a PostgreSQL con DBeaver o TablePlus: `127.0.0.1:5432`, base `easylun
 
 - **Elegir platillo** → `elecciones_empleado` (`precio_congelado`, `porcentaje_subsidio_congelado`) y `disponibilidad_dia.porciones_tomadas`.
 - **Dirección** → `addresses` (`zona`, `sin_cobertura`, `ubicacion`).
-- **Pedido** → `pedidos` (`vence_pago_en`) y `pedido_dias`.
-- **Corte** → `cortes`, `ordenes_produccion`, `entregas_empresa`, `rutas`, `paradas`, `incidencias`.
+- **Pedido** → `pedidos` (`vence_pago_en`, `comidas_por_dia`), `pedido_dias` (la entrega única del sábado, con su `fecha`) y `pedido_dia_platillos` (un platillo por comida, con el día en que se come: `fecha`).
+- **Corte** → `cortes` (el `tipo` es `general` para empleados y empresas o `individuales` para los clientes), `ordenes_produccion`, `entregas_empresa`, `rutas`, `paradas`, `incidencias`.
 - **Dinero** → `facturas_mensuales`, `liquidaciones_comedor`.
 - **Todo lo que hace el panel** → `registros_auditoria` (bitácora).
 
 ## Cosas que conviene saber
 
 - **El corte es a las 18:00 (hora de Guadalajara).** Se entrega de lunes a sábado. La colección calcula sola la próxima fecha con el corte abierto con la hora de tu computadora (supone que estás en hora de México). Si ya pasaron las 18:00, «mañana» ya está cerrado y se usa el siguiente día de servicio.
+- **Clientes individuales: una entrega por semana, el sábado.** Su pedido vence y se corta el viernes a la hora de corte y el sábado salen a repartir (carpeta 19); las empresas siguen de lunes a sábado con el corte del día anterior.
 - **«Ejecutar corte ahora» cambia datos de verdad**: cierra la siguiente fecha. Si lo repites para la misma fecha responde «sin cambios»; si no pasas fecha, corta la siguiente que falte. Para volver a probar el flujo completo recarga los datos.
 - **Facturas y liquidaciones**: «Emitir» y «Pagar» responden 200 la primera vez y 422 después (una factura emitida ya no cambia; es lo correcto, por eso esas pruebas aceptan ambos).
-- **Límites**: el contacto y los endpoints públicos de `/cuentas` admiten 10 peticiones por minuto; si repites la carpeta «Pendientes» enseguida verás 429. Espera un minuto.
+- **Límites**: el contacto y los endpoints públicos de `/cuentas` admiten 10 peticiones por minuto; si repites la carpeta «Cuentas» enseguida verás 429. Espera un minuto.
 - **Roles**: `admin` entra a todo el panel; `soporte` solo a clientes, pedidos, tickets e incidencias.
 - Los tokens se guardan como variables de la sesión de Bruno (no en el archivo); si cierras Bruno, vuelve a correr «Sesión».

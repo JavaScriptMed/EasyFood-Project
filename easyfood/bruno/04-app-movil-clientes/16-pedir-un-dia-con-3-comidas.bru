@@ -1,0 +1,41 @@
+meta {
+  name: Pedir 1 día con desayuno, comida y cena
+  type: http
+  seq: 16
+}
+
+post {
+  url: {{baseUrl}}/api/v1/cliente/pedidos
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenCliente}}
+}
+
+body:json {
+  {
+    "paquete_id": "{{paqueteUnDiaId}}",
+    "direccion_id": "{{direccionCasaId}}",
+    "platillos": [
+      { "desayuno": "{{platilloDesayunoId}}", "comida": "{{platilloComidaId}}", "cena": "{{platilloCenaId}}" }
+    ]
+  }
+}
+
+tests {
+  test("responde 201", function () {
+    expect(res.getStatus()).to.equal(201);
+  });
+
+  test("lleva 3 comidas en una sola entrega, en orden", function () {
+    expect(res.body.comidas_por_dia).to.equal(3);
+    expect(res.body.entregas_totales).to.equal(1);
+    expect(res.body.dias[0].platillos.map(p => p.tiempo_comida)).to.eql(["desayuno", "comida", "cena"]);
+  });
+}
+
+docs {
+  El cliente elige 1, 2 o 3 comidas por día. Cada comida lleva su platillo y su precio congelado; el total es la suma de todas menos el descuento del paquete.
+}

@@ -1,0 +1,22 @@
+meta {
+  name: Anular otra vez (rechazado)
+  type: http
+  seq: 6
+}
+
+post {
+  url: {{baseUrl}}/api/v1/admin/costos-operativos/{{costoId}}/anular
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+tests {
+  test("responde 422 costo_ya_anulado", function () {
+    expect(res.getStatus()).to.equal(422);
+    expect(res.body.codigo).to.equal("costo_ya_anulado");
+  });
+}

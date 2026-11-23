@@ -1,0 +1,30 @@
+meta {
+  name: Calificación semanal del menú (cualquier rol)
+  type: http
+  seq: 9
+}
+
+get {
+  url: {{baseUrl}}/api/v1/calificaciones/menu-semanal
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenCliente}}
+}
+
+tests {
+  test("responde 200", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("trae el promedio de estrellas y la serie de 6 semanas", function () {
+    expect(res.body).to.have.property("promedio");
+    expect(res.body.serie.length).to.equal(6);
+  });
+}
+
+docs {
+  La ve cualquiera con sesión, en tiempo real: promedio simple de 1 a 5 estrellas al sabor y la calidad.
+}

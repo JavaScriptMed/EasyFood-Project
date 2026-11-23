@@ -1,0 +1,30 @@
+meta {
+  name: Quién tiene acceso a la plataforma
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/api/v1/cuentas/usuarios-acceso?tipo=plataforma
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+tests {
+  test("responde 200", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("la titular primero, con es_principal", function () {
+    expect(res.body.length).to.be.greaterThan(0);
+    expect(res.body[0].es_principal).to.equal(true);
+  });
+}
+
+docs {
+  Administración y soporte de EasyLunch. Una empresa o un comedor ve solo la suya: `?tipo=empresa&id=…`.
+}

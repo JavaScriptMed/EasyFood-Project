@@ -1,0 +1,28 @@
+meta {
+  name: Desactivar mi propia cuenta (rechazado)
+  type: http
+  seq: 19
+}
+
+patch {
+  url: {{baseUrl}}/api/v1/cuentas/usuarios-acceso/{{adminId}}/estado
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+body:json {
+  {
+    "activo": false
+  }
+}
+
+tests {
+  test("responde 422 no_te_desactives", function () {
+    expect(res.getStatus()).to.equal(422);
+    expect(res.body.codigo).to.equal("no_te_desactives");
+  });
+}

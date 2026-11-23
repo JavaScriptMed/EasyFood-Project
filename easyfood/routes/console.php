@@ -25,7 +25,13 @@ Schedule::command('easylunch:corte-automatico')
     ->withoutOverlapping(10)
     ->onFailure(fn () => Log::error('El corte automático terminó con error: revisa el último registro «fallido» de la tabla cortes.'));
 
-// Pedidos individuales que siguen sin pagarse cuando pasa el corte de su primer día.
+// Corte de clientes individuales: el viernes a la hora de corte (después del general) cierra sus pedidos del sábado y arma su orden de producción y sus rutas.
+Schedule::command('easylunch:corte-individuales')
+    ->everyMinute()
+    ->withoutOverlapping(10)
+    ->onFailure(fn () => Log::error('El corte de individuales terminó con error: revisa el último registro «fallido» (tipo individuales) de la tabla cortes.'));
+
+// Pedidos individuales que siguen sin pagarse cuando se cumple su plazo (el viernes a la hora de corte anterior a su entrega).
 Schedule::command('easylunch:cancelar-pedidos-vencidos')
     ->everyMinute()
     ->withoutOverlapping(10);
@@ -33,4 +39,12 @@ Schedule::command('easylunch:cancelar-pedidos-vencidos')
 // Contratos que vencen este mes o en los 7 días siguientes: una revisión diaria por la mañana.
 Schedule::command('easylunch:avisos-de-contratos')
     ->dailyAt('08:00')
+    ->withoutOverlapping(30);
+
+// Tokens de acceso vencidos (SANCTUM_EXPIRATION): se borran una vez al día.
+Schedule::command('sanctum:prune-expired --hours=24')->dailyAt('02:30');
+
+// Precios de platillos programados: cada madrugada entra en vigor el que toca ese día.
+Schedule::command('easylunch:aplicar-precios-programados')
+    ->dailyAt('00:05')
     ->withoutOverlapping(30);

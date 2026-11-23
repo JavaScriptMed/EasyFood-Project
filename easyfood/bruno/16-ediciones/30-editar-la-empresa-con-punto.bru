@@ -1,0 +1,47 @@
+meta {
+  name: Editar la empresa creada con punto
+  type: http
+  seq: 30
+}
+
+put {
+  url: {{baseUrl}}/api/v1/admin/empresas/{{empresaConPuntoId}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+body:json {
+  {
+    "nombre": "{{nombreEmpresaConPuntoEditada}}",
+    "direccion_entrega": "Av. Vallarta 500, Centro",
+    "latitud": 20.675,
+    "longitud": -103.35,
+    "contacto_nombre": "Contacto Mapa Editado",
+    "contacto_telefono": "33 4444 5555",
+    "porcentaje_subsidio": 55,
+    "compra_minima_mensual": 220,
+    "ventana_entrega_inicio": "12:00",
+    "ventana_entrega_fin": "12:45"
+  }
+}
+
+script:pre-request {
+  bru.setVar("nombreEmpresaConPuntoEditada", "Empresa Punto Editada " + Date.now());
+}
+
+tests {
+  test("responde 200 y recalcula la zona con el punto nuevo", function () {
+    expect(res.getStatus()).to.equal(200);
+    expect(res.body.zona).to.equal("Centro");
+    expect(res.body.latitud).to.equal(20.675);
+    expect(res.body.longitud).to.equal(-103.35);
+  });
+}
+
+docs {
+  Al editar una empresa con coordenadas nuevas, el servidor actualiza el punto y recalcula la zona con PostGIS (`ST_Covers`).
+}

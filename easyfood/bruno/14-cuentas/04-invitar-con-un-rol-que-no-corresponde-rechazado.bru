@@ -1,0 +1,31 @@
+meta {
+  name: Invitar con un rol que no corresponde (rechazado)
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{baseUrl}}/api/v1/cuentas/invitaciones
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+body:json {
+  {
+    "organizacion_tipo": "plataforma",
+    "nombre": "Persona de Bruno",
+    "correo": "otra.persona@easylunch.test",
+    "rol": "empresa"
+  }
+}
+
+tests {
+  test("responde 422 rol_no_corresponde", function () {
+    expect(res.getStatus()).to.equal(422);
+    expect(res.body.codigo).to.equal("rol_no_corresponde");
+  });
+}

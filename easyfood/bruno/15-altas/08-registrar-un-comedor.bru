@@ -1,0 +1,56 @@
+meta {
+  name: Registrar un comedor
+  type: http
+  seq: 8
+}
+
+post {
+  url: {{baseUrl}}/api/v1/admin/comedores
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+body:json {
+  {
+    "nombre": "{{nombreComedor}}",
+    "razon_social": "Alimentos de Bruno SA",
+    "contacto_nombre": "Contacto de Bruno",
+    "contacto_correo": "{{correoComedorNuevo}}",
+    "telefono": "33 1111 2222",
+    "direccion": "Calle Hidalgo 45, Zapopan",
+    "zona": "zapopan",
+    "capacidad_diaria": 150,
+    "vigencia_inicio": "{{hoy}}",
+    "precio_por_platillo": 52.5,
+    "compra_minima_mensual": 300
+  }
+}
+
+script:pre-request {
+  const t = Date.now(); bru.setVar("nombreComedor", "Comedor de Bruno " + t); bru.setVar("correoComedorNuevo", "comedor." + t + "@bruno.test");
+}
+
+script:post-response {
+  if (res.status === 201) bru.setVar("comedorNuevoId", res.body.id);
+}
+
+tests {
+  test("responde 201", function () {
+    expect(res.getStatus()).to.equal(201);
+  });
+
+  test("trae su contrato de 6 meses y su contacto", function () {
+    expect(res.body.contrato.compra_minima_mensual).to.equal(300);
+    expect(res.body.contrato.vigencia_fin > res.body.contrato.vigencia_inicio).to.equal(true);
+    expect(res.body.zona).to.equal("Zapopan");
+    expect(res.body.activo).to.equal(true);
+  });
+}
+
+docs {
+  Crea el contacto (cuenta inactiva con invitación), el comedor y su contrato de 6 meses. La zona debe existir. El enlace de la invitación queda en `storage/logs/enlaces.log`.
+}

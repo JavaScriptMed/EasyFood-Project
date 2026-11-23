@@ -44,6 +44,8 @@ export const etiquetasTipoIncidencia: Record<TipoIncidencia, string> = {
   empleado_ausente: 'Empleado ausente',
   repartidor_no_llego: 'Repartidor no llegó',
   platillo_danado: 'Platillo dañado',
+  comida_fria: 'Comida fría',
+  entrega_tardia: 'Entrega tardía',
   falta_repartidores: 'Faltan repartidores',
   pago_pendiente: 'Pago pendiente',
   ruta_excede_bloque: 'Ruta excede el bloque',

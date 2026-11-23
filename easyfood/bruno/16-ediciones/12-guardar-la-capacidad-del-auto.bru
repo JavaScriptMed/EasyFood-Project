@@ -1,0 +1,35 @@
+meta {
+  name: Guardar la capacidad del auto
+  type: http
+  seq: 12
+}
+
+put {
+  url: {{baseUrl}}/api/v1/admin/repartidores/capacidades
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+body:json {
+  {
+    "automovil": 30
+  }
+}
+
+tests {
+  test("responde 200", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("devuelve la capacidad guardada", function () {
+    expect(res.body.automovil).to.equal(30);
+  });
+}
+
+docs {
+  Cuántas entregas caben en un auto (30 es el valor de ejemplo). Las rutas que ya existen conservan la capacidad con que se crearon.
+}

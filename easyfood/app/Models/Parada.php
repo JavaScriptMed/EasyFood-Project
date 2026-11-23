@@ -17,6 +17,10 @@ class Parada extends ModeloEasyLunch
         'direccion',
         'hora_estimada',
         'estado',
+        'iniciada_en',
+        'cerrada_en',
+        'evidencia_foto_url',
+        'motivo_no_entrega',
     ];
 
     protected $hidden = ['ubicacion'];
@@ -27,6 +31,8 @@ class Parada extends ModeloEasyLunch
     {
         return [
             'orden' => 'integer',
+            'iniciada_en' => 'datetime',
+            'cerrada_en' => 'datetime',
         ];
     }
 

@@ -1,0 +1,52 @@
+meta {
+  name: Crear una empresa con punto en el mapa
+  type: http
+  seq: 16
+}
+
+post {
+  url: {{baseUrl}}/api/v1/admin/empresas
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+body:json {
+  {
+    "nombre": "{{nombreEmpresaConPunto}}",
+    "contacto_nombre": "Contacto Mapa",
+    "contacto_correo": "{{correoEmpresaConPunto}}",
+    "direccion_entrega": "Av. Patria 1200, Zapopan",
+    "latitud": 20.72,
+    "longitud": -103.42,
+    "vigencia_inicio": "{{hoy}}",
+    "compra_minima_mensual": 150,
+    "porcentaje_subsidio": 60,
+    "ventana_entrega_inicio": "12:30",
+    "ventana_entrega_fin": "13:15"
+  }
+}
+
+script:pre-request {
+  const t = Date.now(); bru.setVar("nombreEmpresaConPunto", "Empresa con Punto " + t); bru.setVar("correoEmpresaConPunto", "rrhh.punto." + t + "@bruno.test");
+}
+
+script:post-response {
+  if (res.status === 201) bru.setVar("empresaConPuntoId", res.body.id);
+}
+
+tests {
+  test("responde 201 con latitud, longitud y zona calculada por PostGIS", function () {
+    expect(res.getStatus()).to.equal(201);
+    expect(res.body.zona).to.equal("Zapopan");
+    expect(res.body.latitud).to.equal(20.72);
+    expect(res.body.longitud).to.equal(-103.42);
+  });
+}
+
+docs {
+  Crea una empresa mandando solo `latitud` y `longitud` (sin `zona`). El servidor calcula la zona con PostGIS (`ST_Covers`).
+}

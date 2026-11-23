@@ -1,0 +1,33 @@
+meta {
+  name: Calificaciones pendientes del empleado
+  type: http
+  seq: 10
+}
+
+get {
+  url: {{baseUrl}}/api/v1/empleado/calificaciones/pendientes
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenEmpleado}}
+}
+
+script:post-response {
+  if (res.status === 200 && res.body.length) bru.setVar("fechaCalificar", res.body[0].fecha);
+}
+
+tests {
+  test("responde 200", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("es una lista de días por calificar", function () {
+    expect(res.body).to.be.an("array");
+  });
+}
+
+docs {
+  Lo que el empleado ya recibió (últimos 14 días) y todavía no califica.
+}

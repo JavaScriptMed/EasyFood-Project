@@ -10,10 +10,7 @@ use Tests\Concerns\ArmaEscenarios;
 use Tests\Concerns\VerificaRestricciones;
 use Tests\TestCase;
 
-/**
- * El mapa de la API v1: toda ruta existe con su nombre y su rol, y las que todavía no se construyen (las más complejas,
- * el dashboard y las imágenes) responden 501 con un mensaje claro en lugar de un 404.
- */
+/** El mapa de la API v1: toda ruta existe con su nombre y su rol y apunta a un controlador real. */
 class RutasDeLaApiTest extends TestCase
 {
     use ActuaComoUsuario;
@@ -41,11 +38,6 @@ class RutasDeLaApiTest extends TestCase
         return null;
     }
 
-    private function pendiente(RutaDeLaravel $ruta): bool
-    {
-        return str_ends_with($ruta->getActionName(), 'NoImplementadoController');
-    }
-
     private function direccion(RutaDeLaravel $ruta): string
     {
         return '/'.preg_replace(['/\{id\}/', '/\{[^}]+\}/'], ['1', 'x'], $ruta->uri());
@@ -63,17 +55,15 @@ class RutasDeLaApiTest extends TestCase
         $this->assertSame(count($rutas), count(array_unique(array_map(fn ($r) => $r->getName(), $rutas))), 'los nombres no se repiten');
     }
 
-    public function test_los_endpoints_pendientes_son_los_complejos_el_dashboard_y_las_imagenes(): void
+    public function test_toda_ruta_apunta_a_un_controlador_y_metodo_que_existen(): void
     {
-        $pendientes = collect($this->rutasV1())->filter(fn ($r) => $this->pendiente($r))->map(fn ($r) => $r->getName())->sort()->values()->all();
-
-        $this->assertSame([
-            'v1.admin.dashboard', 'v1.admin.empresas.store', 'v1.admin.incidencias.candidatos', 'v1.admin.incidencias.reasignar',
-            'v1.admin.platillos.historial-precios', 'v1.admin.platillos.imagen', 'v1.admin.repartidores.store', 'v1.admin.rutas.generar',
-            'v1.comedor.platillos.imagen', 'v1.cuentas.invitaciones.aceptar', 'v1.cuentas.invitaciones.crear', 'v1.cuentas.invitaciones.mostrar',
-            'v1.cuentas.invitaciones.reenviar', 'v1.cuentas.restablecer.aplicar', 'v1.cuentas.restablecer.solicitar', 'v1.cuentas.restablecer.validar',
-            'v1.cuentas.usuarios-acceso', 'v1.empresa.empleados.store',
-        ], $pendientes);
+        foreach ($this->rutasV1() as $ruta) {
+            $accion = $ruta->getAction('uses');
+            $this->assertIsString($accion, "{$ruta->uri()} no debe ser una función anónima");
+            [$clase, $metodo] = array_pad(explode('@', $accion), 2, '__invoke');
+            $this->assertTrue(class_exists($clase) && method_exists($clase, $metodo), "{$ruta->uri()} apunta a {$accion}, que no existe");
+            $this->assertStringNotContainsString('NoImplementado', $accion, "{$ruta->uri()} sigue sin construirse");
+        }
     }
 
     public function test_sin_iniciar_sesion_todo_lo_privado_responde_401_con_mensaje_en_espanol(): void
@@ -105,30 +95,6 @@ class RutasDeLaApiTest extends TestCase
         }
 
         $this->assertSame([], $sinNegar, 'estas rutas debían negarle el paso a un cliente');
-    }
-
-    public function test_los_pendientes_responden_501_para_quien_tiene_el_rol_correcto(): void
-    {
-        foreach ($this->rutasV1() as $ruta) {
-            if (! $this->pendiente($ruta) || ! ($rol = $this->rolDe($ruta))) {
-                continue;
-            }
-            $this->comoRol($rol);
-
-            $respuesta = $this->json($ruta->methods()[0], $this->direccion($ruta));
-
-            $respuesta->assertStatus(501)->assertJson(['codigo' => 'no_implementado']);
-            $this->assertStringContainsString('todavía no está construido', $respuesta->json('mensaje'));
-        }
-    }
-
-    public function test_los_pendientes_publicos_tambien_responden_501(): void
-    {
-        foreach ($this->rutasV1() as $ruta) {
-            if ($this->pendiente($ruta) && ! in_array('auth:sanctum', $ruta->gatherMiddleware(), true)) {
-                $this->json($ruta->methods()[0], $this->direccion($ruta))->assertStatus(501);
-            }
-        }
     }
 
     public function test_el_soporte_atiende_clientes_tickets_y_incidencias_pero_no_el_dinero(): void

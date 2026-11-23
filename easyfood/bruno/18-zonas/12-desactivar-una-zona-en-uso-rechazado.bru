@@ -1,0 +1,32 @@
+meta {
+  name: Desactivar una zona en uso (rechazado)
+  type: http
+  seq: 12
+}
+
+patch {
+  url: {{baseUrl}}/api/v1/admin/zonas/{{zonaEnUsoId}}/estado
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+body:json {
+  {
+    "activo": false
+  }
+}
+
+tests {
+  test("responde 422 zona_en_uso", function () {
+    expect(res.getStatus()).to.equal(422);
+    expect(res.body.codigo).to.equal("zona_en_uso");
+  });
+}
+
+docs {
+  Toma una zona que ya usan las empresas de ejemplo (la primera del listado con empresas activas).
+}

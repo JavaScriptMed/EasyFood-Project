@@ -1,0 +1,36 @@
+meta {
+  name: Calificar la entrega (puntualidad, trato y empaque)
+  type: http
+  seq: 11
+}
+
+post {
+  url: {{baseUrl}}/api/v1/empleado/calificaciones/entrega
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenEmpleado}}
+}
+
+body:json {
+  {
+    "fecha": "{{fechaCalificar}}",
+    "puntualidad": 5,
+    "trato_chofer": 4,
+    "empaque": 4,
+    "comentario": "Todo en orden"
+  }
+}
+
+tests {
+  test("responde 201 o 422 si ya la calificó en otra corrida", function () {
+    expect([201, 422]).to.include(res.getStatus());
+    if (res.getStatus() === 422) expect(res.body.codigo).to.equal("ya_calificada");
+  });
+}
+
+docs {
+  Puntualidad, trato del chofer y estado del empaque, de 1 a 5. Solo se califica una entrega ya recibida, una vez y dentro de 14 días.
+}

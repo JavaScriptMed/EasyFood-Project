@@ -1,0 +1,34 @@
+meta {
+  name: Subir la foto del platillo
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/api/v1/admin/platillos/{{platilloFotoId}}/imagen
+  body: multipartForm
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+body:multipart-form {
+  imagen: @file(17-platillos-fotos-y-precios/plato.png)
+}
+
+tests {
+  test("responde 200", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("el platillo ya apunta a su foto", function () {
+    expect(res.body.foto_url).to.include("/storage/platillos/");
+    expect(res.body.foto_url).to.match(/\.png$/);
+  });
+}
+
+docs {
+  JPG, PNG o WebP de hasta 2 MB (campo `imagen`). El nombre del archivo lo pone el servidor; la foto anterior se borra. Para verla desde el navegador hace falta `php artisan storage:link`.
+}

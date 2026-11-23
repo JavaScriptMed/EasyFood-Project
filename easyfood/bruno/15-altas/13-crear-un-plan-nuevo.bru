@@ -1,0 +1,41 @@
+meta {
+  name: Crear un plan nuevo
+  type: http
+  seq: 13
+}
+
+post {
+  url: {{baseUrl}}/api/v1/admin/paquetes
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+body:json {
+  {
+    "nombre": "{{nombrePlanNuevo}}",
+    "dias": 6,
+    "descuento_porcentaje": 15,
+    "detalle": "Semana completa creada desde Bruno",
+    "destacado": true
+  }
+}
+
+script:pre-request {
+  bru.setVar("nombrePlanNuevo", "Plan semanal de Bruno " + Date.now());
+}
+
+tests {
+  test("responde 201", function () {
+    expect(res.getStatus()).to.equal(201);
+  });
+
+  test("queda activo con sus datos", function () {
+    expect(res.body.dias).to.equal(6);
+    expect(res.body.descuento_porcentaje).to.equal(15);
+    expect(res.body.destacado).to.equal(true);
+  });
+}

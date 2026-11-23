@@ -1,0 +1,29 @@
+meta {
+  name: Pedir restablecer la contraseña
+  type: http
+  seq: 10
+}
+
+post {
+  url: {{baseUrl}}/api/v1/cuentas/restablecer/solicitar
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "correo": "rrhh@nexo.test"
+  }
+}
+
+tests {
+  test("responde 200 igual exista o no el correo", function () {
+    expect(res.getStatus()).to.equal(200);
+    expect(res.body.enviado).to.equal(true);
+    expect(res.body.enlace_simulado).to.equal(null);
+  });
+}
+
+docs {
+  Público. Siempre responde lo mismo para no revelar qué cuentas existen. Si la cuenta existe y está activa, el enlace (vence en 60 minutos, sirve una vez) queda en `storage/logs/enlaces.log`. Cambia el correo por el de una cuenta de ejemplo para ver el enlace.
+}

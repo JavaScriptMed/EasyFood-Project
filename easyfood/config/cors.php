@@ -22,7 +22,9 @@ return [
         explode(',', env('CORS_ALLOWED_ORIGINS', env('FRONTEND_URL', 'http://localhost:3000')))
     ))),
 
-    'allowed_origins_patterns' => [],
+    // Opcional: expresiones regulares para varios dominios, p. ej. los despliegues de vista previa de Vercel:
+    // CORS_ALLOWED_ORIGINS_PATTERNS=#^https://mi-proyecto-[a-z0-9-]+\.vercel\.app$#
+    'allowed_origins_patterns' => array_values(array_filter(array_map('trim', explode(',', (string) env('CORS_ALLOWED_ORIGINS_PATTERNS', ''))))),
 
     'allowed_headers' => ['*'],
 

@@ -1,0 +1,27 @@
+meta {
+  name: Historial con el precio programado
+  type: http
+  seq: 9
+}
+
+get {
+  url: {{baseUrl}}/api/v1/admin/platillos/{{platilloFotoId}}/historial-precios
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+tests {
+  test("responde 200", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("el tramo de hoy cierra el día anterior al nuevo", function () {
+    expect(res.body.length).to.equal(2);
+    expect(res.body[0].vigente_hasta).to.equal(null);
+    expect(res.body[1].vigente_hasta < res.body[0].vigente_desde).to.equal(true);
+  });
+}

@@ -4,17 +4,19 @@
 //
 // Para probar los estados de error: localStorage.setItem('easylunch:simular-error', '1') y recarga la vista.
 
+import { ErrorApi } from './http'
 import { AHORA_MOCK, FECHA_HOY, FECHA_MANANA, MESES, MES_ACTUAL, RETARDO_API_MS, USUARIO_ACTUAL_ID, VIGENCIA_ENLACE_RESTABLECER_MIN, VIGENCIA_INVITACION_DIAS } from './config'
 import { calcularConsumo, calcularTotales } from './facturacion'
 import { errorDeContrasena } from './contrasena'
 import { diasEntre, etiquetaMes, sumarDias, sumarMeses } from './format'
 import { PORTALES, portalDeRol } from './portales'
 import * as db from './mock-data'
+import * as ind from './mock-indicadores'
 import type {
   CalendarioServicio, CambioDisponibilidad, CandidatoReasignacion, ContratoPorVencer, FiltroBitacora, IncidenciaDetalle, TipoIncidencia, Comedor, ComedorDetalle, ConfiguracionOperacion, Corte, DiaSinServicio, EntregaEmpresa, VistaPreviaCorte, DashboardAdmin, DisponibilidadConPlatillo, EleccionEmpleado, Empleado, EmpleadoDetalle, Empresa, EmpresaDetalle,
-  ProgramarPrecio, EdicionComedor, EdicionEmpleado, EdicionEmpresa, EdicionPlan, EdicionRepartidor, EdicionUsuarioAcceso, EntregaDetalle, EstadoContrato, FacturaConEmpresa, FacturaDetalle, FacturaMensual, FilaReporteProveedor, GuardarPlatillo, HistorialPrecio,
-  LiquidacionComedor, LiquidacionConComedor, MenuSemanalDia, MensajeTicket, NuevaEmpresa, NuevoRepartidor, OrdenProduccionDetalle, PedidoDetalle,
-  PedidosMananaEmpresa, Plan, Platillo, PlatilloDetalle, RegistroAuditoriaDetalle, RepartidorDetalle, ResultadoAltaEmpleados, ResultadoCorte, RutaDetalle,
+  CalificacionPendiente, CalificarEntrega, CalificarPlatillo, CostoOperativo, IndicadoresEmpresa, NuevoCostoOperativo, ProgramarPrecio, EdicionComedor, EdicionEmpleado, EdicionEmpresa, EdicionPlan, EdicionRepartidor, EdicionUsuarioAcceso, EntregaDetalle, EstadoContrato, FacturaConEmpresa, FacturaDetalle, FacturaMensual, FilaReporteProveedor, GuardarPlatillo, HistorialPrecio,
+  LiquidacionComedor, LiquidacionConComedor, MenuSemanalDia, MensajeTicket, NuevaEmpresa, NuevoComedor, ResultadoImportarZonas, ZonaDetalle, NuevoPlan, NuevoRepartidor, OrdenProduccionDetalle, PedidoDetalle,
+  CorreoOmitido, NuevasInvitaciones, ResultadoInvitacionesEnLote, PedidosMananaEmpresa, Plan, Platillo, PlatilloDetalle, RegistroAuditoriaDetalle, RepartidorDetalle, ResultadoAltaEmpleados, ResultadoCorte, RutaDetalle,
   MensajeContacto, NuevoMensajeContacto, ClienteDetalle, ClienteResumen, ConsumoDiario, EstadoInvitacion, Incidencia, MiEleccion, MiMenu, OpcionMenu, InvitacionDetalle, InvitacionPublica, Invitacion, NuevaInvitacion, Portal, ResultadoAceptacion, SolicitudRestablecimiento, TipoOrganizacion, UsuarioAcceso, ValidacionToken, RegistroAuditoria, Repartidor, Ruta, TicketDetalle, TicketResumen, TiempoComida, TipoVehiculo, Usuario, UsuarioResumen,
 } from './types'
 
@@ -60,7 +62,59 @@ function estadoContrato(vigencia_fin: string): EstadoContrato {
 
 export const obtenerDashboard = () => llamar<DashboardAdmin>(() => {
   const alertas = db.incidencias.filter((i) => i.estado === 'abierta')
-  return { resumen: db.resumen_dashboard, alertas, incidencias_del_dia: db.incidencias.length, requieren_atencion: alertas.filter((i) => i.prioridad === 'inmediata').length }
+  return { resumen: db.resumen_dashboard, alertas, incidencias_del_dia: db.incidencias.length, requieren_atencion: alertas.filter((i) => i.prioridad === 'inmediata').length, indicadores: ind.indicadoresAdmin() }
+})
+
+/** Los indicadores de RR. HH. de la propia empresa (platillos entregados, calificaciones, ahorro por empleado, quejas y facturación). */
+export const obtenerIndicadoresEmpresa = (empresa_id: string) => llamar<IndicadoresEmpresa>(() => ind.indicadoresEmpresa(empresa_id))
+
+// ---------------------------------------------------------------- costos operativos (entran al balance de utilidad)
+
+export const listarCostosOperativos = (filtro: { desde?: string; hasta?: string } = {}) => llamar<CostoOperativo[]>(() =>
+  ind.costos_operativos.filter((c) => (!filtro.desde || c.fecha >= filtro.desde) && (!filtro.hasta || c.fecha <= filtro.hasta)).sort((a, b) => b.fecha.localeCompare(a.fecha) || b.id.localeCompare(a.id)))
+
+export const registrarCostoOperativo = (datos: NuevoCostoOperativo) => llamar<CostoOperativo>(() => {
+  if (!(datos.monto > 0)) throw new Error('El monto debe ser mayor a cero.')
+  if (datos.descripcion.trim().length < 3) throw new Error('Describe el gasto (mínimo 3 letras).')
+  if (!datos.fecha || datos.fecha > FECHA_HOY) throw new Error('La fecha no puede ser futura.')
+  const costo: CostoOperativo = { id: siguienteId('COS-', ind.costos_operativos.map((c) => c.id)), fecha: datos.fecha, categoria: datos.categoria, descripcion: datos.descripcion.trim(), monto: Math.round(datos.monto * 100) / 100, registrado_por: nombreDe(USUARIO_ACTUAL_ID), activo: true }
+  ind.costos_operativos.push(costo)
+  auditar('registrar', 'costo_operativo', costo.id, `Registró un costo de $${costo.monto} (${costo.categoria}): ${costo.descripcion}`)
+  return costo
+})
+
+/** Un costo anulado queda en el historial, pero ya no cuenta en el balance. */
+export const anularCostoOperativo = (id: string) => llamar<CostoOperativo>(() => {
+  const costo = ind.costos_operativos.find((c) => c.id === id)
+  if (!costo) throw new Error('El costo no existe.')
+  if (!costo.activo) throw new Error('Ese costo ya está anulado.')
+  costo.activo = false
+  auditar('anular', 'costo_operativo', id, `Anuló el costo de $${costo.monto} (${costo.categoria})`)
+  return costo
+})
+
+// ---------------------------------------------------------------- calificaciones del empleado (entrega y platillo)
+
+/** Lo que el empleado ya recibió (últimos 14 días) y todavía no califica. */
+export const listarCalificacionesPendientes = (_empleado_id: string) => llamar<CalificacionPendiente[]>(() =>
+  ind.calificaciones_pendientes.filter((d) => !d.entrega_calificada || d.platillos.some((p) => !p.calificado)))
+
+const estrellasValidas = (...valores: number[]) => valores.every((n) => Number.isInteger(n) && n >= 1 && n <= 5)
+
+export const calificarEntrega = (_empleado_id: string, datos: CalificarEntrega) => llamar<void>(() => {
+  if (!estrellasValidas(datos.puntualidad, datos.trato_chofer, datos.empaque)) throw new Error('Califica de 1 a 5 estrellas.')
+  const dia = ind.calificaciones_pendientes.find((d) => d.fecha === datos.fecha)
+  if (!dia) throw new Error('Solo se califica una entrega que ya recibiste.')
+  if (dia.entrega_calificada) throw new Error('Ya calificaste esta entrega.')
+  dia.entrega_calificada = true
+})
+
+export const calificarPlatillo = (_empleado_id: string, datos: CalificarPlatillo) => llamar<void>(() => {
+  if (!estrellasValidas(datos.estrellas)) throw new Error('Califica de 1 a 5 estrellas.')
+  const platillo = ind.calificaciones_pendientes.find((d) => d.fecha === datos.fecha)?.platillos.find((p) => p.tiempo_comida === datos.tiempo_comida)
+  if (!platillo) throw new Error('Solo se califica un platillo que ya recibiste.')
+  if (platillo.calificado) throw new Error('Ya calificaste este platillo.')
+  platillo.calificado = true
 })
 
 export const listarEntregas = () => llamar<EntregaDetalle[]>(() => db.entregas_empresa.map((e) => ({ ...e, empresa_nombre: db.empresas.find((x) => x.id === e.empresa_id)?.nombre ?? e.empresa_id })))
@@ -168,8 +222,10 @@ export const editarEmpresa = (empresa_id: string, datos: EdicionEmpresa) => llam
   if (!datos.nombre.trim()) throw new Error('Escribe el nombre de la empresa.')
   if (datos.porcentaje_subsidio < 0 || datos.porcentaje_subsidio > 100) throw new Error('El subsidio debe estar entre 0 y 100 %.')
   if (datos.compra_minima_mensual < 0) throw new Error('El mínimo mensual no puede ser negativo.')
+  const zonaNueva = datos.latitud != null && datos.longitud != null ? zonaDelPuntoMock(datos.latitud, datos.longitud) : null // si el punto no cae en una zona, no se cambia nada
   const contrato = contratoEmpresaDe(empresa_id)
   Object.assign(empresa, { nombre: datos.nombre.trim(), direccion_entrega: datos.direccion_entrega.trim() })
+  if (zonaNueva) Object.assign(empresa, { latitud: datos.latitud, longitud: datos.longitud, zona: zonaNueva })
   Object.assign(contrato, { porcentaje_subsidio: datos.porcentaje_subsidio, compra_minima_mensual: datos.compra_minima_mensual, ventana_entrega_inicio: datos.ventana_entrega_inicio, ventana_entrega_fin: datos.ventana_entrega_fin, hora_entrega: datos.ventana_entrega_inicio })
   const contacto = buscarUsuario(empresa.usuario_id)
   if (contacto) Object.assign(contacto, { nombre: datos.contacto_nombre.trim() || contacto.nombre, telefono: datos.contacto_telefono.trim() || null })
@@ -185,13 +241,26 @@ export const cambiarEstadoEmpresa = (empresa_id: string, activo: boolean) => lla
   return detalleEmpresa(empresa)
 })
 
+/** La zona que cubre un punto en la maqueta (los polígonos de ejemplo son rectángulos): misma regla que el servidor, fuera de zonas no hay cobertura. */
+function zonaDelPuntoMock(latitud: number, longitud: number): string {
+  for (const [nombre, feature] of Object.entries(poligonosMock)) {
+    const anillo = (feature as any).geometry.coordinates[0] as number[][]
+    const lons = anillo.map((p) => p[0])
+    const lats = anillo.map((p) => p[1])
+    if (longitud >= Math.min(...lons) && longitud <= Math.max(...lons) && latitud >= Math.min(...lats) && latitud <= Math.max(...lats)) return nombre
+  }
+  throw new ErrorApi('El punto de entrega está fuera de las zonas de cobertura activas.', 422, 'fuera_de_cobertura')
+}
+
 export const crearEmpresa = (datos: NuevaEmpresa) => llamar<EmpresaDetalle>(() => {
   if (!datos.nombre.trim()) throw new Error('Escribe el nombre de la empresa.')
+  const conPunto = datos.latitud != null && datos.longitud != null
+  const zonaMock = conPunto ? zonaDelPuntoMock(datos.latitud as number, datos.longitud as number) : datos.zona?.trim() || 'Guadalajara'
   const id = siguienteId('EMP-', db.empresas.map((e) => e.id))
   const correo = datos.contacto_rrhh.match(/[^\s@]+@[^\s@]+\.[^\s@]+/)?.[0] ?? `rrhh@${id.toLowerCase()}.mx`
   const nombreContacto = datos.contacto_rrhh.replace(correo, '').replace(/[,;<>]/g, ' ').trim() || 'Contacto de RR. HH.'
   const usuario: Usuario = { id: `USR-${id}`, nombre: nombreContacto, correo, telefono: null, rol: 'empresa', activo: true }
-  const empresa: Empresa = { id, usuario_id: usuario.id, nombre: datos.nombre.trim(), dominio: correo.split('@')[1], zona: 'Guadalajara', direccion_entrega: datos.direccion_entrega.trim() }
+  const empresa: Empresa = { id, usuario_id: usuario.id, nombre: datos.nombre.trim(), dominio: correo.split('@')[1], zona: zonaMock, direccion_entrega: datos.direccion_entrega.trim(), latitud: conPunto ? datos.latitud : null, longitud: conPunto ? datos.longitud : null }
   const [ventana_inicio = '12:30', ventana_fin = '13:15'] = datos.horario_entrega.split(/\s*[–-]\s*/)
   const inicio = datos.vigencia_inicio || FECHA_HOY
   const fin = new Date(`${inicio}T00:00:00Z`)
@@ -309,6 +378,27 @@ export const invitarUsuario = (datos: NuevaInvitacion) => llamar<UsuarioAcceso>(
   return { usuario_id: usuario.id, nombre: usuario.nombre, correo, rol: usuario.rol, activo: false, es_principal: false, invitacion: conEstadoInvitacion(invitacion) }
 })
 
+export const invitarVariosUsuarios = (datos: NuevasInvitaciones) => llamar<ResultadoInvitacionesEnLote>(() => {
+  if (!rolesInvitables[datos.organizacion_tipo].includes(datos.rol)) throw new Error('Ese rol no corresponde a esta organización.')
+  const nuevos = new Set<string>()
+  const correos_omitidos: CorreoOmitido[] = []
+  let invitados = 0
+  for (const persona of datos.personas) {
+    const correo = persona.correo.trim().toLowerCase()
+    const nombre = persona.nombre.trim()
+    if (nombre.length < 2 || !correoValido(correo)) throw new Error(`Revisa «${persona.nombre}»: necesita nombre y un correo válido.`)
+    if (nuevos.has(correo)) { correos_omitidos.push({ nombre, correo, motivo: 'repetido_en_el_archivo' }); continue }
+    if (db.usuarios.some((u) => u.correo.toLowerCase() === correo)) { correos_omitidos.push({ nombre, correo, motivo: 'ya_tiene_cuenta' }); continue }
+    const usuario: Usuario = { id: `USR-INV-${Date.now().toString(36)}-${invitados}`, nombre, correo, telefono: null, rol: datos.rol, activo: false }
+    db.usuarios.push(usuario)
+    crearInvitacion(usuario.id, correo, datos.rol, datos.organizacion_tipo, datos.organizacion_id)
+    auditar('invitar', 'usuario', usuario.id, `Invitó a ${nombre} a ${nombreOrganizacion(datos.organizacion_tipo, datos.organizacion_id)}`)
+    nuevos.add(correo)
+    invitados++
+  }
+  return { invitados, omitidos: correos_omitidos.length, correos_omitidos }
+})
+
 const filaDeUsuario = (usuario: Usuario): UsuarioAcceso => {
   const invitacion = db.invitaciones.find((i) => i.usuario_id === usuario.id)
   return { usuario_id: usuario.id, nombre: usuario.nombre, correo: usuario.correo, rol: usuario.rol, activo: usuario.activo, es_principal: !invitacion, invitacion: invitacion ? conEstadoInvitacion(invitacion) : null }
@@ -320,6 +410,10 @@ export const editarUsuarioAcceso = (usuario_id: string, datos: EdicionUsuarioAcc
   if (!datos.nombre.trim()) throw new Error('Escribe el nombre de la persona.')
   usuario.nombre = datos.nombre.trim()
   usuario.rol = datos.rol
+  if (datos.correo && datos.correo.trim().toLowerCase() !== usuario.correo) {
+    if (!datos.correo.includes('@')) throw new Error('Escribe un correo válido.')
+    usuario.correo = datos.correo.trim().toLowerCase()
+  }
   auditar('actualizar', 'usuario', usuario_id, `Editó al usuario ${usuario.nombre}`)
   return filaDeUsuario(usuario)
 })
@@ -450,9 +544,16 @@ export const agregarEmpleados = (empresa_id: string, personas: { nombre: string;
   if (!empresa) throw new Error('La empresa no existe.')
   const conocidos = new Set(db.usuarios.map((u) => u.correo.toLowerCase()))
   let agregados = 0
+  const nuevosEnElArchivo = new Set<string>()
+  const correos_omitidos: CorreoOmitido[] = []
   for (const persona of personas) {
     const correo = (persona.correo || db.correoDesdeNombre(persona.nombre, empresa.dominio)).toLowerCase()
-    if (!persona.nombre || conocidos.has(correo)) continue
+    if (!persona.nombre) continue
+    if (conocidos.has(correo)) {
+      correos_omitidos.push({ nombre: persona.nombre, correo, motivo: nuevosEnElArchivo.has(correo) ? 'repetido_en_el_archivo' : 'ya_tiene_cuenta' })
+      continue
+    }
+    nuevosEnElArchivo.add(correo)
     conocidos.add(correo)
     const id = `${empresa_id}-N${empleadosDe(empresa_id).filter((e) => e.id.includes('-N')).length + 1}`
     db.usuarios.push({ id: `USR-${id}`, nombre: persona.nombre, correo, telefono: null, rol: 'empleado', activo: true })
@@ -461,7 +562,7 @@ export const agregarEmpleados = (empresa_id: string, personas: { nombre: string;
     agregados++
   }
   if (agregados) auditar('crear', 'empleado', empresa_id, `Agregó ${agregados} empleados a ${empresa.nombre}`)
-  return { agregados, omitidos: personas.length - agregados }
+  return { agregados, omitidos: correos_omitidos.length, correos_omitidos }
 })
 
 function quitarEleccion(eleccion: EleccionEmpleado) {
@@ -486,7 +587,10 @@ export const editarEmpleado = (empleado_id: string, datos: EdicionEmpleado) => l
   if (!empleado) throw new Error('El empleado no existe.')
   if (!datos.nombre.trim()) throw new Error('Escribe el nombre del empleado.')
   const usuario = buscarUsuario(empleado.usuario_id)
-  if (usuario) usuario.nombre = datos.nombre.trim()
+  if (usuario) {
+    usuario.nombre = datos.nombre.trim()
+    if (datos.correo && datos.correo.includes('@')) usuario.correo = datos.correo.trim().toLowerCase()
+  }
   empleado.departamento = datos.departamento.trim() || null
   auditar('actualizar', 'empleado', empleado_id, `Editó al empleado ${datos.nombre.trim()}`)
   return empleado
@@ -871,6 +975,23 @@ function detalleComedor(comedor: Comedor): ComedorDetalle {
 
 export const listarComedores = () => llamar<ComedorDetalle[]>(() => db.comedores.map(detalleComedor))
 
+export const crearComedor = (datos: NuevoComedor) => llamar<ComedorDetalle>(() => {
+  if (!datos.nombre.trim()) throw new Error('Escribe el nombre del comedor.')
+  if (!datos.contacto_correo.includes('@')) throw new Error('Escribe el correo del contacto.')
+  if (!(datos.precio_por_platillo > 0)) throw new Error('El precio por platillo debe ser mayor a cero.')
+  if (!(datos.compra_minima_mensual > 0)) throw new Error('El mínimo mensual debe ser mayor a cero.')
+  if (db.comedores.some((c) => c.nombre.toLowerCase() === datos.nombre.trim().toLowerCase())) throw new Error('Ya hay un comedor con ese nombre.')
+  const id = siguienteId('COM-', db.comedores.map((c) => c.id))
+  const usuario: Usuario = { id: `USR-${id}`, nombre: datos.contacto_nombre.trim() || 'Contacto del comedor', correo: datos.contacto_correo.trim().toLowerCase(), telefono: datos.telefono.trim() || null, rol: 'comedor', activo: false }
+  const comedor: Comedor = { id, usuario_id: usuario.id, nombre: datos.nombre.trim(), zona: datos.zona.trim() || 'Guadalajara', activo: true }
+  const inicio = datos.vigencia_inicio || FECHA_HOY
+  db.usuarios.push(usuario)
+  db.comedores.push(comedor)
+  db.contratos_comedor.push({ id: `CTC-${id.slice(4)}`, comedor_id: id, precio_por_platillo: datos.precio_por_platillo, compra_minima_mensual: datos.compra_minima_mensual, vigencia_inicio: inicio, vigencia_fin: sumarMeses(inicio, 6) })
+  auditar('crear', 'comedor', id, `Dio de alta el comedor ${comedor.nombre}`)
+  return detalleComedor(comedor)
+})
+
 export const editarComedor = (comedor_id: string, datos: EdicionComedor) => llamar<ComedorDetalle>(() => {
   const comedor = db.comedores.find((c) => c.id === comedor_id)
   if (!comedor) throw new Error('El comedor no existe.')
@@ -953,6 +1074,85 @@ export const editarPlan = (plan_id: string, datos: EdicionPlan) => llamar<Plan>(
   return plan
 })
 
+/** En la maqueta la foto solo vive en el navegador (URL temporal del archivo elegido). */
+export const subirImagenPlatillo = (platillo_id: string, archivo: File) => llamar<PlatilloDetalle>(() => {
+  const existente = db.platillos.find((p) => p.id === platillo_id)
+  if (!existente) throw new Error('El platillo no existe.')
+  existente.foto_url = URL.createObjectURL(archivo)
+  auditar('actualizar', 'platillo', existente.id, `Cambió la foto de ${existente.nombre}`)
+  return conComedor(existente)
+})
+
+// ---------------------------------------------------------------- zonas de entrega (en la maqueta no hay mapa: solo se valida la forma del GeoJSON)
+const poligonosMock: Record<string, unknown> = {
+  Centro: { type: 'Feature', properties: { nombre: 'Centro' }, geometry: { type: 'Polygon', coordinates: [[[-103.38, 20.65], [-103.31, 20.65], [-103.31, 20.70], [-103.38, 20.70], [-103.38, 20.65]]] } },
+  Zapopan: { type: 'Feature', properties: { nombre: 'Zapopan' }, geometry: { type: 'Polygon', coordinates: [[[-103.50, 20.66], [-103.38, 20.66], [-103.38, 20.80], [-103.50, 20.80], [-103.50, 20.66]]] } },
+}
+const zonasMock: ZonaDetalle[] = [
+  { id: 'ZON-001', nombre: 'Centro', activo: true, area_km2: 42.1, direcciones: 18, empresas: 1, comedores: 1, repartidores: 1 },
+  { id: 'ZON-002', nombre: 'Zapopan', activo: true, area_km2: 115.4, direcciones: 9, empresas: 1, comedores: 1, repartidores: 1 },
+]
+const geometriaDe = (g: any): any => (g?.type === 'FeatureCollection' ? g.features?.[0]?.geometry : g?.type === 'Feature' ? g.geometry : g)
+function exigirPoligono(g: unknown) {
+  const geometria = geometriaDe(g)
+  if (!geometria || !['Polygon', 'MultiPolygon'].includes(geometria.type)) throw new Error('El GeoJSON no trae un polígono (Polygon o MultiPolygon).')
+}
+
+export const listarZonas = () => llamar<ZonaDetalle[]>(() => [...zonasMock].sort((a, b) => a.nombre.localeCompare(b.nombre)))
+export const obtenerZona = (id: string) => llamar<ZonaDetalle>(() => {
+  const zona = zonasMock.find((z) => z.id === id)
+  if (!zona) throw new Error('La zona no existe.')
+  return { ...zona, geojson: poligonosMock[zona.nombre] }
+})
+
+export const crearZona = (nombre: string, geojson: unknown) => llamar<ZonaDetalle>(() => {
+  if (!nombre.trim()) throw new Error('Escribe el nombre de la zona.')
+  exigirPoligono(geojson)
+  if (zonasMock.some((z) => z.nombre.toLowerCase() === nombre.trim().toLowerCase())) throw new Error(`Ya hay una zona llamada «${nombre.trim()}»: edítala en lugar de crearla de nuevo.`)
+  const zona: ZonaDetalle = { id: siguienteId('ZON-', zonasMock.map((z) => z.id)), nombre: nombre.trim(), activo: true, area_km2: 10, direcciones: 0, empresas: 0, comedores: 0, repartidores: 0 }
+  zonasMock.push(zona)
+  auditar('crear', 'zona', zona.id, `Creó la zona ${zona.nombre}`)
+  return zona
+})
+
+export const reemplazarPoligonoZona = (zona_id: string, geojson: unknown) => llamar<ZonaDetalle>(() => {
+  const zona = zonasMock.find((z) => z.id === zona_id)
+  if (!zona) throw new Error('La zona no existe.')
+  exigirPoligono(geojson)
+  auditar('actualizar', 'zona', zona.id, `Cambió el polígono de la zona ${zona.nombre}`)
+  return zona
+})
+
+export const importarZonas = (coleccion: any) => llamar<ResultadoImportarZonas>(() => {
+  if (coleccion?.type !== 'FeatureCollection' || !coleccion.features?.length) throw new Error('Manda un FeatureCollection con una zona por polígono, cada una con su nombre en properties.nombre.')
+  const nombres = new Set<string>()
+  for (const f of coleccion.features) {
+    const nombre = String(f.properties?.nombre ?? f.properties?.name ?? '').trim()
+    if (!nombre) throw new Error('Hay una zona sin nombre: ponlo en properties.nombre.')
+    if (nombres.has(nombre.toLowerCase())) throw new Error(`El nombre «${nombre}» viene dos veces en el archivo.`)
+    nombres.add(nombre.toLowerCase())
+    exigirPoligono(f)
+  }
+  const zonas = coleccion.features.map((f: any) => {
+    const nombre = String(f.properties?.nombre ?? f.properties?.name).trim()
+    const existente = zonasMock.find((z) => z.nombre.toLowerCase() === nombre.toLowerCase())
+    if (existente) return { id: existente.id, nombre: existente.nombre, creada: false, area_km2: existente.area_km2 }
+    const zona: ZonaDetalle = { id: siguienteId('ZON-', zonasMock.map((z) => z.id)), nombre, activo: true, area_km2: 10, direcciones: 0, empresas: 0, comedores: 0, repartidores: 0 }
+    zonasMock.push(zona)
+    return { id: zona.id, nombre, creada: true, area_km2: 10 }
+  })
+  return { creadas: zonas.filter((z: any) => z.creada).length, actualizadas: zonas.filter((z: any) => !z.creada).length, zonas }
+})
+
+export const cambiarEstadoZona = (zona_id: string, activo: boolean) => llamar<ZonaDetalle>(() => {
+  const zona = zonasMock.find((z) => z.id === zona_id)
+  if (!zona) throw new Error('La zona no existe.')
+  if (!activo && zona.empresas + zona.comedores + zona.repartidores > 0) throw new Error(`La zona «${zona.nombre}» la usan ${zona.empresas} empresa(s), ${zona.comedores} comedor(es) y ${zona.repartidores} repartidor(es) activos: cámbiales la zona antes de desactivarla.`)
+  zona.activo = activo
+  auditar(activo ? 'activar' : 'desactivar', 'zona', zona.id, `${activo ? 'Reactivó' : 'Desactivó'} la zona ${zona.nombre}`)
+  return zona
+})
+
 export const listarHistorialPrecios = (platillo_id: string) =>
   llamar<HistorialPrecio[]>(() => db.historial_precios.filter((h) => h.platillo_id === platillo_id).sort((a, b) => b.vigente_desde.localeCompare(a.vigente_desde)))
 
@@ -968,6 +1168,26 @@ export const programarPrecioPlatillo = (platillo_id: string, datos: ProgramarPre
   db.historial_precios.push(registro)
   auditar('programar_precio', 'platillo', platillo_id, `Programó el precio de ${platillo.nombre} en $${datos.precio_venta} desde ${datos.vigente_desde}`)
   return registro
+})
+
+export const crearPlan = (datos: NuevoPlan) => llamar<Plan>(() => {
+  if (!datos.nombre.trim()) throw new Error('Escribe el nombre del plan.')
+  if (datos.descuento_porcentaje < 0 || datos.descuento_porcentaje > 100) throw new Error('El descuento debe estar entre 0 y 100 %.')
+  if (db.planes.some((p) => p.dias === datos.dias)) throw new Error(`Ya hay un plan activo de ${datos.dias} ${datos.dias === 1 ? 'día' : 'días'}: edítalo o desactívalo para crear otro.`)
+  if (db.planes.some((p) => p.nombre.toLowerCase() === datos.nombre.trim().toLowerCase())) throw new Error('Ya hay un plan con ese nombre.')
+  const plan: Plan = { id: `PLAN-${datos.dias}-${Date.now() % 10000}`, dias: datos.dias, nombre: datos.nombre.trim(), descuento_porcentaje: datos.descuento_porcentaje, detalle: datos.detalle.trim(), destacado: datos.destacado }
+  db.planes.push(plan)
+  auditar('crear', 'plan', plan.id, `Creó el plan ${plan.nombre}`)
+  return plan
+})
+
+/** En la maqueta un plan desactivado simplemente deja de listarse. */
+export const cambiarEstadoPlan = (plan_id: string, activo: boolean) => llamar<Plan>(() => {
+  const plan = db.planes.find((p) => p.id === plan_id)
+  if (!plan) throw new Error('El plan no existe.')
+  if (!activo) db.planes.splice(db.planes.indexOf(plan), 1)
+  auditar(activo ? 'activar' : 'desactivar', 'plan', plan_id, `${activo ? 'Reactivó' : 'Desactivó'} el plan ${plan.nombre}`)
+  return plan
 })
 
 export const listarPlanes = () => llamar<Plan[]>(() => db.planes)
@@ -1138,10 +1358,11 @@ export const obtenerTicket = (ticket_id: string) => llamar<TicketDetalle>(() => 
   }
 })
 
-export const enviarMensajeTicket = (ticket_id: string, texto: string) => llamar<MensajeTicket>(() => {
+export const enviarMensajeTicket = (ticket_id: string, texto: string, adjunto?: File) => llamar<MensajeTicket>(() => {
   const ticket = db.tickets.find((t) => t.id === ticket_id)
   if (!ticket) throw new Error('El ticket no existe.')
-  const mensaje: MensajeTicket = { id: `MSG-${Date.now()}`, ticket_id, autor: 'agente', texto: texto.trim(), enviado_en: ahora() }
+  if (!texto.trim() && !adjunto) throw new Error('Escribe un mensaje o adjunta un archivo.')
+  const mensaje: MensajeTicket = { id: `MSG-${Date.now()}`, ticket_id, autor: 'agente', texto: texto.trim(), enviado_en: ahora(), adjunto: adjunto ? { url: URL.createObjectURL(adjunto), nombre: adjunto.name, tipo: adjunto.type } : null }
   db.mensajes_ticket.push(mensaje)
   ticket.actualizado_en = mensaje.enviado_en
   ticket.mensajes_sin_leer = 0

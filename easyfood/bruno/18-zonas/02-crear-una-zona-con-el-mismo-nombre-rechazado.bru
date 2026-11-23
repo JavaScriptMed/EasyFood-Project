@@ -1,0 +1,55 @@
+meta {
+  name: Crear una zona con el mismo nombre (rechazado)
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/api/v1/admin/zonas
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+body:json {
+  {
+    "nombre": "{{nombreZona}}",
+    "geojson": {
+      "type": "Polygon",
+      "coordinates": [
+        [
+          [
+            -100.34,
+            25.64
+          ],
+          [
+            -100.28,
+            25.64
+          ],
+          [
+            -100.28,
+            25.7
+          ],
+          [
+            -100.34,
+            25.7
+          ],
+          [
+            -100.34,
+            25.64
+          ]
+        ]
+      ]
+    }
+  }
+}
+
+tests {
+  test("responde 422 zona_repetida", function () {
+    expect(res.getStatus()).to.equal(422);
+    expect(res.body.codigo).to.equal("zona_repetida");
+  });
+}

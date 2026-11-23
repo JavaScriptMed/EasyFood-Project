@@ -1,0 +1,57 @@
+meta {
+  name: Mis rutas del día con sus paradas
+  type: http
+  seq: 5
+}
+
+get {
+  url: {{baseUrl}}/api/v1/repartidor/rutas?fecha={{sabadoDeEntrega}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenRepartidor}}
+}
+
+script:post-response {
+  if (res.status === 200 && res.body.length) {
+    const ruta = res.body[0];
+    bru.setVar("rutaDelRepartidorId", ruta.id);
+    bru.setVar("paradaUnoId", ruta.paradas[0].id);
+    bru.setVar("paradaDosId", ruta.paradas[1] ? ruta.paradas[1].id : "");
+  }
+}
+
+tests {
+  test("responde 200 con al menos una ruta aprobada", function () {
+    expect(res.getStatus()).to.equal(200);
+    expect(res.body.length).to.be.greaterThan(0);
+    expect(res.body[0].estado).to.equal("aprobada");
+    expect(res.body[0].tipo).to.equal("clientes");
+  });
+
+  test("cada parada trae lo necesario para la calle", function () {
+    const p = res.body[0].paradas[0];
+    expect(p.orden).to.equal(1);
+    expect(p.estado).to.equal("pendiente");
+    expect(p.destinatario).to.be.a("string");
+    expect(p.direccion).to.be.a("string");
+    expect(p.hora_estimada).to.match(/^\d{2}:\d{2}$/);
+    expect(p.ubicacion.latitud).to.be.a("number");
+    expect(p.ubicacion.longitud).to.be.a("number");
+    expect(p.telefono).to.be.a("string");
+    expect(p.contacto_nombre).to.be.a("string");
+    expect(p.platillos.length).to.be.greaterThan(0);
+    expect(p.platillos[0]).to.have.all.keys("nombre", "tiempo_comida", "cantidad", "dia_de_comida", "es_extra");
+    expect(p.total_platillos).to.be.greaterThan(0);
+  });
+
+  test("dice cuál es la siguiente parada", function () {
+    expect(res.body[0].siguiente_parada_id).to.equal(res.body[0].paradas[0].id);
+  });
+}
+
+docs {
+  `fecha` (AAAA-MM-DD) es opcional: sin ella trae las de hoy. Trae solo las rutas propias aprobadas (o ya en curso o completadas), ordenadas por su hora de salida.
+}

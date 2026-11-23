@@ -1,0 +1,22 @@
+meta {
+  name: La dirección con pedidos no se puede eliminar
+  type: http
+  seq: 11
+}
+
+delete {
+  url: {{baseUrl}}/api/v1/cliente/direcciones/{{direccionSabadoId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenCliente}}
+}
+
+tests {
+  test("responde 422 direccion_en_uso", function () {
+    expect(res.getStatus()).to.equal(422);
+    expect(res.body.codigo).to.equal("direccion_en_uso");
+  });
+}

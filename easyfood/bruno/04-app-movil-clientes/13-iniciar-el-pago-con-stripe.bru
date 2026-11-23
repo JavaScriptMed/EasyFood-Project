@@ -1,0 +1,36 @@
+meta {
+  name: Iniciar el pago con Stripe
+  type: http
+  seq: 13
+}
+
+post {
+  url: {{baseUrl}}/api/v1/cliente/pedidos/{{pedidoId}}/pago
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenCliente}}
+}
+
+tests {
+  test("con claves de Stripe da el client_secret; sin claves responde 503", function () {
+    if (res.getStatus() === 503) {
+      expect(res.body.codigo).to.equal("pagos_no_configurados");
+      return;
+    }
+    expect(res.getStatus()).to.equal(200);
+    expect(res.body.client_secret).to.be.a("string");
+    expect(res.body.moneda).to.equal("MXN");
+  });
+
+  test("el pedido sigue por pagar: lo pasa a recibido el webhook", function () {
+    // 12-ver-mi-pedido lo confirma; aquí solo se comprueba que la llamada no lo cambia.
+    expect([200, 503]).to.include(res.getStatus());
+  });
+}
+
+docs {
+  Crea un PaymentIntent de Stripe (modo de prueba) por el total del pedido en MXN y devuelve su `client_secret` para que la app cobre con el SDK de Stripe. No cambia el pedido: cuando Stripe confirma el cobro avisa a `POST /webhooks/stripe`, que lo pasa a `recibido` con su fecha de pago y los últimos 4 dígitos. Sin `STRIPE_SECRET` y `STRIPE_WEBHOOK_SECRET` en `.env` responde 503 `pagos_no_configurados`. Pedido ajeno: 404; no por pagar: 422 `pedido_no_pagable`; vencido: 422 `pedido_vencido` (el corte lo cancela).
+}

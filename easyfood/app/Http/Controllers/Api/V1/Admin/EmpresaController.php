@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1\Admin;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\V1\Vistas;
 use App\Models\Empresa;
+use App\Services\CalendarioDeServicio;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -22,6 +23,12 @@ class EmpresaController extends Controller
     public function show(int $id): JsonResponse
     {
         return response()->json(self::detallePorId($id));
+    }
+
+    /** Los empleados de una empresa (para la pestaña «Empleados» de su detalle). */
+    public function empleados(int $id, CalendarioDeServicio $calendario): JsonResponse
+    {
+        return response()->json(\App\Http\Controllers\Api\V1\Empresa\EmpleadoController::listado(Empresa::query()->findOrFail($id), $calendario));
     }
 
     /** Platillos elegidos por día de una empresa en un mes (AAAA-MM; por defecto el actual). */

@@ -18,6 +18,8 @@ class Empresa extends ModeloEasyLunch
         'dominio',
         'zona',
         'direccion_entrega',
+        'latitud',
+        'longitud',
     ];
 
     protected function casts(): array
@@ -25,6 +27,8 @@ class Empresa extends ModeloEasyLunch
         return [
             'activo' => 'boolean',
             'desactivado_en' => 'datetime',
+            'latitud' => 'float',
+            'longitud' => 'float',
         ];
     }
 

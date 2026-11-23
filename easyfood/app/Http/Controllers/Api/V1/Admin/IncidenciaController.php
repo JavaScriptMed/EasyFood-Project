@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\V1\Vistas;
 use App\Models\Incidencia;
 use App\Services\Bitacora;
+use App\Services\ReasignacionDeRutas;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -16,7 +17,7 @@ class IncidenciaController extends Controller
     {
         $f = $request->validate([
             'abiertas' => 'nullable|boolean', 'fecha' => 'nullable|date_format:Y-m-d', 'tipos' => 'nullable|array',
-            'tipos.*' => 'in:falta_repartidores,pago_pendiente,ruta_excede_bloque,entrega_no_localizada,empresa_cerrada,empleado_ausente,repartidor_no_llego,platillo_danado,otro',
+            'tipos.*' => 'in:falta_repartidores,pago_pendiente,ruta_excede_bloque,entrega_no_localizada,empresa_cerrada,empleado_ausente,repartidor_no_llego,platillo_danado,comida_fria,entrega_tardia,otro',
         ]);
 
         $incidencias = Incidencia::query()->with(['ruta.repartidor.usuario'])
@@ -41,5 +42,25 @@ class IncidenciaController extends Controller
         Bitacora::registrar($request->user(), 'incidencia.resuelta', 'incidencias', $incidencia->id, "Resolvió la incidencia «{$incidencia->tipo}»".($nota ? ": {$nota}" : '.'));
 
         return response()->json(Vistas::incidencia($incidencia->refresh()->load('ruta.repartidor.usuario')));
+    }
+
+    /** Repartidores a los que se puede pasar la ruta de la incidencia (con capacidad libre ese día). */
+    public function candidatos(int $id, ReasignacionDeRutas $reasignacion): JsonResponse
+    {
+        $incidencia = Incidencia::query()->findOrFail($id);
+
+        return response()->json(collect($reasignacion->candidatos($incidencia))->map(fn ($c) => [
+            'repartidor' => Vistas::repartidor($c['repartidor']), 'capacidad_libre' => $c['capacidad_libre'], 'alcanza' => $c['alcanza'],
+        ])->values());
+    }
+
+    public function reasignar(Request $request, int $id, ReasignacionDeRutas $reasignacion): JsonResponse
+    {
+        $d = $request->validate(['repartidor_id' => 'required|integer', 'nota' => 'nullable|string|max:1000']);
+        $incidencia = Incidencia::query()->findOrFail($id);
+
+        $reasignada = $reasignacion->reasignar($incidencia, (int) $d['repartidor_id'], $d['nota'] ?? null, $request->user());
+
+        return response()->json(Vistas::incidencia($reasignada->load('ruta.repartidor.usuario')));
     }
 }

@@ -64,8 +64,8 @@ Route::middleware(['auth:api', 'role:admin'])->prefix('admin')->group(function (
 // Rutas Públicas (Sin Token)
 // -----------------------------------------------------------------
 Route::prefix('auth')->group(function () {
-    Route::post('/register', [AuthController::class, 'register']);
-    Route::post('/login', [AuthController::class, 'login']);
+    Route::post('/register', [AuthController::class, 'register'])->middleware('throttle:registro');
+    Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:login');
 });
 
 // -----------------------------------------------------------------
@@ -75,6 +75,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Gestión de sesión propia
     Route::get('/auth/profile', [AuthController::class, 'profile']);
+    Route::put('/auth/profile', [AuthController::class, 'updateProfile']);
     Route::post('/auth/logout', [AuthController::class, 'logout']);
     Route::put('/auth/profile', [AuthController::class, 'updateProfile']);
 

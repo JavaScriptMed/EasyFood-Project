@@ -19,8 +19,40 @@ docker compose exec app php artisan migrate
 - Salud de la API y de la base de datos: http://localhost:8000/api/v1/salud
 - Base de datos desde tu equipo (DBeaver, TablePlus…): `127.0.0.1:5432`, con el usuario y la clave de tu `.env`.
 - Apagar: `docker compose down` (los datos se conservan en el volumen `pgdata`; `docker compose down -v` los borra).
-- Si ya tenías el volumen de la base de datos creado antes de esta configuración, crea la base de pruebas una vez:
-  `docker compose exec db psql -U <DB_USERNAME> -d postgres -c "CREATE DATABASE easylunch_pruebas"`
+- Las bases de demo y de pruebas se explican abajo, en «Bases de datos: desarrollo, demo y pruebas».
+
+## Bases de datos: desarrollo, demo y pruebas
+
+Son tres bases distintas en el mismo PostgreSQL, y **cada una tiene un solo uso**:
+
+| Base | Para qué | Quién la borra |
+|---|---|---|
+| `easylunch` | tu desarrollo diario (la de `DB_DATABASE` en `.env`) | nadie: solo `php artisan migrate` |
+| `easylunch_demo` | enseñar el sistema con datos de ejemplo | `scripts/demo.sh preparar` |
+| `easylunch_pruebas` | solo las pruebas (`php artisan test`) y Bruno | cada corrida de pruebas |
+
+En una instalación nueva las tres se crean solas (`docker/db/init`). Si el volumen de la base ya existía, créalas una vez:
+
+```bash
+docker compose exec db psql -U <DB_USERNAME> -d postgres -c "CREATE DATABASE easylunch_demo"
+docker compose exec db psql -U <DB_USERNAME> -d postgres -c "CREATE DATABASE easylunch_pruebas"
+```
+
+**Demo** (no toca tu base de desarrollo ni la de pruebas):
+
+```bash
+scripts/demo.sh preparar   # crea easylunch_demo si falta, migra desde cero, carga los datos de ejemplo y crea un admin
+scripts/demo.sh servir     # API de la demo en http://localhost:8001 (contenedor easylunch-demo)
+scripts/demo.sh detener
+```
+
+Admin rápido: `demo@easylunch.test` / `Admin1234` (`php artisan easylunch:admin-demo [correo] [contraseña]`; solo corre fuera de producción). Las demás cuentas de ejemplo usan la contraseña `Prueba1234`. Para el front: `NEXT_PUBLIC_API_URL=http://localhost:8001`.
+
+**Pruebas y Bruno** usan siempre `easylunch_pruebas`. Si necesitas lanzar un comando contra una base concreta, escribe el nombre tal cual en el comando (`-e DB_DATABASE=easylunch_pruebas`) y comprueba cuál es antes de un `migrate:fresh`:
+
+```bash
+docker compose exec -T -e DB_DATABASE=easylunch_pruebas app php artisan tinker --execute='echo DB::connection()->getDatabaseName();'
+```
 
 **El backend requiere PostgreSQL.** Las migraciones usan CHECK, índices parciales, triggers y PostGIS; SQLite ya no está configurado en el proyecto, y con cualquier otro motor la primera migración falla con un mensaje que lo explica.
 
@@ -32,6 +64,25 @@ docker compose exec app php artisan test
 
 Corren contra la base `easylunch_pruebas` (nunca contra la de desarrollo: se borra y se recrea en cada corrida). `ConcurrenciaTest` lanza procesos de PHP en paralelo y rehace esa base con `migrate:fresh` al terminar (tarda unos 15 s). Fuera de Docker, apunta `DB_HOST` a tu PostgreSQL.
 
+## Seguridad
+
+| Qué | Cómo está resuelto |
+|---|---|
+| **CORS** | Solo los orígenes de `CORS_ALLOWED_ORIGINS` (el dominio del front en Vercel, separados por coma). `CORS_ALLOWED_ORIGINS_PATTERNS` admite expresiones regulares para las vistas previas de Vercel. En producción el contenedor **no arranca** si está vacío o trae `*`. |
+| **Errores** | `APP_DEBUG=false` en producción (el contenedor no arranca si no): un error interno responde «Server Error» sin trazas, rutas ni claves. PHP además no incluye los argumentos de las funciones en las trazas (`zend.exception_ignore_args`). |
+| **Límite de intentos** | Login: 5 por minuto por cuenta e IP y 30 por IP. Crear cuenta: 10 por hora por IP. «Olvidé mi contraseña»: 3 por hora por correo y 10 por IP (la respuesta es igual exista o no el correo). Enlaces de invitación y de restablecer: 10 por minuto por IP. Responden 429 con `codigo: demasiados_intentos`. |
+| **IP real** | Detrás del proxy del servidor hay que fijar `TRUSTED_PROXIES` (`*` si solo el proxy llega a la app) para que los límites cuenten por IP real y no a todos como una sola. |
+| **Tokens de acceso** | `SANCTUM_EXPIRATION` (minutos; 10080 = 7 días en producción). `sanctum:prune-expired` corre a diario. Cerrar sesión, desactivar a alguien o cambiarle el rol revoca sus tokens. |
+| **Logs sin secretos** | Todo canal de logging pasa por `App\Logging\OcultarSecretos`: tacha claves de Stripe (`sk_`, `rk_`, `pk_`, `whsec_`), tokens (`Bearer …`, `12\|abc…`), contraseñas y los tokens de los enlaces. Nginx de producción tampoco registra los tokens que van en la ruta. Excepción a propósito: el canal `enlaces`, solo para ver los enlaces en desarrollo, que no escribe en producción. |
+| **Correos** | Van a la cola (`php artisan queue:work`, ya incluido en Docker) con 3 reintentos: si el servidor de correo falla, la petición no falla ni queda a medias. En la cola viajan **cifrados** con `APP_KEY` (el enlace lleva el token en claro). En desarrollo, `docker compose up -d` ya levanta el `worker`. |
+| **Archivos subidos** | Fotos de platillos y adjuntos de tickets: solo JPG, PNG, WebP o PDF con tipo verificado (no SVG), nombre aleatorio, y se sirven sin poder ejecutar nada (`Content-Security-Policy: sandbox`, `nosniff`). |
+
+Todo esto lo cubren pruebas automáticas (`tests/Feature/Seguridad`). Para desplegar, ver [DESPLIEGUE.md](DESPLIEGUE.md).
+
+## Respaldos
+
+`scripts/respaldo-db.sh` hace un `pg_dump` comprimido (formato personalizado, nivel 9) de la base de `.env.production`, comprueba que no salga vacío y **rota a 7 días** (`DIAS_A_GUARDAR`). Con `--archivos` respalda también el volumen `storage` (fotos y adjuntos). La clave va por `PGPASSWORD`, nunca en la línea de comandos ni en pantalla; los archivos quedan en modo 600. **Si el respaldo de hoy falla, no se borra ninguno de los anteriores.** Cron diario y cómo restaurar: en [DESPLIEGUE.md](DESPLIEGUE.md). Lo cubren las pruebas de `tests/Feature/Scripts`.
+
 ## Mapa de tablas
 
 | Área | Tablas |
@@ -41,7 +92,7 @@ Corren contra la base `easylunch_pruebas` (nunca contra la de desarrollo: se bor
 | Empresas | `empresas`, `contratos_empresa`, `empleados` (los de las empresas cliente), `dias_sin_servicio` |
 | Operación diaria | `disponibilidad_dia`, `elecciones_empleado`, `cortes`, `ordenes_produccion`, `entregas_empresa` |
 | Reparto | `repartidores` (nuestro personal), `rutas`, `paradas`, `incidencias` |
-| Clientes individuales | `paquetes`, `pedidos`, `pedido_dias`, `tickets`, `mensajes_ticket` |
+| Clientes individuales | `paquetes`, `pedidos` (`comidas_por_dia`: 1 a 3; `con_extra`), `pedido_dias` (la entrega de un día), `pedido_dia_platillos` (un platillo por tiempo de comida, con su precio congelado), `tickets`, `mensajes_ticket` |
 | Dinero | `facturas_mensuales`, `liquidaciones_comedor` |
 | Sistema | `configuracion`, `registros_auditoria` (bitácora, solo se agrega), `mensajes_contacto`, `zonas`, `avisos`, `contadores_folio` |
 
@@ -52,13 +103,15 @@ Rutas en `routes/v1.php` (prefijo `/api/v1`), JSON en español y token Bearer de
 
 | Grupo (rol) | Prefijo | Construido | Solo ruta (501) |
 |---|---|---|---|
-| Panel de administración (`admin`; `support` en clientes, pedidos, tickets e incidencias) | `/admin` | empresas y comedores (lectura), renovar contratos, contratos por vencer, platillos (crear, editar, revisar), configuración, calendario, corte (y su vista previa), repartidores, rutas, entregas, incidencias, facturas, liquidaciones, reporte de proveedor, menú semanal, consumo de una empresa, clientes, pedidos, tickets, bitácora | dashboard, crear empresa, historial de precios, imágenes, crear repartidor, generar rutas, reasignar incidencias |
-| Portal de empresas (`company`) | `/empresa` | perfil, empleados (ver, activar/desactivar), pedidos de mañana, consumo, vista previa del mes en curso, facturas | agregar empleados |
+| Panel de administración (`admin`; `support` en clientes, pedidos, tickets e incidencias) | `/admin` | empresas y comedores (lectura), **alta de empresa** (`POST /admin/empresas`), **alta de repartidor** (`POST /admin/repartidores`), renovar contratos, contratos por vencer, platillos (crear, editar, revisar), configuración, calendario, corte (y su vista previa), repartidores, rutas (listar, **generar**, aprobar), entregas, incidencias (listar, resolver, **candidatos y reasignar**), facturas, liquidaciones, reporte de proveedor, menú semanal, consumo de una empresa, clientes, pedidos, tickets, bitácora, **dashboard con 10 indicadores en tiempo real** (`GET /admin/dashboard`, solo `admin`) y costos operativos (listar, registrar, anular) | ninguno: todos los endpoints de la API v1 están construidos (ninguna ruta apunta a un controlador provisional; `RutasDeLaApiTest` lo comprueba) |
+| Portal de empresas (`company`) | `/empresa` | perfil, empleados (ver, **agregar**, activar/desactivar), pedidos de mañana, consumo, vista previa del mes en curso, facturas, indicadores de RR. HH. (`GET /empresa/indicadores`) | |
 | Portal de comedores (`provider`) | `/comedor` | perfil, platillos, disponibilidad, producción, pagos | imágenes |
-| Portal de empleados (`employee`) | `/empleado` | menú, elegir/quitar platillo, historial | |
-| App móvil (`customer`) | `/cliente` | paquetes, menú semanal, direcciones, pedidos (pedir y pagar) | |
-| Cualquier rol con sesión | `/configuracion/operacion`, `/paquetes` | lectura de la configuración de operación y de los paquetes | |
-| Público | `/contacto`, `/cuentas` | formulario de contacto | invitaciones y restablecer contraseña (necesitan correo) |
+| Portal de empleados (`employee`) | `/empleado` | menú, elegir/quitar platillo, historial, calificar la entrega y el platillo que recibió | |
+| App móvil (`customer`) | `/cliente` | paquetes, menú semanal, direcciones, pedidos (pedir), pago con tarjeta (`POST /cliente/pedidos/{id}/pago`) | |
+| Administración y soporte | `/admin/pedidos/{id}/reembolso` | reembolso total de un pedido pagado con Stripe | |
+| Cualquier rol con sesión | `/configuracion/operacion`, `/paquetes`, `/calificaciones/menu-semanal` | lectura de la configuración de operación, de los paquetes y de la calificación semanal del menú | |
+| Público | `/contacto`, `/cuentas`, `/webhooks/stripe` | formulario de contacto, aceptar una invitación y restablecer la contraseña (por enlace de correo), aviso de cobro de Stripe (se confía en su firma) | |
+| Administración, empresa y comedor (cada uno dentro de lo suyo) | `/cuentas/usuarios-acceso`, `/cuentas/invitaciones` | ver quién tiene acceso, invitar y reenviar la invitación | |
 
 Un endpoint «solo ruta» ya tiene su URL, su rol y su nombre, pero responde `501 { "codigo": "no_implementado" }` desde `NoImplementadoController` hasta que se construya; entonces solo se cambia su línea en `routes/v1.php`. `php artisan route:list --path=api/v1` muestra el mapa completo.
 
@@ -66,11 +119,173 @@ Cada portal solo ve lo suyo: la empresa, el comedor o el empleado se resuelven d
 
 ## Probar la API a mano (Bruno) y datos de ejemplo
 
-La carpeta [`bruno/`](bruno/README.md) es una colección de [Bruno](https://www.usebruno.com/) con 134 peticiones y 242 pruebas automáticas que cubren toda la API v1 (incluidos los pendientes, que deben responder 501). `DatosDeEjemploSeeder` carga empresas, comedores, empleados, platillos, historial, clientes y pedidos de ejemplo (solo desarrollo; la contraseña de las cuentas sale de `SEED_PASSWORD` en tu `.env`):
+La carpeta [`bruno/`](bruno/README.md) es una colección de [Bruno](https://www.usebruno.com/) con 224 peticiones y 365 pruebas automáticas que cubren toda la API v1 (incluidos los pendientes, que deben responder 501). `DatosDeEjemploSeeder` carga empresas, comedores, empleados, platillos, historial, clientes y pedidos de ejemplo (solo desarrollo; la contraseña de las cuentas sale de `SEED_PASSWORD` en tu `.env`):
 
 ```bash
 docker compose exec app php artisan db:seed --class=DatosDeEjemploSeeder
 ```
+
+## Pagos con Stripe (modo de prueba)
+
+El pedido de un cliente individual se paga con tarjeta. La app móvil llama a `POST /api/v1/cliente/pedidos/{id}/pago`, recibe el `client_secret` y cobra con el SDK de Stripe; cuando Stripe confirma, avisa a `POST /api/v1/webhooks/stripe`, que pasa el pedido a `recibido`. El pago simulado ya no existe como ruta.
+
+**Claves.** Solo en tu `.env` (nunca en el código ni en el repositorio; `.env` está en `.gitignore`):
+
+```
+STRIPE_SECRET=sk_test_...        # Dashboard de Stripe → Developers → API keys (modo de prueba)
+STRIPE_WEBHOOK_SECRET=whsec_...  # el que imprime `stripe listen` (abajo) o el del endpoint que crees en el Dashboard
+```
+
+Sin ellas, el pago y el webhook responden `503 pagos_no_configurados`. Después de cambiar el `.env`: `docker compose exec app php artisan config:clear`.
+
+**Probar el webhook en local con Stripe CLI.**
+
+1. Instala [Stripe CLI](https://docs.stripe.com/stripe-cli) y entra a tu cuenta de prueba: `stripe login`.
+2. Con el backend encendido (`docker compose up -d`, puerto 8000), reenvía los eventos a tu máquina:
+   ```bash
+   stripe listen --forward-to http://localhost:8000/api/v1/webhooks/stripe --events payment_intent.succeeded,payment_intent.payment_failed,charge.refunded
+   ```
+   Imprime `Your webhook signing secret is whsec_...`: cópialo a `STRIPE_WEBHOOK_SECRET` y limpia la configuración (paso anterior). Deja esa terminal abierta.
+3. Crea un pedido con Bruno (carpeta *04 · App móvil · clientes*, peticiones 11 y 13) o con la app. La respuesta de «Iniciar el pago» trae `payment_intent_id` y `client_secret`.
+4. Cobra ese intento con una tarjeta de prueba (sin la app):
+   ```bash
+   stripe payment_intents confirm pi_XXXX --payment-method pm_card_visa --return-url https://example.com
+   ```
+   (`pm_card_chargeDeclined` simula un pago rechazado.) En la terminal de `stripe listen` verás `payment_intent.succeeded → 200`, y el pedido pasa a `recibido` con `ultimos_digitos` `4242`.
+5. Reenvía el mismo evento con `stripe events resend evt_XXXX`: responde 200 con `resultado: repetido` y no cambia nada.
+
+`stripe trigger payment_intent.succeeded` también funciona, pero crea un cobro que no es de ningún pedido: queda como `ignorado`. Para ver lo que pasó, mira la tabla `stripe_eventos` y la bitácora (`pedido.pagado`, `pago.reembolso_manual`).
+
+**Atajo para probar a mano (solo desarrollo local).** `docker compose exec app php artisan pagos:preparar-prueba` crea un cliente de prueba con un pedido en `pendiente_pago` y te imprime el id del pedido, un token del cliente, el `curl` de `POST /api/v1/cliente/pedidos/{id}/pago` ya armado y el comando `stripe payment_intents confirm … --payment-method pm_card_visa`. Con `--con-intento` también crea el PaymentIntent en Stripe (usa tu `STRIPE_SECRET`) y el comando de confirmación sale con el `pi_…` real; `--url=` cambia la dirección del backend. Necesita las zonas y los datos de ejemplo cargados, no escribe nada en el repo (el token solo se imprime en la terminal) y se niega a correr fuera de `APP_ENV=local`.
+
+**Reembolsos.** Siempre son totales y no hay estado nuevo: un pedido reembolsado queda `cancelado` con `reembolsado_en`, `monto_reembolsado` (todo lo devuelto del cobro) y `stripe_refund_id`.
+
+- **Cobro que no se puede aplicar (automático).** Si llega `payment_intent.succeeded` sobre un pedido cancelado o vencido, el sistema reembolsa el cobro completo en Stripe (llave de idempotencia por intento), anota `pago.reembolsado_automatico` en la bitácora y el pedido no cambia. Si Stripe falla, anota `pago.reembolso_manual` (con el error) para hacerlo a mano. Un monto distinto al del pedido, o un segundo cobro sobre un pedido ya pagado, no se reembolsan solos: quedan como `pago.reembolso_manual`, porque no se sabe cuál es el cobro bueno.
+- **Por administración o soporte.** `POST /api/v1/admin/pedidos/{id}/reembolso` (solo `admin` y `support`): reembolsa lo que falta del cobro (nunca más de lo cobrado), cancela el pedido al momento y anota en la bitácora quién lo hizo (`pedido.reembolsado`). Una segunda llamada responde `422 pedido_ya_reembolsado`; un pedido sin pagar, `422 pedido_no_reembolsable`; si Stripe falla, `502 pasarela_con_error` y el pedido no cambia.
+- **Webhook `charge.refunded`.** Cubre los reembolsos hechos desde el Dashboard de Stripe: si el pedido está pagado, pasa a `cancelado` con los datos del reembolso; si el endpoint ya lo hizo, no repite nada. Un reembolso parcial no cancela: queda `pago.reembolso_parcial` en la bitácora. Agrega `charge.refunded` a `--events` en `stripe listen` (arriba) y para probarlo: `stripe refunds create --payment-intent=pi_XXXX`.
+
+**Reglas.** Se compara contra la hora del cargo, no la del webhook. Un pedido vencido no se puede empezar a pagar (`422 pedido_vencido`), pero el pago no lo cancela: lo cancela el corte. Si Stripe cobra algo que ya no se puede aplicar, el pedido no cambia y el cobro se reembolsa (ver Reembolsos). Las pruebas usan una pasarela falsa (`tests/Support/PasarelaFalsa.php`): ninguna llama a la red.
+
+## Altas: empresa, comedor, repartidor, empleados y planes
+
+- **Comedor** (`POST /admin/comedores`): crea el contacto (cuenta inactiva con invitación al portal de comedores), el comedor y su contrato de 6 meses con el precio por platillo y el mínimo mensual acordados. Razón social y RFC son opcionales (el RFC no se repite); la `zona` debe existir y el nombre no puede repetirse. No modifica el modelo `Provider`.
+- **Plan** (`POST /admin/paquetes`, `PATCH /admin/paquetes/{id}/estado`): solo hay planes de 1, 2 o 6 días y **un solo plan activo por duración**; para cambiar el de una duración que ya existe se edita, o se desactiva y se crea otro. Un plan desactivado deja de ofrecerse y no se puede pedir; los pedidos que ya lo contrataron no cambian.
+- **Empresa** (`POST /admin/empresas`): crea el contacto de RR. HH. (cuenta inactiva con invitación), la empresa y su contrato de 6 meses (`precio_por_platillo` $130 si no se manda). El nombre debe ser único y la `zona` debe existir en `zonas`; si no, el error lista las disponibles.
+- **Repartidor** (`POST /admin/repartidores`): cuenta con invitación, `numero_empleado` automático (`R-001`…), placas obligatorias (solo se reparte en automóvil) y `zona_base` existente.
+- **Empleados** (`POST /empresa/empleados`, hasta 500): cada persona queda inactiva hasta aceptar su invitación; sin correo se arma con el nombre y el dominio de la empresa; los correos repetidos o ya registrados se omiten y se devuelven en `omitidos`.
+
+## Adjuntos en los tickets de soporte
+
+`POST /admin/tickets/{id}/mensajes` acepta `texto`, un archivo `adjunto` (foto JPG, PNG o WebP, o PDF, de hasta 5 MB) o ambos; sin ninguno responde 422. Se guarda en `storage/app/public/tickets` con un nombre aleatorio de 40 caracteres (el nombre original solo se conserva, limpio, para mostrarlo) y el mensaje trae `adjunto: { url, nombre, tipo }`. Se rechazan SVG, scripts y cualquier otro tipo. Hace falta `php artisan storage:link` y correr `php artisan migrate` (agrega las columnas `adjunto_*` a `mensajes_ticket`).
+
+## Fotos y precios de los platillos
+
+- **Foto** (`POST /admin/platillos/{id}/imagen` y `POST /comedor/platillos/{id}/imagen`, multipart, campo `imagen`): JPG, PNG o WebP de hasta 2 MB (se rechazan SVG y cualquier otro archivo). Se guarda en `storage/app/public/platillos` con un nombre aleatorio y `foto_url` apunta a ella; la foto anterior se borra (las fotos externas no se tocan). El comedor solo cambia las de sus platillos, y un platillo publicado o rechazado vuelve a revisión, igual que al editarlo. Para servirlas hace falta `php artisan storage:link` una vez por instalación.
+- **Historial de precios** (`GET /admin/platillos/{id}/historial-precios`): tabla `precios_de_platillos`, un tramo por precio con su costo (lo que se paga al comedor) de ese momento. `menus.price` sigue siendo el precio de hoy; la base impide dos tramos abiertos por platillo. Los platillos que ya existían arrancan con su precio actual al migrar.
+- **Programar un precio** (`POST /admin/platillos/{id}/precios { precio_venta, vigente_desde }`, solo `admin`): desde mañana o después; el tramo de hoy queda vigente hasta el día anterior. Programar otro mientras hay uno pendiente lo reemplaza (nunca llegó a aplicarse). El comando `easylunch:aplicar-precios-programados` (00:05, ya en el programador de tareas) copia a `menus.price` el que entra en vigor. Editar el precio de un platillo (admin o comedor) también deja su tramo en el historial.
+
+## Editar y desactivar
+
+Nada se borra: «eliminar» es **desactivar** (`activo = false`, con su fecha) y se puede reactivar. Cada cambio queda en la bitácora.
+
+| Qué | Endpoint | Quién | Reglas |
+|---|---|---|---|
+| Empresa | `PUT /admin/empresas/{id}`, `PATCH …/estado` | `admin` | nombre único, ventana de entrega válida, necesita un contrato activo; el precio por platillo acordado no cambia y lo ya elegido conserva su precio y subsidio |
+| Empleado | `PUT /empresa/empleados/{id}` | `company` (los suyos) | nombre y departamento |
+| Plan | `PUT /admin/paquetes/{id}` (también se crea y se desactiva: ver Altas) | `admin` | nombre único, descuento de 0 a 100; los días no cambian |
+| Repartidor | `PUT /admin/repartidores/{id}`, `PATCH …/estado` | `admin` | solo automóvil con placas, zona existente, número de empleado único; no se desactiva con rutas por hacer (`repartidor_con_rutas`) |
+| Capacidad del auto | `PUT /admin/repartidores/capacidades { automovil }` | `admin` | las rutas ya creadas conservan la suya |
+| Persona con acceso | `PUT /cuentas/usuarios-acceso/{id}`, `PATCH …/estado` | `admin`, y cada empresa o comedor con la suya | el rol debe corresponder a la organización; nadie cambia ni desactiva su propia cuenta; el titular de una empresa o comedor no cambia de rol; no se activa a quien no aceptó su invitación; al desactivar o cambiar de rol se cierran sus sesiones |
+
+| Comedor | `PUT /admin/comedores/{id}`, `PATCH …/estado` | `admin` | nombre único, zona existente, necesita contrato activo; precio y mínimo > 0 (el precio nuevo aplica a lo que se entregue desde ahora); el correo del contacto se corrige solo mientras no acepte su invitación; **desactivar** deja de ofrecer TODOS sus platillos sin cambiar el estado de cada uno (al reactivar vuelve todo) y no se puede con platillos por entregar (`comedor_con_pedidos`) |
+| Platillo | `PATCH /admin/platillos/{id}/estado`, `PATCH /comedor/platillos/{id}/estado` | `admin`; el comedor solo los suyos | quita o vuelve a poner el platillo en la oferta (`is_available`); no se quita con elecciones o pedidos por entregar (`platillo_con_pedidos`) |
+
+No se modificaron las clases `Provider` ni `Menu`: las reglas viven en `EdicionDeRegistros`.
+
+## Corregir el correo
+
+El correo es el acceso de la cuenta, así que solo se corrige **mientras la persona no haya aceptado su invitación** (un correo mal escrito, o el que el sistema armó al subir un CSV sin correos). Se puede mandar `correo` en `PUT /empresa/empleados/{id}`, `PUT /cuentas/usuarios-acceso/{id}` y `PUT /admin/empresas/{id}` (como `contacto_correo`). Se guarda en la cuenta y en la invitación, el enlace anterior deja de servir y se manda una invitación nueva al correo corregido. Si ya aceptó, responde 422 `correo_no_editable`; si el correo ya existe, `correo_en_uso`.
+
+## Zonas de entrega
+
+**Punto de entrega de las empresas.** `POST /admin/empresas` y `PUT /admin/empresas/{id}` aceptan `latitud` y `longitud` (opcionales, las dos o ninguna; -90 a 90 y -180 a 180; se guardan con 6 decimales). Con punto, la zona se calcula sola con PostGIS (`ST_Covers`, igual que las direcciones de clientes: gana la zona activa más pequeña) y **manda sobre cualquier `zona` que se envíe**; un punto fuera de toda zona activa responde 422 `fuera_de_cobertura`. Sin punto, el alta sigue pidiendo `zona` y la edición conserva la que tenía. Editar el polígono de una zona nunca mueve empresas: la zona de una empresa solo cambia al guardar un punto nuevo. `GET /admin/rutas` trae `ubicacion` (`{ latitud, longitud }` o `null`) en cada parada (clientes: el punto de la dirección; empresas: su punto guardado), y `GET /repartidor/rutas` la rellena para las paradas de empresa que ya tienen punto. El front usa Mapbox (`NEXT_PUBLIC_MAPBOX_TOKEN`, token público `pk.`; sin él los mapas muestran un aviso).
+
+Un polígono por zona (PostGIS). Su **nombre** es el texto que se escribe en empresas, comedores, repartidores y direcciones, así que **no se renombra**. Solo `admin`.
+
+| Qué | Endpoint |
+|---|---|
+| Listar (con cuántas direcciones, empresas, comedores y repartidores usa cada una) | `GET /admin/zonas` |
+| Ver una (con su polígono como Feature) | `GET /admin/zonas/{id}` |
+| Crear | `POST /admin/zonas { nombre, geojson }` (nombre repetido: `zona_repetida`) |
+| Cambiar el polígono | `PUT /admin/zonas/{id} { geojson }` |
+| Importar varias de una vez | `POST /admin/zonas/importar` con un `FeatureCollection` (cada polígono con `properties.nombre`); todo o nada |
+| Desactivar o reactivar | `PATCH /admin/zonas/{id}/estado { activo }` |
+
+El `geojson` puede ser Polygon, MultiPolygon, Feature o un FeatureCollection de un solo polígono. Se valida antes de guardar: coordenadas `[longitud, latitud]` (Guadalajara ≈ `[-103.35, 20.67]`), anillos cerrados y sin cruzarse (`geojson_invalido`, `coordenadas_invalidas`, `poligono_invalido`). Al guardar, la base recalcula la zona de todas las direcciones (si dos zonas se traslapan gana la más pequeña). No se desactiva una zona que usen empresas, comedores o repartidores activos (`zona_en_uso`). El comando `easylunch:cargar-zona` usa el mismo servicio (`ZonasDeEntrega`). En el panel: **Zonas** (menú Operación), con vista previa del polígono antes de guardar.
+
+## Rutas e incidencias
+
+- **Generar rutas** (`POST /admin/rutas/generar { fecha }`, solo `admin`): completa las rutas de una fecha **ya cortada** con lo que quedó sin repartidor (por ejemplo, después de dar de alta a uno). Usa el mismo `GeneradorDeRutas` que el corte: por zona, primero empresas y luego clientes, sin pasar la capacidad del auto. Nunca toca una ruta existente (borrador o aprobada), no duplica incidencias abiertas y cierra solas las de «falta de repartidores» de lo que ya tiene ruta. Rechaza una fecha sin corte (`corte_pendiente`), pasada o sin servicio.
+- **Reasignar** (`GET /admin/incidencias/{id}/candidatos`, `POST /admin/incidencias/{id}/reasignar { repartidor_id, nota }`, admin y soporte): solo para una incidencia **abierta ligada a una ruta**. Es candidato el repartidor activo, disponible, distinto del actual y con capacidad libre ese día (auto menos lo que ya lleva); «alcanza» si le cabe toda la ruta. Al reasignar, la ruta cambia de repartidor (conserva su estado), la incidencia queda `reasignada` y se registra en la bitácora.
+
+## Datos de demo en producción
+
+`php artisan easylunch:cargar-demo --confirmo` carga una demo que **sí corre en producción** (el seeder de ejemplo sigue bloqueado ahí). Sin `--confirmo` solo explica qué haría y no toca nada. Opciones: `--clave=` (contraseña de las cuentas de demo; si no se pasa, usa `SEED_PASSWORD` o la pide sin mostrarla), `--desde=2026-11-24` y `--hasta=2026-12-06` (la ventana activa). Necesita que ya exista un administrador.
+
+Qué deja: **3 comedores** (Cocina La Estancia, Sazón del Centro, Fogón de Tlaquepaque) y **3 empresas** (Manufacturas Nexo, Pacífico Logística, Corporativo Alameda) con 5 empleados cada una; 15 platillos publicados con porciones (de la ventana y hasta 13 días después de su fin, para los pedidos de clientes); 3 repartidores y 3 clientes con dirección en las zonas; y varias semanas de historial (elecciones, entregas, rutas con sus paradas ya cerradas, pedidos de clientes entregados, calificaciones, incidencias y las liquidaciones del mes pasado). Para cada día de la ventana cuyo corte sigue abierto deja las elecciones de los empleados, la entrega a cada empresa y las rutas **aprobadas**, además de un pedido de cliente ya pagado para el próximo sábado. Los cortes los hace el sistema a su hora; las rutas de clientes del sábado las arma el corte de individuales del viernes.
+
+Reglas: todas las cuentas son `@demo.easylunch.test` (nunca toca otras, como las `*.prueba@easylunch.test`); **se puede repetir sin duplicar ni borrar nada** (si ya está cargada, no hace nada) y va en una sola transacción (si algo falla, no queda nada). Usa las zonas reales del servidor (**Zapopan, Tlaquepaque y Guadalajara**: impórtalas antes; si falta alguna se detiene sin crear nada, salvo con `--crear-zonas`, que crea rectángulos de ejemplo y es solo para desarrollo) y los paquetes que ya existan, y solo crea lo que falta; si un nombre de empresa o comedor de la demo ya existe, se detiene antes de crear nada. Sus contratos vencen en varios meses para no disparar avisos. Para quitarla, desactiva esas cuentas y organizaciones desde el panel (nada se borra).
+
+**Con la API del repartidor:** esa API ya está en `master`, así que la demo se carga con su migración aplicada. El historial de rutas queda `completada` y cada parada cerrada trae su inicio, su cierre y su evidencia (la foto de ejemplo `public/demo/evidencia.png`) o su motivo, como piden las restricciones de las paradas.
+
+## API del repartidor
+
+Solo el rol `driver` (la app móvil del repartidor). Sin chat ni GPS. Todas las rutas son `/api/v1/repartidor/...` con `Authorization: Bearer <token>`; una cuenta `driver` sin ficha de repartidor activo responde 403.
+
+| Método y ruta | Qué hace |
+|---|---|
+| `GET /disponibilidad` | `{ en_linea, estado, ruta_en_curso_id }` (`estado`: `libre`, `en_ruta` o `no_disponible`) |
+| `PATCH /disponibilidad` `{ en_linea: bool }` | Se pone en línea o fuera de línea. Fuera de línea con una ruta en curso → 422 `ruta_en_curso`. Repetirlo no cambia nada |
+| `GET /rutas?fecha=AAAA-MM-DD` | Sus rutas de ese día (por defecto hoy) con sus paradas. Solo las aprobadas por el administrador, en curso o completadas |
+| `POST /paradas/{id}/iniciar` | Inicia la siguiente parada. La primera pasa la ruta a `en_curso` y al repartidor a `en_ruta`. No deja saltarse el orden (422 `orden_de_paradas`) |
+| `POST /paradas/{id}/entregar` (multipart, `foto`) | Confirma la entrega de una parada en camino. Foto JPG, PNG o WebP de hasta 5 MB. El pedido del cliente queda `completado` |
+| `POST /paradas/{id}/no-entregada` `{ motivo }` | Marca la parada como no entregada (`no_localizado`, motivo de 3 a 255 caracteres) y abre una incidencia `entrega_no_localizada` para el administrador |
+
+Una ruta solo se empieza el día que le toca (422 `ruta_de_otro_dia`); una ya empezada se puede seguir aunque pase la medianoche. Cada parada trae además `contacto_nombre` (el cliente, o el contacto de RR. HH. de la empresa). Al cerrar la última parada la ruta pasa a `completada` y el repartidor a `libre`. Errores de negocio (422 con `codigo`): `ruta_en_curso`, `fuera_de_linea`, `otra_ruta_en_curso`, `ruta_completada`, `ruta_de_otro_dia`, `orden_de_paradas`, `parada_en_camino`, `parada_no_iniciada`, `parada_ya_atendida`. Una parada ajena, o de una ruta en borrador, responde 404. Los estados de la parada son `pendiente`, `en_camino`, `entregado` y `no_localizado`; los de la ruta, `borrador`, `aprobada`, `en_curso` y `completada`. La carpeta 20 de Bruno prueba la lectura y los rechazos; el recorrido completo (iniciar, entregar, no entregada) está en `RepartidorApiTest`.
+
+## Cuentas: invitaciones y contraseña
+
+- **Invitar** (`POST /api/v1/cuentas/invitaciones`): administración invita a cualquier organización; una empresa, a la suya; un comedor, al suyo. Crea la cuenta **inactiva** y manda un correo con el enlace; la persona elige su contraseña al aceptar (`POST /cuentas/invitaciones/{token}/aceptar`, mínimo 8 caracteres con letras y números) y ya entra por el portal de su rol. La invitación vence a los 7 días; **reenviar** da un enlace nuevo (el anterior deja de servir). Quien acepta una invitación de empresa o comedor ve los datos de esa organización.
+- **Restablecer** (`POST /cuentas/restablecer/solicitar`, `GET` y `POST /cuentas/restablecer/{token}`): responde siempre igual, exista o no el correo; el enlace vence a los 60 minutos, sirve una vez, y al usarlo se cierran las sesiones abiertas de esa cuenta. Solo reciben el correo las cuentas activas con portal web.
+- **Del enlace solo se guarda el hash** (la base no tiene enlaces utilizables) y la API nunca lo devuelve: solo viaja por correo.
+- **Correo en desarrollo:** `MAIL_MAILER=log` (no hace falta SMTP; tampoco hay Mailpit). El correo completo queda en `storage/logs/laravel.log`, pero codificado; por eso, **en local y en pruebas, cada enlace se escribe además solo y en una línea en `storage/logs/enlaces.log`**:
+  ```bash
+  docker compose exec app tail -f storage/logs/enlaces.log
+  # [2026-11-17 11:58:37] local.INFO: INVITACIÓN para persona@easylunch.test
+  # http://localhost:3000/admin/aceptar-invitacion?token=…
+  ```
+  Copia el enlace al navegador. Los enlaces apuntan a `FRONTEND_URL` (por defecto `http://localhost:3000`). **En producción nunca se escriben en ningún log** (permitirían entrar a la cuenta de otra persona); allí solo sale el correo, con el `MAIL_MAILER` real que se configure.
+
+## Dashboard e indicadores
+
+`GET /api/v1/admin/dashboard` (solo `admin`) devuelve el resumen del día, las alertas abiertas y los 10 indicadores, calculados al pedirlos (sin cachés ni tablas de resumen) en `App\Services\IndicadoresDelDashboard`. Las empresas ven los suyos en `GET /api/v1/empresa/indicadores` y cualquier rol con sesión, la calificación del menú en `GET /api/v1/calificaciones/menu-semanal`.
+
+**Periodos.** «Semana» = de lunes a domingo de la semana en curso; «mes» = el mes calendario en curso. Las series son de 6 semanas.
+
+| # | Indicador | Cómo se calcula |
+|---|---|---|
+| 1 | Platillos entregados por semana | Platillos de las entregas a empresas en estado `entregada` (lo mismo que cuenta la factura), por empresa y por día. |
+| 2 | Calificación de la entrega | Promedio simple de puntualidad, trato del chofer y empaque (1 a 5) de lo calificado esa semana por empleados y clientes. |
+| 3 | Calificación semanal del menú | Promedio simple de estrellas (1 a 5) al sabor y la calidad, también por cocina. |
+| 4 | Paquete más popular | Pedidos individuales pagados del mes por paquete (1, 2 o 6 días); si empatan, gana el de menos días. |
+| 5 | Ahorro estimado por empleado | Lo gastado en platillos entregados en el mes × el sobreprecio estimado de las apps de entrega (`ahorro_apps_porcentaje`, editable en Configuración; arranca en 30 %). |
+| 6 | Incidencias o quejas | Incidencias de la semana de tipo `comida_fria`, `platillo_danado` (empaque dañado) y `entrega_tardia`. |
+| 7 | Nuevos contratos B2B | Empresas cuyo **primer** contrato empezó este mes (las renovaciones no cuentan), con su mínimo mensual. |
+| 8 | Balance semanal de utilidad | Por entrega: ingresos (precio de cada platillo entregado; a clientes, con el descuento de su paquete) − pago a cocinas (su precio de contrato) − costos operativos registrados. |
+| 9 | Costo directo de maquila | Precio por platillo de cada cocina contra el tope `costo_maquila_limite` (arranca en $49); avisa si alguna lo excede. |
+| 10 | Estatus de facturación B2B | Semáforo del mes más reciente con facturas: verde pagada, rojo emitida y pendiente, gris sin emitir. |
+
+**Datos nuevos.** Calificaciones de la entrega y del platillo (1 a 5; solo de lo ya entregado, una vez por persona y dentro de 14 días, lo exige la base), costos operativos (se anulan, no se borran) y dos tipos nuevos de incidencia. Los empleados califican con `GET /empleado/calificaciones/pendientes`, `POST /empleado/calificaciones/entrega` y `/platillo`; los clientes, con `POST /cliente/pedidos/{id}/calificaciones/entrega` y `/platillo`. El administrador maneja los costos en `GET/POST /admin/costos-operativos` y `POST /admin/costos-operativos/{id}/anular`.
 
 ## Tareas automáticas
 
@@ -78,7 +293,8 @@ El servicio `scheduler` de docker-compose ejecuta `php artisan schedule:work` (c
 
 | Comando | Cuándo | Qué hace |
 |---|---|---|
-| `easylunch:corte-automatico` | cada minuto | Ejecuta el corte de la siguiente fecha de entrega en cuanto llega su hora (18:00 por defecto). Solo corta días de servicio; no repite si ya hay corte (automático o manual). Si falla, reintenta cada 5 min hasta 12 veces. |
+| `easylunch:corte-automatico` | cada minuto | Ejecuta el corte (empleados y empresas) de la siguiente fecha de entrega en cuanto llega su hora (18:00 por defecto). Solo corta días de servicio; no repite si ya hay corte (automático o manual). Si falla, reintenta cada 5 min hasta 12 veces. |
+| `easylunch:corte-individuales` | cada minuto | El viernes, en cuanto llega la hora de corte (18:00 por defecto) y después del corte general, cierra los pedidos de clientes individuales del sábado siguiente: cancela lo sin pagar, suma sus porciones a la producción y arma sus rutas (separadas de las de empresas). Mismo reintento que el corte general. |
 | `easylunch:cancelar-pedidos-vencidos` | cada minuto | Cancela los pedidos individuales que no se pagaron antes del corte de su primer día. |
 | `easylunch:avisos-de-contratos` | diario 08:00 | Avisos de contratos que vencen este mes o en los 7 días siguientes. |
 
@@ -100,7 +316,9 @@ Viven en `app/Services` y cada una tiene su prueba en `tests/Feature/Negocio`. L
 | `EjecutorDelCorte` | Aplica la regla de quien no eligió, cierra elecciones, genera una orden por comedor y platillo, consolida una entrega por empresa y crea rutas por zona sin pasar la capacidad del auto. Idempotente: repetirlo deja un registro «sin_cambios». Si falla, no guarda nada. |
 | `GeneradorDeFacturas` | Total = parte empresa + parte empleados + diferencia por mínimo. Solo cuentan entregas «entregada»; el mes debe haber terminado. |
 | `GeneradorDeLiquidaciones` | Al comedor se le paga lo entregado más lo que faltó para su mínimo, a su precio fijo. |
-| `ContratacionDePaquetes` | Paquetes de 1, 2 o 6 días de servicio; precio congelado por día, descuento del paquete, pago simulado. La dirección debe tener cobertura. Un pedido por pagar vence en el corte de su primer día (`vence_pago_en`, `segundos_para_pagar`) y se cancela. |
+| `ContratacionDePaquetes` | Paquetes de 1, 2 o 6 días de servicio con 1, 2 o 3 comidas por día (un platillo por tiempo de comida, los mismos tiempos todos los días, más un extra opcional por día); precio congelado por platillo, descuento del paquete. El pago de verdad lo confirma Stripe (`PagosDePedidos`); `pagar()` es un pago simulado interno, sin ruta, para el seeder y las pruebas. La dirección debe tener cobertura. Un pedido por pagar vence en el corte de su primer día (`vence_pago_en`, `segundos_para_pagar`) y se cancela. |
+| `PagosDePedidos` | Pago con tarjeta con Stripe (modo de prueba). `iniciar()` crea un PaymentIntent por el total en MXN (solo pedido propio, por pagar y sin vencer) y no cambia el pedido; `procesarEvento()` atiende el webhook: idempotente (`stripe_eventos`), pasa el pedido a «recibido» con la hora del cargo y los últimos 4 dígitos, y procesa `charge.refunded`. Un pago fallido no cambia nada; un cobro sobre un pedido cancelado o vencido se reembolsa solo (el pedido no cambia); un monto distinto o un segundo cobro de un pedido ya pagado quedan en la bitácora (`pago.reembolso_manual`) para hacerlo a mano. Nunca se guardan datos de tarjeta. |
+| `ReembolsosDePedidos` | Reembolso total de pedidos pagados con Stripe: por administración o soporte, automático para cobros que no se pueden aplicar, o hecho desde Stripe (`charge.refunded`). Sin estado nuevo (el pedido queda «cancelado» con `reembolsado_en`, `monto_reembolsado`, `stripe_refund_id`), sin doble reembolso y nunca más de lo cobrado. |
 | `AvisosDeVencimiento` | Avisa a la empresa y a los administradores de los contratos que vencen en el mes en curso o en los 7 días siguientes (tabla `avisos`). |
 | `Folios` | Consecutivos `EL-AAAAMM-NNN` y `GDL-AAAAMMDD-NNNN` sin repetirse aunque dos procesos pidan folio a la vez (tabla `contadores_folio`). |
 

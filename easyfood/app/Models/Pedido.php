@@ -13,7 +13,10 @@ class Pedido extends ModeloEasyLunch
         'folio',
         'cliente_id',
         'paquete_id',
+        'comidas_por_dia',
+        'con_extra',
         'direccion_id',
+        'fecha_entrega',
         'fecha_inicio',
         'fecha_fin',
         'total',
@@ -22,6 +25,10 @@ class Pedido extends ModeloEasyLunch
         'ultimos_digitos',
         'pagado_en',
         'vence_pago_en',
+        'stripe_payment_intent_id',
+        'reembolsado_en',
+        'monto_reembolsado',
+        'stripe_refund_id',
     ];
 
     /** Lo que el front muestra del pedido por pagar: cuándo vence y cuántos segundos quedan (nulo si ya no está por pagar). */
@@ -39,11 +46,14 @@ class Pedido extends ModeloEasyLunch
     protected function casts(): array
     {
         return [
+            'fecha_entrega' => 'date:Y-m-d',
             'fecha_inicio' => 'date:Y-m-d',
             'fecha_fin' => 'date:Y-m-d',
             'total' => 'decimal:2',
             'pagado_en' => 'datetime',
             'vence_pago_en' => 'datetime',
+            'reembolsado_en' => 'datetime',
+            'monto_reembolsado' => 'decimal:2',
         ];
     }
 

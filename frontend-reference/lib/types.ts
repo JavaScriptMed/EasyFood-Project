@@ -9,15 +9,15 @@ export type EstadoEntrega = 'programada' | 'en_consolidacion' | 'en_ruta' | 'ent
 export type TipoVehiculo = 'bicicleta' | 'motocicleta' | 'automovil'
 export type EstadoRepartidor = 'libre' | 'asignado' | 'en_ruta' | 'no_disponible'
 export type BloqueHorario = 'manana' | 'mediodia' | 'tarde'
-export type EstadoRuta = 'borrador' | 'aprobada'
-export type EstadoParada = 'pendiente' | 'entregado' | 'no_localizado'
+export type EstadoRuta = 'borrador' | 'aprobada' | 'en_curso' | 'completada'
+export type EstadoParada = 'pendiente' | 'en_camino' | 'entregado' | 'no_localizado'
 export type EstadoOrdenProduccion = 'pendiente' | 'lista'
 export type EstadoFactura = 'borrador' | 'emitida' | 'pagada'
 export type EstadoLiquidacion = 'pendiente' | 'pagado'
 export type EstadoTicket = 'abierto' | 'en_proceso' | 'resuelto' | 'cerrado'
 export type EstadoPedido = 'pendiente_pago' | 'recibido' | 'activo' | 'completado' | 'cancelado'
 export type EstadoContrato = 'activo' | 'por_vencer' | 'vencido'
-export type TipoIncidencia = 'falta_repartidores' | 'pago_pendiente' | 'ruta_excede_bloque' | 'entrega_no_localizada' | 'empresa_cerrada' | 'empleado_ausente' | 'repartidor_no_llego' | 'platillo_danado' | 'otro'
+export type TipoIncidencia = 'falta_repartidores' | 'pago_pendiente' | 'ruta_excede_bloque' | 'entrega_no_localizada' | 'empresa_cerrada' | 'empleado_ausente' | 'repartidor_no_llego' | 'platillo_danado' | 'comida_fria' | 'entrega_tardia' | 'otro'
 export type EstadoIncidencia = 'abierta' | 'reasignada' | 'resuelta'
 export type PrioridadIncidencia = 'normal' | 'inmediata'
 
@@ -45,6 +45,8 @@ export interface Empresa {
   dominio: string
   zona: string
   direccion_entrega: string
+  latitud?: number | null
+  longitud?: number | null
   activo?: boolean // si falta, se trata como activa
 }
 
@@ -175,10 +177,15 @@ export interface Parada {
   ruta_id: string
   orden: number
   entrega_id: string | null
+  pedido_dia_id?: string | null
   nombre_destinatario: string
   direccion: string
+  ubicacion?: { latitud: number; longitud: number } | null
   hora_estimada: string
   estado: EstadoParada
+  evidencia_foto_url?: string | null // la foto que dejó el repartidor al entregar (null si no hay)
+  motivo_no_entrega?: string | null // el motivo si quedó «no localizado»
+  cerrada_en?: string | null // cuándo se cerró la parada (ISO); solo si la API lo entrega
 }
 
 export interface Incidencia {
@@ -251,12 +258,14 @@ export interface MensajeTicket {
   id: string
   ticket_id: string
   autor: 'cliente' | 'agente'
-  texto: string
+  texto: string // puede venir vacío si el mensaje solo lleva un archivo
   enviado_en: string
+  adjunto?: { url: string; nombre: string; tipo: string } | null
 }
 
 export interface Plan {
   id: string
+  dias?: number // 1, 2 o 6; solo puede haber un plan activo por cada duración
   nombre: string
   descuento_porcentaje: number
   detalle: string
@@ -273,6 +282,8 @@ export interface Pedido {
   bloque: BloqueHorario
   total: number
   estado: EstadoPedido
+  comidas_por_dia?: number // 1 a 3: desayuno, comida y/o cena; una entrega por día
+  con_extra?: boolean // un platillo adicional por día
   entregas_totales: number
   entregas_completadas: number
   direccion_entrega: string
@@ -280,6 +291,8 @@ export interface Pedido {
   metodo_pago: string
   ultimos_digitos: string | null
   tiene_evidencia: boolean
+  evidencia_foto_url?: string | null // la foto de entrega (null si todavía no hay); solo la entrega la API de administración
+  entregada_en?: string | null // cuándo se cerró la entrega (ISO); solo si la API lo entrega
 }
 
 export interface HistorialPrecio {
@@ -424,9 +437,19 @@ export interface MenuSemanalDia {
   celdas: Partial<Record<TiempoComida, { platillo_id: string; platillo_nombre: string; precio_venta: number; porciones_maximas: number }>>
 }
 
+export type MotivoDeOmision = 'ya_tiene_cuenta' | 'repetido_en_el_archivo'
+
+export interface CorreoOmitido {
+  nombre: string
+  correo: string
+  motivo: MotivoDeOmision
+}
+
 export interface ResultadoAltaEmpleados {
   agregados: number
   omitidos: number
+  /** Qué correos no se agregaron y por qué (el backend siempre lo manda; el modo maqueta también). */
+  correos_omitidos?: CorreoOmitido[]
 }
 
 // ---------------------------------------------------------------- entradas y vistas adicionales de la API
@@ -436,6 +459,136 @@ export interface DashboardAdmin {
   alertas: Incidencia[]
   incidencias_del_dia: number
   requieren_atencion: number
+  indicadores: IndicadoresAdmin
+}
+
+// ---------------------------------------------------------------- indicadores del dashboard (administrador y portal de empresas)
+
+export type Semaforo = 'verde' | 'rojo' | 'gris' // verde = pagada, rojo = emitida y pendiente de pago, gris = sin emitir
+
+export interface PeriodoIndicadores {
+  semana_inicio: string // lunes
+  semana_fin: string // domingo
+  mes: string // YYYY-MM
+  actualizado_en: string
+}
+
+export interface PromediosEntrega {
+  promedio: number | null // promedio simple de puntualidad, trato del chofer y empaque; null si nadie ha calificado
+  puntualidad: number | null
+  trato_chofer: number | null
+  empaque: number | null
+  calificaciones: number
+}
+
+export interface PromedioMenu {
+  promedio: number | null
+  calificaciones: number
+}
+
+export interface QuejasSemana {
+  total: number
+  abiertas: number
+  por_tipo: { tipo: 'comida_fria' | 'platillo_danado' | 'entrega_tardia'; etiqueta: string; cantidad: number }[]
+}
+
+export interface BalanceSemanal {
+  semana_inicio?: string
+  ingresos_empresas: number
+  ingresos_clientes: number
+  ingresos: number
+  costo_maquila: number
+  costos_operativos: number
+  costos: number
+  utilidad: number // ingresos − costos; puede ser negativa
+}
+
+export interface FacturaSemaforo {
+  empresa_id?: string
+  empresa?: string
+  folio: string | null
+  mes?: string
+  total: number | null
+  estado: 'sin_generar' | EstadoFactura
+  semaforo: Semaforo
+  emitida_en: string | null
+  pagada_en: string | null
+}
+
+export interface AhorroEstimado {
+  mes: string
+  porcentaje_sobreprecio: number
+  empleados: number
+  por_empleado_promedio: number
+  ahorro_total: number
+  por_empresa?: { empresa_id: string; empresa: string; empleados: number; ahorro_promedio: number; ahorro_total: number }[]
+  por_empleado?: { empleado_id: string; empleado: string; platillos: number; ahorro: number }[]
+}
+
+export interface IndicadoresAdmin {
+  periodo: PeriodoIndicadores
+  platillos_entregados: { semana: number; por_empresa: { empresa_id: string; empresa: string; platillos: number }[]; serie: { semana_inicio: string; platillos: number }[] }
+  calificacion_entrega: PromediosEntrega & { serie: ({ semana_inicio: string } & PromediosEntrega)[] }
+  calificacion_menu: PromedioMenu & { por_comedor: { comedor: string; promedio: number; calificaciones: number }[]; serie: ({ semana_inicio: string } & PromedioMenu)[] }
+  paquete_popular: { mes: string; paquete: { id: string; nombre: string; dias: number; pedidos: number } | null; paquetes: { id: string; nombre: string; dias: number; pedidos: number }[] }
+  ahorro_estimado: AhorroEstimado
+  incidencias: { semana: QuejasSemana; serie: { semana_inicio: string; total: number }[] }
+  contratos_nuevos: { mes: string; cantidad: number; mes_anterior: number; contratos: { empresa_id: string; empresa: string; vigencia_inicio: string; vigencia_fin: string; meses: number; compra_minima_mensual: number }[] }
+  balance: { semana: BalanceSemanal; serie: BalanceSemanal[] }
+  costo_maquila: { limite: number; platillos_semana: number; costo_maquila_semana: number; costo_promedio_semana: number | null; en_limite: boolean; cocinas: { comedor_id: string; comedor: string; precio_por_platillo: number; en_limite: boolean }[] }
+  facturacion_b2b: { mes: string; pagadas: number; pendientes: number; sin_emitir: number; monto_cobrado: number; monto_pendiente: number; facturas: FacturaSemaforo[] }
+}
+
+/** Lo que ve RR. HH. de su propia empresa: los indicadores que le tocan (sin utilidad ni paquetes). */
+export interface IndicadoresEmpresa {
+  periodo: PeriodoIndicadores
+  platillos_entregados: { semana: number; por_dia: { fecha: string; platillos: number }[]; serie: { semana_inicio: string; platillos: number }[] }
+  calificacion_entrega: PromediosEntrega
+  calificacion_menu: PromedioMenu & { serie: ({ semana_inicio: string } & PromedioMenu)[] }
+  ahorro_estimado: AhorroEstimado
+  incidencias: { semana: QuejasSemana; serie: { semana_inicio: string; total: number }[] }
+  facturacion: { pagadas: number; pendientes: number; monto_pendiente: number; facturas: FacturaSemaforo[] }
+}
+
+export type CategoriaCosto = 'reparto' | 'empaque' | 'nomina' | 'tecnologia' | 'otro'
+
+export interface CostoOperativo {
+  id: string
+  fecha: string
+  categoria: CategoriaCosto
+  descripcion: string
+  monto: number
+  registrado_por: string | null
+  activo: boolean // false = anulado: no cuenta en el balance
+}
+
+export interface NuevoCostoOperativo {
+  fecha: string
+  categoria: CategoriaCosto
+  descripcion: string
+  monto: number
+}
+
+/** Un día que el empleado ya recibió y todavía no califica del todo. */
+export interface CalificacionPendiente {
+  fecha: string
+  entrega_calificada: boolean
+  platillos: { tiempo_comida: TiempoComida; platillo_id: string; platillo_nombre: string; calificado: boolean }[]
+}
+
+export interface CalificarEntrega {
+  fecha: string
+  puntualidad: number
+  trato_chofer: number
+  empaque: number
+  comentario?: string
+}
+
+export interface CalificarPlatillo {
+  fecha: string
+  tiempo_comida: TiempoComida
+  estrellas: number
+  comentario?: string
 }
 
 export interface TicketResumen extends Ticket {
@@ -454,7 +607,53 @@ export interface NuevaEmpresa {
   compra_minima_mensual: number
   porcentaje_subsidio: number
   direccion_entrega: string
+  zona?: string // opcional si se mandan latitud y longitud (el servidor la calcula con PostGIS)
+  latitud?: number | null
+  longitud?: number | null
   horario_entrega: string // "12:30–13:15"
+}
+
+export interface NuevoComedor {
+  nombre: string
+  razon_social?: string
+  rfc?: string
+  contacto_nombre: string
+  contacto_correo: string
+  telefono: string
+  direccion: string
+  codigo_postal?: string
+  zona: string // nombre de una zona cargada
+  capacidad_diaria?: number
+  vigencia_inicio: string // YYYY-MM-DD; el contrato dura 6 meses
+  precio_por_platillo: number
+  compra_minima_mensual: number
+}
+
+export interface NuevoPlan {
+  nombre: string
+  dias: 1 | 2 | 6
+  descuento_porcentaje: number
+  detalle: string
+  destacado: boolean
+}
+
+/** Una zona de entrega: su polígono vive en el backend (PostGIS); aquí solo lo que se muestra. */
+export interface ZonaDetalle {
+  id: string
+  nombre: string // no se renombra: es el texto que usan empresas, comedores, repartidores y direcciones
+  activo: boolean
+  area_km2: number
+  direcciones: number
+  empresas: number
+  comedores: number
+  repartidores: number
+  geojson?: unknown // solo en el detalle de una zona (un Feature)
+}
+
+export interface ResultadoImportarZonas {
+  creadas: number
+  actualizadas: number
+  zonas: { id: string; nombre: string; creada: boolean; area_km2: number }[]
 }
 
 export interface NuevoRepartidor {
@@ -471,7 +670,10 @@ export interface NuevoRepartidor {
 export interface EdicionEmpresa {
   nombre: string
   direccion_entrega: string
+  latitud?: number | null
+  longitud?: number | null
   contacto_nombre: string
+  contacto_correo?: string // solo se cambia mientras el contacto no acepte su invitación
   contacto_telefono: string
   porcentaje_subsidio: number
   compra_minima_mensual: number
@@ -483,6 +685,7 @@ export interface EdicionComedor {
   nombre: string
   zona: string
   contacto_nombre: string
+  contacto_correo?: string // solo se cambia mientras el contacto no acepte su invitación
   contacto_telefono: string
   precio_por_platillo: number
   compra_minima_mensual: number
@@ -500,6 +703,7 @@ export interface EdicionRepartidor {
 export interface EdicionEmpleado {
   nombre: string
   departamento: string
+  correo?: string // solo se cambia mientras el empleado no acepte su invitación
 }
 
 export interface EdicionPlan {
@@ -512,6 +716,7 @@ export interface EdicionPlan {
 export interface EdicionUsuarioAcceso {
   nombre: string
   rol: Rol
+  correo?: string // solo se cambia mientras la persona no acepte su invitación
 }
 
 export interface ProgramarPrecio {
@@ -551,6 +756,8 @@ export interface ConfiguracionOperacion {
   regla_sin_eleccion: ReglaSinEleccion
   capacidad_auto_entregas: number
   capacidad_auto_platillos: number
+  ahorro_apps_porcentaje: number // sobreprecio estimado de las apps de entrega (para el ahorro por empleado)
+  costo_maquila_limite: number // tope del pago a cada cocina por platillo (MXN)
 }
 
 export interface DiaSinServicio {
@@ -680,6 +887,19 @@ export interface NuevaInvitacion {
   nombre: string
   correo: string
   rol: Rol
+}
+
+export interface NuevasInvitaciones {
+  organizacion_tipo: TipoOrganizacion
+  organizacion_id: string | null
+  rol: Rol
+  personas: { nombre: string; correo: string }[]
+}
+
+export interface ResultadoInvitacionesEnLote {
+  invitados: number
+  omitidos: number
+  correos_omitidos: CorreoOmitido[]
 }
 
 export interface SolicitudRestablecimiento {

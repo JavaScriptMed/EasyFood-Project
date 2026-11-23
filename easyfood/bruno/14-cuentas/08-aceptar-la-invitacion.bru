@@ -1,0 +1,28 @@
+meta {
+  name: Aceptar la invitación (pega el token del log)
+  type: http
+  seq: 8
+}
+
+post {
+  url: {{baseUrl}}/api/v1/cuentas/invitaciones/{{tokenInvitacion}}/aceptar
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "contrasena": "Clave12345"
+  }
+}
+
+tests {
+  test("200 con el token real; 422 invitacion_invalida si no pegaste uno", function () {
+    expect([200, 422]).to.include(res.getStatus());
+    if (res.getStatus() === 422) expect(["invitacion_invalida", "invitacion_aceptada", "invitacion_vencida"]).to.include(res.body.codigo);
+  });
+}
+
+docs {
+  Público. La persona elige su contraseña (mínimo 8, con letras y números), la cuenta se activa y ya entra por el portal de su rol. Pega en `tokenInvitacion` el `token=` del enlace de `storage/logs/enlaces.log`.
+}

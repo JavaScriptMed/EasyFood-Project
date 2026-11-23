@@ -1,0 +1,42 @@
+meta {
+  name: Crear empresa con punto fuera de cobertura (rechazado)
+  type: http
+  seq: 17
+}
+
+post {
+  url: {{baseUrl}}/api/v1/admin/empresas
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+body:json {
+  {
+    "nombre": "Empresa Fuera de Zona",
+    "contacto_nombre": "Contacto Fuera",
+    "contacto_correo": "fuera.cobertura@bruno.test",
+    "direccion_entrega": "Av. Reforma 100, CDMX",
+    "latitud": 19.4326,
+    "longitud": -99.1332,
+    "vigencia_inicio": "{{hoy}}",
+    "compra_minima_mensual": 100,
+    "porcentaje_subsidio": 50,
+    "ventana_entrega_inicio": "12:30",
+    "ventana_entrega_fin": "13:15"
+  }
+}
+
+tests {
+  test("responde 422 fuera_de_cobertura", function () {
+    expect(res.getStatus()).to.equal(422);
+    expect(res.body.codigo).to.equal("fuera_de_cobertura");
+  });
+}
+
+docs {
+  Un punto fuera de todas las zonas activas se rechaza con 422 y un mensaje claro.
+}

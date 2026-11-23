@@ -1,0 +1,32 @@
+meta {
+  name: Pedir un platillo en otro tiempo de comida (rechazado)
+  type: http
+  seq: 17
+}
+
+post {
+  url: {{baseUrl}}/api/v1/cliente/pedidos
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenCliente}}
+}
+
+body:json {
+  {
+    "paquete_id": "{{paqueteUnDiaId}}",
+    "direccion_id": "{{direccionCasaId}}",
+    "platillos": [
+      { "cena": "{{platilloDesayunoId}}" }
+    ]
+  }
+}
+
+tests {
+  test("responde 422 platillo_de_otro_tiempo", function () {
+    expect(res.getStatus()).to.equal(422);
+    expect(res.body.codigo).to.equal("platillo_de_otro_tiempo");
+  });
+}

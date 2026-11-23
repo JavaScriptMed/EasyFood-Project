@@ -1,0 +1,34 @@
+meta {
+  name: Historial de precios
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{baseUrl}}/api/v1/admin/platillos/{{platilloFotoId}}/historial-precios
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+script:post-response {
+  if (res.status === 200 && res.body.length) bru.setVar("precioActual", res.body.find(t => t.vigente_desde <= new Date().toISOString().slice(0, 10)).precio_venta);
+}
+
+tests {
+  test("responde 200", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("hay un tramo vigente sin fecha de fin", function () {
+    expect(res.body.length).to.be.at.least(1);
+    expect(res.body.some(t => t.vigente_hasta === null)).to.equal(true);
+  });
+}
+
+docs {
+  Del más reciente al más antiguo; incluye el precio programado si lo hay.
+}

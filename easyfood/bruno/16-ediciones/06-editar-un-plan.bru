@@ -1,0 +1,38 @@
+meta {
+  name: Editar un plan
+  type: http
+  seq: 6
+}
+
+put {
+  url: {{baseUrl}}/api/v1/admin/paquetes/{{planId}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+body:json {
+  {
+    "nombre": "{{planNombre}}",
+    "descuento_porcentaje": {{planDescuento}},
+    "detalle": "Editado desde Bruno",
+    "destacado": {{planDestacado}}
+  }
+}
+
+tests {
+  test("responde 200", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("conserva sus días y su nombre", function () {
+    expect(res.body.nombre).to.equal(bru.getVar("planNombre"));
+  });
+}
+
+docs {
+  Cambia el nombre, el descuento, el detalle y si va destacado. Los días del plan no cambian.
+}

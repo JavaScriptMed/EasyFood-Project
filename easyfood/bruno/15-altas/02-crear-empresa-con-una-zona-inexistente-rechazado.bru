@@ -1,0 +1,38 @@
+meta {
+  name: Crear empresa con una zona inexistente (rechazado)
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/api/v1/admin/empresas
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+body:json {
+  {
+    "nombre": "Empresa sin zona",
+    "contacto_nombre": "Contacto",
+    "contacto_correo": "sin.zona@bruno.test",
+    "direccion_entrega": "Calle 1",
+    "zona": "Narnia",
+    "vigencia_inicio": "{{hoy}}",
+    "compra_minima_mensual": 100,
+    "porcentaje_subsidio": 50,
+    "ventana_entrega_inicio": "12:30",
+    "ventana_entrega_fin": "13:15"
+  }
+}
+
+tests {
+  test("responde 422 zona_inexistente y lista las zonas", function () {
+    expect(res.getStatus()).to.equal(422);
+    expect(res.body.codigo).to.equal("zona_inexistente");
+    expect(res.body.mensaje).to.include("Zonas disponibles");
+  });
+}

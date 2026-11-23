@@ -28,6 +28,8 @@ use App\Models\Ruta;
 use App\Models\Ticket;
 use App\Models\User;
 use Carbon\CarbonInterface;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Cómo sale cada entidad por la API: los nombres de campo son los de /lib/types.ts del front (snake_case en español),
@@ -111,6 +113,8 @@ final class Vistas
         return [
             'id' => $e->id, 'usuario_id' => $e->usuario_id, 'nombre' => $e->nombre, 'dominio' => $e->dominio,
             'zona' => $e->zona, 'direccion_entrega' => $e->direccion_entrega, 'activo' => $e->activo,
+            'latitud' => $e->latitud === null ? null : round((float) $e->latitud, 6),
+            'longitud' => $e->longitud === null ? null : round((float) $e->longitud, 6),
         ];
     }
 
@@ -166,6 +170,14 @@ final class Vistas
         ];
     }
 
+    public static function precioDePlatillo(\App\Models\PrecioDePlatillo $p): array
+    {
+        return [
+            'id' => $p->id, 'platillo_id' => $p->menu_id, 'vigente_desde' => $p->vigente_desde->toDateString(), 'vigente_hasta' => $p->vigente_hasta?->toDateString(),
+            'precio_venta' => self::dinero($p->precio_venta), 'costo' => self::dinero($p->costo),
+        ];
+    }
+
     public static function disponibilidad(DisponibilidadDia $d): array
     {
         return [
@@ -199,7 +211,7 @@ final class Vistas
     public static function corte(Corte $c): array
     {
         return [
-            'id' => $c->id, 'fecha_entrega' => $c->fecha_entrega->toDateString(), 'ejecutado_en' => self::iso($c->ejecutado_en), 'ejecutado_por' => $c->ejecutado_por,
+            'id' => $c->id, 'tipo' => $c->tipo ?? 'general', 'fecha_entrega' => $c->fecha_entrega->toDateString(), 'ejecutado_en' => self::iso($c->ejecutado_en), 'ejecutado_por' => $c->ejecutado_por,
             'estado' => $c->estado, 'sin_cambios' => $c->sin_cambios, 'elecciones_cerradas' => $c->elecciones_cerradas,
             'empleados_por_defecto' => $c->empleados_por_defecto, 'ordenes_generadas' => $c->ordenes_generadas,
             'entregas_consolidadas' => $c->entregas_consolidadas, 'rutas_creadas' => $c->rutas_creadas, 'mensaje' => $c->mensaje,
@@ -232,25 +244,93 @@ final class Vistas
         ];
     }
 
-    public static function parada(Parada $p): array
+    /** @param  array{latitud: float, longitud: float}|null  $ubicacion */
+    public static function parada(Parada $p, ?array $ubicacion): array
     {
         return [
             'id' => $p->id, 'ruta_id' => $p->ruta_id, 'orden' => $p->orden, 'entrega_id' => $p->entrega_empresa_id, 'pedido_dia_id' => $p->pedido_dia_id,
-            'nombre_destinatario' => $p->nombre_destinatario, 'direccion' => $p->direccion, 'hora_estimada' => self::hora($p->hora_estimada), 'estado' => $p->estado,
+            'nombre_destinatario' => $p->nombre_destinatario, 'direccion' => $p->direccion, 'ubicacion' => $ubicacion,
+            'hora_estimada' => self::hora($p->hora_estimada), 'estado' => $p->estado,
+            // Lo que dejó el repartidor al cerrar la parada, tal como se guardó (la foto con el mismo criterio de URL que su API).
+            'evidencia_foto_url' => $p->evidencia_foto_url, 'motivo_no_entrega' => $p->motivo_no_entrega,
         ];
+    }
+
+    /**
+     * Presenta varias rutas en lote. Cuando lleva paradas, calcula `ubicacion` al presentar (sin alterar el armado de rutas):
+     * para clientes usa el punto PostGIS de `paradas`; para empresas usa `empresas.latitud`/`longitud` si existen, o null.
+     *
+     * @param  Collection<int, Ruta>  $rutas
+     * @return array<int, array<string, mixed>>
+     */
+    public static function rutas(Collection $rutas, bool $conParadas = false): array
+    {
+        if (! $conParadas || $rutas->isEmpty()) {
+            return $rutas->map(fn (Ruta $r) => self::ruta($r, false))->values()->all();
+        }
+
+        $paradas = $rutas->flatMap(fn (Ruta $r) => $r->paradas);
+        $ubicaciones = self::ubicacionesDeParadas($paradas);
+
+        return $rutas->map(fn (Ruta $r) => self::rutaConUbicaciones($r, $ubicaciones))->values()->all();
     }
 
     public static function ruta(Ruta $r, bool $conParadas = false): array
     {
-        $datos = [
+        if ($conParadas) {
+            return self::rutas(collect([$r]), true)[0];
+        }
+
+        return [
             'id' => $r->id, 'fecha' => $r->fecha->toDateString(), 'repartidor_id' => $r->repartidor_id, 'repartidor_nombre' => $r->repartidor?->usuario?->name,
             'tipo_vehiculo' => 'automovil', 'zona' => $r->zona, 'ventana_inicio' => self::hora($r->ventana_inicio), 'ventana_fin' => self::hora($r->ventana_fin),
             'capacidad_entregas' => $r->capacidad_entregas, 'capacidad_platillos' => $r->capacidad_platillos, 'entregas_asignadas' => $r->entregas_asignadas,
             'platillos_asignados' => $r->platillos_asignados, 'distancia_km' => $r->distancia_km === null ? null : self::dinero($r->distancia_km),
             'hora_fin_estimada' => self::hora($r->hora_fin_estimada), 'excede_bloque' => $r->excede_bloque, 'estado' => $r->estado,
         ];
+    }
 
-        return $conParadas ? $datos + ['paradas' => $r->paradas->sortBy('orden')->map(fn (Parada $p) => self::parada($p))->values()->all()] : $datos;
+    /**
+     * @param  array<int, array{latitud: float, longitud: float}>  $ubicaciones  por parada.id
+     * @return array<string, mixed>
+     */
+    private static function rutaConUbicaciones(Ruta $r, array $ubicaciones): array
+    {
+        return self::ruta($r, false) + [
+            'paradas' => $r->paradas->sortBy('orden')->map(fn (Parada $p) => self::parada($p, $ubicaciones[$p->id] ?? null))->values()->all(),
+        ];
+    }
+
+    /**
+     * @param  Collection<int, Parada>  $paradas
+     * @return array<int, array{latitud: float, longitud: float}>
+     */
+    private static function ubicacionesDeParadas(Collection $paradas): array
+    {
+        if ($paradas->isEmpty()) {
+            return [];
+        }
+
+        $puntosParada = DB::table('paradas')->whereIn('id', $paradas->pluck('id'))->whereNotNull('ubicacion')
+            ->selectRaw('id, ST_X(ubicacion::geometry) as lon, ST_Y(ubicacion::geometry) as lat')->get()->keyBy('id');
+
+        $entregaIds = $paradas->pluck('entrega_empresa_id')->filter()->unique()->values();
+        $puntosEmpresa = $entregaIds->isEmpty()
+            ? collect()
+            : DB::table('entregas_empresa as ee')->join('empresas as e', 'e.id', '=', 'ee.empresa_id')
+                ->whereIn('ee.id', $entregaIds)->whereNotNull('e.latitud')->whereNotNull('e.longitud')
+                ->select('ee.id', 'e.latitud', 'e.longitud')->get()->keyBy('id');
+
+        $resultado = [];
+        foreach ($paradas as $parada) {
+            if ($punto = $puntosParada->get($parada->id)) {
+                $resultado[$parada->id] = ['latitud' => round((float) $punto->lat, 6), 'longitud' => round((float) $punto->lon, 6)];
+            } elseif ($parada->entrega_empresa_id && ($emp = $puntosEmpresa->get($parada->entrega_empresa_id))) {
+                $resultado[$parada->id] = ['latitud' => round((float) $emp->latitud, 6), 'longitud' => round((float) $emp->longitud, 6)];
+            }
+        }
+
+        return $resultado;
     }
 
     public static function incidencia(Incidencia $i): array
@@ -304,23 +384,41 @@ final class Vistas
         ];
     }
 
-    public static function pedido(Pedido $p): array
+    /**
+     * @param  bool  $conEvidencia  agrega `evidencia_foto_url` (la foto de entrega que dejó el repartidor, o null): solo la ve la administración.
+     */
+    public static function pedido(Pedido $p, bool $conEvidencia = false): array
     {
         $dias = $p->relationLoaded('dias') ? $p->dias : collect();
 
         return [
             'id' => $p->id, 'folio' => $p->folio, 'cliente_id' => $p->cliente_id, 'cliente_nombre' => $p->cliente?->name, 'plan_id' => $p->paquete_id,
-            'plan_nombre' => $p->paquete?->nombre, 'fecha_inicio' => $p->fecha_inicio->toDateString(), 'fecha_fin' => $p->fecha_fin->toDateString(),
+            'plan_nombre' => $p->paquete?->nombre, 'fecha_entrega' => $p->fecha_entrega->toDateString(), 'fecha_inicio' => $p->fecha_inicio->toDateString(), 'fecha_fin' => $p->fecha_fin->toDateString(),
             'zona' => $p->direccion?->zona, 'total' => self::dinero($p->total), 'estado' => $p->estado,
             'entregas_totales' => $dias->count(), 'entregas_completadas' => $dias->where('estado', 'entregada')->count(),
             'direccion_entrega' => $p->direccion?->street_address, 'referencias' => $p->direccion?->delivery_instructions,
             'metodo_pago' => $p->metodo_pago, 'ultimos_digitos' => $p->ultimos_digitos, 'tiene_evidencia' => $dias->contains(fn ($d) => $d->evidencia_foto_url !== null),
+            ...($conEvidencia ? ['evidencia_foto_url' => self::fotoDeEntrega($dias)] : []),
             'vence_pago_en' => self::iso($p->vence_pago_en), 'segundos_para_pagar' => $p->segundos_para_pagar,
-            'dias' => $dias->map(fn ($d) => [
-                'id' => $d->id, 'fecha' => $d->fecha->toDateString(), 'platillo_id' => $d->menu_id, 'platillo_nombre' => $d->menu?->name,
-                'precio_congelado' => self::dinero($d->precio_congelado), 'estado' => $d->estado,
-            ])->values()->all(),
+            'comidas_por_dia' => $p->comidas_por_dia, 'con_extra' => (bool) $p->con_extra,
+            'reembolsado_en' => self::iso($p->reembolsado_en), 'monto_reembolsado' => $p->monto_reembolsado === null ? null : self::dinero($p->monto_reembolsado), 'stripe_refund_id' => $p->stripe_refund_id,
+            // Un elemento por DÍA DE COMIDA (lo que el cliente eligió para cada día). Todos viajan en la misma entrega: `id`, `estado` y
+            // `fecha_entrega` son los de esa entrega única del sábado. Sin los platillos cargados, un elemento por entrega.
+            'dias' => $dias->flatMap(fn ($d) => $d->relationLoaded('platillos') && $d->platillos->isNotEmpty()
+                ? $d->platillos->groupBy(fn ($c) => $c->fecha->toDateString())->sortKeys()->map(fn ($grupo, $fecha) => [
+                    'id' => $d->id, 'fecha' => $fecha, 'fecha_entrega' => $d->fecha->toDateString(), 'estado' => $d->estado,
+                    'platillos' => $grupo->sortBy(fn ($c) => [(int) $c->es_extra, ['desayuno' => 0, 'comida' => 1, 'cena' => 2][$c->tiempo_comida]])->map(fn ($c) => [
+                        'tiempo_comida' => $c->tiempo_comida, 'es_extra' => (bool) $c->es_extra, 'platillo_id' => $c->menu_id, 'platillo_nombre' => $c->menu?->name, 'precio_congelado' => self::dinero($c->precio_congelado),
+                    ])->values()->all(),
+                ])->values()
+                : [['id' => $d->id, 'fecha' => $d->fecha->toDateString(), 'fecha_entrega' => $d->fecha->toDateString(), 'estado' => $d->estado, 'platillos' => []]])->values()->all(),
         ];
+    }
+
+    /** La foto de entrega de un pedido: la de la entrega más reciente que la tenga (los pedidos de ahora tienen una sola), o null. */
+    private static function fotoDeEntrega(Collection $dias): ?string
+    {
+        return $dias->filter(fn ($d) => $d->evidencia_foto_url !== null)->sortByDesc('id')->first()?->evidencia_foto_url;
     }
 
     // ------------------------------------------------------------------ soporte y bitácora
@@ -335,7 +433,10 @@ final class Vistas
 
     public static function mensajeTicket(MensajeTicket $m): array
     {
-        return ['id' => $m->id, 'ticket_id' => $m->ticket_id, 'autor' => $m->autor_tipo, 'autor_id' => $m->autor_id, 'texto' => $m->texto, 'enviado_en' => self::iso($m->enviado_en)];
+        return [
+            'id' => $m->id, 'ticket_id' => $m->ticket_id, 'autor' => $m->autor_tipo, 'autor_id' => $m->autor_id, 'texto' => $m->texto, 'enviado_en' => self::iso($m->enviado_en),
+            'adjunto' => $m->adjunto_ruta ? ['url' => app(\App\Services\AdjuntosDeTickets::class)->url($m->adjunto_ruta), 'nombre' => $m->adjunto_nombre, 'tipo' => $m->adjunto_tipo] : null,
+        ];
     }
 
     public static function registroAuditoria(RegistroAuditoria $r): array

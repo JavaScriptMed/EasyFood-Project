@@ -1,0 +1,20 @@
+# Dependencias y compilación
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+next-env.d.ts
+
+# Variables de entorno: nunca al repositorio (solo .env.example)
+.env
+.env.local
+.env.*.local
+.env.production
+
+# Vercel
+.vercel/
+
+# Sistema
+.DS_Store
+*.log
+*:Zone.Identifier

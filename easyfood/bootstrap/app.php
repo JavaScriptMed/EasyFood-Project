@@ -22,6 +22,11 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware) {
+        // Detrás del proxy del servidor (Nginx/Caddy con HTTPS) la IP del cliente viene en X-Forwarded-For: sin esto, las limitaciones de
+        // intentos contarían a TODOS los usuarios como una sola IP. TRUSTED_PROXIES = «*» o una lista de IP separadas por coma.
+        if ($proxies = env('TRUSTED_PROXIES')) {
+            $middleware->trustProxies(at: $proxies === '*' ? '*' : array_map('trim', explode(',', $proxies)));
+        }
         $middleware->alias([
             'role' => CheckRole::class,
         ]);
@@ -51,6 +56,12 @@ return Application::configure(basePath: dirname(__DIR__))
                 ? response()->json(['mensaje' => $e->getMessage(), 'codigo' => 'sin_permiso'], 403) : null;
         });
         $exceptions->render(function (ThrottleRequestsException $e, Request $request) use ($esApi) {
-            return $esApi($request) ? response()->json(['mensaje' => 'Demasiados intentos: espera un momento y vuelve a intentarlo.', 'codigo' => 'demasiados_intentos'], 429) : null;
+            $mensaje = 'Demasiados intentos: espera un momento y vuelve a intentarlo.';
+            if ($esApi($request)) {
+                return response()->json(['mensaje' => $mensaje, 'codigo' => 'demasiados_intentos'], 429, $e->getHeaders());
+            }
+
+            // El login y el registro (ruta del equipo) responden con la forma de siempre, con su mensaje en español.
+            return $request->is('api/auth/*') ? response()->json(['message' => $mensaje, 'mensaje' => $mensaje, 'codigo' => 'demasiados_intentos'], 429, $e->getHeaders()) : null;
         });
     })->create();

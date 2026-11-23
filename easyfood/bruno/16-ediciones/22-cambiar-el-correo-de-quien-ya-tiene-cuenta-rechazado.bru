@@ -1,0 +1,29 @@
+meta {
+  name: Cambiar el correo de quien ya tiene cuenta (rechazado)
+  type: http
+  seq: 22
+}
+
+put {
+  url: {{baseUrl}}/api/v1/empresa/empleados/{{empleadoActivoId}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenEmpresa}}
+}
+
+body:json {
+  {
+    "nombre": "{{empleadoActivoNombre}}",
+    "correo": "otro.{{correoCorregido}}"
+  }
+}
+
+tests {
+  test("responde 422 correo_no_editable", function () {
+    expect(res.getStatus()).to.equal(422);
+    expect(res.body.codigo).to.equal("correo_no_editable");
+  });
+}

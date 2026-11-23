@@ -1,0 +1,30 @@
+meta {
+  name: Invitar como cliente (rechazado)
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{baseUrl}}/api/v1/cuentas/invitaciones
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenCliente}}
+}
+
+body:json {
+  {
+    "organizacion_tipo": "plataforma",
+    "nombre": "Persona de Bruno",
+    "correo": "otra.persona@easylunch.test",
+    "rol": "soporte"
+  }
+}
+
+tests {
+  test("responde 403", function () {
+    expect(res.getStatus()).to.equal(403);
+  });
+}

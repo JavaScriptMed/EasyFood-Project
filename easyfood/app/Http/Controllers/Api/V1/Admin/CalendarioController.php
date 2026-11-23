@@ -27,7 +27,7 @@ class CalendarioController extends Controller
             'mes' => $mes,
             'dias' => DiaSinServicio::query()->with('empresa')->whereBetween('fecha', [$inicio->toDateString(), $fin->toDateString()])
                 ->orderBy('fecha')->orderBy('id')->get()->map(fn ($d) => Vistas::diaSinServicio($d))->values(),
-            'fechas_cerradas' => Corte::query()->where('sin_cambios', false)->where('estado', '<>', 'fallido')
+            'fechas_cerradas' => Corte::query()->where('tipo', 'general')->where('sin_cambios', false)->where('estado', '<>', 'fallido')
                 ->whereBetween('fecha_entrega', [$inicio->toDateString(), $fin->toDateString()])->orderBy('fecha_entrega')->get()
                 ->map(fn ($c) => $c->fecha_entrega->toDateString())->values(),
         ]);

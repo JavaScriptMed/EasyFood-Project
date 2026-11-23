@@ -1,0 +1,26 @@
+meta {
+  name: Subir un archivo que no es foto (rechazado)
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{baseUrl}}/api/v1/admin/platillos/{{platilloFotoId}}/imagen
+  body: multipartForm
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+body:multipart-form {
+  imagen: @file(17-platillos-fotos-y-precios/no-es-una-foto.txt)
+}
+
+tests {
+  test("responde 422 con el error en imagen", function () {
+    expect(res.getStatus()).to.equal(422);
+    expect(res.body.errores).to.have.property("imagen");
+  });
+}

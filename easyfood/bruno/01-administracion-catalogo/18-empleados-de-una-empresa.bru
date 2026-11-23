@@ -1,0 +1,32 @@
+meta {
+  name: Empleados de una empresa
+  type: http
+  seq: 18
+}
+
+get {
+  url: {{baseUrl}}/api/v1/admin/empresas/{{empresaId}}/empleados
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+tests {
+  test("responde 200 con los empleados de esa empresa", function () {
+    expect(res.getStatus()).to.equal(200);
+    expect(res.body.length).to.be.greaterThan(0);
+    expect(res.body.every(e => String(e.empresa_id) === String(bru.getVar("empresaId")))).to.equal(true);
+  });
+
+  test("cada empleado trae su consumo por mes y su elección de mañana", function () {
+    expect(res.body[0]).to.have.property("platillos_por_mes");
+    expect(res.body[0]).to.have.property("eleccion_manana");
+  });
+}
+
+docs {
+  La pestaña «Empleados» del detalle de una empresa en el panel de administración. La empresa ve los suyos en `/empresa/empleados`.
+}

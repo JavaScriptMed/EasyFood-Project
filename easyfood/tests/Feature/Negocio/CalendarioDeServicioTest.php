@@ -98,11 +98,61 @@ class CalendarioDeServicioTest extends TestCase
         $this->assertSame('2026-11-13', app(CalendarioDeServicio::class)->fechaDeEntregaParaPedidoNuevo()->toDateString());
     }
 
-    public function test_un_paquete_toma_dias_de_servicio_consecutivos_sin_domingos(): void
+    public function test_la_entrega_de_individuales_es_el_sabado_y_cierra_el_viernes_a_la_hora_de_corte(): void
     {
-        $this->ahoraEs('2026-11-09 10:00'); // lunes
-        $fechas = array_map(fn ($f) => $f->toDateString(), app(CalendarioDeServicio::class)->fechasDeUnPaquete(6));
+        $calendario = app(CalendarioDeServicio::class);
+        $sabado = fn (string $ahora) => (function () use ($calendario, $ahora) {
+            $this->ahoraEs($ahora);
 
-        $this->assertSame(['2026-11-10', '2026-11-11', '2026-11-12', '2026-11-13', '2026-11-14', '2026-11-16'], $fechas);
+            return $calendario->fechaDeEntregaDeIndividuales()->toDateString();
+        })();
+
+        $this->assertSame('2026-11-14', $sabado('2026-11-09 00:00'), 'lunes temprano');
+        $this->assertSame('2026-11-14', $sabado('2026-11-13 17:59:59'), 'un segundo antes de la hora de corte del viernes');
+        $this->assertSame('2026-11-21', $sabado('2026-11-13 18:00:00'), 'a la hora de corte del viernes ya cerró');
+        $this->assertSame('2026-11-21', $sabado('2026-11-13 23:59'), 'viernes por la noche');
+        $this->assertSame('2026-11-21', $sabado('2026-11-14 08:00'), 'sábado, cuando ya salen a repartir');
+        $this->assertSame('2026-11-21', $sabado('2026-11-15 10:00'), 'domingo');
+
+        $this->assertSame('2026-11-13 18:00', $calendario->momentoDeCierreDeIndividuales('2026-11-14')->format('Y-m-d H:i'), 'el viernes, el día anterior a la entrega');
+        $this->ajuste('hora_corte', '16:30');
+        $this->assertSame('2026-11-13 16:30', $calendario->momentoDeCierreDeIndividuales('2026-11-14')->format('Y-m-d H:i'), 'respeta la hora configurada');
+    }
+
+    public function test_un_sabado_festivo_o_ya_cortado_no_es_dia_de_entrega_de_individuales(): void
+    {
+        $calendario = app(CalendarioDeServicio::class);
+        $this->ahoraEs('2026-11-09 10:00');
+        $this->assertTrue($calendario->esDiaDeEntregaDeIndividuales('2026-11-14'));
+        $this->assertFalse($calendario->esDiaDeEntregaDeIndividuales('2026-11-13'), 'viernes');
+        $this->assertFalse($calendario->esDiaDeEntregaDeIndividuales('2026-11-15'), 'domingo');
+
+        \App\Models\DiaSinServicio::create(['fecha' => '2026-11-14', 'tipo' => 'festivo', 'motivo' => 'Festivo']);
+        $this->assertFalse($calendario->esDiaDeEntregaDeIndividuales('2026-11-14'));
+        $this->assertSame('2026-11-21', $calendario->fechaDeEntregaDeIndividuales()->toDateString());
+
+        // Un corte de individuales ya ejecutado cierra ese sábado aunque todavía no sea la hora.
+        app(\App\Services\CorteDeIndividuales::class)->ejecutar('2026-11-21', $this->usuario());
+        $this->assertFalse($calendario->pedidosDeIndividualesAbiertos('2026-11-21'));
+        $this->assertSame('2026-11-28', $calendario->fechaDeEntregaDeIndividuales()->toDateString());
+    }
+
+    public function test_los_dias_de_comida_de_un_pedido_son_los_siguientes_de_servicio_despues_de_la_entrega_sin_domingos(): void
+    {
+        $fechas = array_map(fn ($f) => $f->toDateString(), app(CalendarioDeServicio::class)->diasDeComidaDeUnPedido(6, '2026-11-14'));
+
+        $this->assertSame(['2026-11-16', '2026-11-17', '2026-11-18', '2026-11-19', '2026-11-20', '2026-11-21'], $fechas);
+        $this->assertSame(['2026-11-16'], array_map(fn ($f) => $f->toDateString(), app(CalendarioDeServicio::class)->diasDeComidaDeUnPedido(1, '2026-11-14')));
+    }
+
+    public function test_las_empresas_no_cambian_siguen_de_lunes_a_sabado_con_el_corte_del_dia_anterior(): void
+    {
+        $this->ahoraEs('2026-11-13 10:00'); // viernes
+        $calendario = app(CalendarioDeServicio::class);
+
+        $this->assertSame('2026-11-14', $calendario->fechaDeEntregaParaPedidoNuevo()->toDateString(), 'el sábado también se entrega a empresas');
+        $this->assertSame('2026-11-13 18:00', $calendario->momentoDelCorte('2026-11-14')->format('Y-m-d H:i'), 'su corte es el día anterior');
+        $this->ahoraEs('2026-11-13 19:00');
+        $this->assertSame('2026-11-16', $calendario->fechaDeEntregaParaPedidoNuevo()->toDateString(), 'después del corte pasa al lunes');
     }
 }

@@ -1,0 +1,27 @@
+meta {
+  name: Generar rutas como soporte (rechazado)
+  type: http
+  seq: 24
+}
+
+post {
+  url: {{baseUrl}}/api/v1/admin/rutas/generar
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenSoporte}}
+}
+
+body:json {
+  {
+    "fecha": "{{fechaCortada}}"
+  }
+}
+
+tests {
+  test("responde 403", function () {
+    expect(res.getStatus()).to.equal(403);
+  });
+}

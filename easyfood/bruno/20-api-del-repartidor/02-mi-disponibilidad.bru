@@ -1,0 +1,24 @@
+meta {
+  name: Mi disponibilidad
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/api/v1/repartidor/disponibilidad
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenRepartidor}}
+}
+
+tests {
+  test("responde 200 en línea y sin ruta en curso", function () {
+    expect(res.getStatus()).to.equal(200);
+    expect(res.body.en_linea).to.equal(true);
+    expect(res.body.estado).to.equal("libre");
+    expect(res.body.ruta_en_curso_id).to.equal(null);
+  });
+}

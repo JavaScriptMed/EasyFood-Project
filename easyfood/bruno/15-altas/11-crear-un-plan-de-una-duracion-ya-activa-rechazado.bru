@@ -1,0 +1,34 @@
+meta {
+  name: Crear un plan de una duración ya activa (rechazado)
+  type: http
+  seq: 11
+}
+
+post {
+  url: {{baseUrl}}/api/v1/admin/paquetes
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+body:json {
+  {
+    "nombre": "Plan repetido de Bruno",
+    "dias": 6,
+    "descuento_porcentaje": 15
+  }
+}
+
+tests {
+  test("responde 422 plan_de_esos_dias_activo", function () {
+    expect(res.getStatus()).to.equal(422);
+    expect(res.body.codigo).to.equal("plan_de_esos_dias_activo");
+  });
+}
+
+docs {
+  Solo hay planes de 1, 2 o 6 días y uno activo por cada duración.
+}

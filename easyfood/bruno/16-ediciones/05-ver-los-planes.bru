@@ -1,0 +1,25 @@
+meta {
+  name: Ver los planes
+  type: http
+  seq: 5
+}
+
+get {
+  url: {{baseUrl}}/api/v1/paquetes
+  body: none
+  auth: bearer
+}
+
+script:post-response {
+  if (res.status === 200 && res.body.length) { const p = res.body[0]; bru.setVar("planId", p.id); bru.setVar("planNombre", p.nombre); bru.setVar("planDescuento", p.descuento_porcentaje); bru.setVar("planDestacado", p.destacado); }
+}
+
+auth:bearer {
+  token: {{tokenCliente}}
+}
+
+tests {
+  test("responde 200", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+}

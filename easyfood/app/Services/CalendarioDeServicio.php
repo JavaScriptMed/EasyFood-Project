@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Exceptions\ReglaDeNegocioException;
 use App\Models\ContratoEmpresa;
 use App\Models\Configuracion;
 use App\Models\Corte;
@@ -16,6 +17,9 @@ use Carbon\CarbonInterface;
  * - Los días festivos / sin servicio generales y los cierres de una empresa (tabla dias_sin_servicio) tampoco se entregan.
  * - El corte de una entrega es a la hora configurada (18:00 por defecto, hora de Guadalajara) del DÍA CALENDARIO ANTERIOR.
  * - Un pedido nuevo va a la primera fecha de servicio cuyo corte aún no pasó.
+ * - Los clientes individuales son distintos: reciben TODO su pedido en una sola entrega, el sábado de cada semana. Los pedidos de
+ *   lunes a viernes antes de la hora de corte entran al sábado de esa semana; el viernes desde la hora de corte (18:00) y el sábado
+ *   mismo pasan al sábado siguiente. El sábado salen a repartir. Las empresas no cambian: siguen recibiendo de lunes a sábado.
  */
 class CalendarioDeServicio
 {
@@ -77,6 +81,7 @@ class CalendarioDeServicio
     {
         return Corte::query()
             ->whereDate('fecha_entrega', $this->dia($fechaEntrega)->toDateString())
+            ->where('tipo', 'general')
             ->where('sin_cambios', false)
             ->where('estado', '<>', 'fallido')
             ->exists();
@@ -116,23 +121,67 @@ class CalendarioDeServicio
         throw new \RuntimeException('No hay días de servicio en los próximos 60 días: revisa dias_sin_servicio.');
     }
 
+    // ------------------------------------------------------------------ clientes individuales: una entrega por semana, el sábado
+
+    /** ¿Es un sábado en que se entrega a clientes individuales? (un sábado festivo o sin servicio no cuenta). */
+    public function esDiaDeEntregaDeIndividuales(CarbonInterface|string $fecha): bool
+    {
+        $dia = $this->dia($fecha);
+
+        return $dia->isSaturday() && $this->esDiaDeServicio($dia);
+    }
+
+    /** Instante en que cierran los pedidos de individuales de ese sábado: el viernes a la hora de corte (18:00), igual que las empresas. */
+    public function momentoDeCierreDeIndividuales(CarbonInterface|string $sabado): CarbonImmutable
+    {
+        return $this->momentoDelCorte($sabado);
+    }
+
+    public function corteDeIndividualesYaEjecutado(CarbonInterface|string $sabado): bool
+    {
+        return Corte::query()
+            ->whereDate('fecha_entrega', $this->dia($sabado)->toDateString())
+            ->where('tipo', 'individuales')->where('sin_cambios', false)->where('estado', '<>', 'fallido')
+            ->exists();
+    }
+
+    /** ¿Todavía entra un pedido de individuales a la entrega de ese sábado? Falso desde la hora de cierre o si su corte ya se ejecutó. */
+    public function pedidosDeIndividualesAbiertos(CarbonInterface|string $sabado, ?CarbonInterface $ahora = null): bool
+    {
+        return $this->ahora($ahora)->lt($this->momentoDeCierreDeIndividuales($sabado)) && ! $this->corteDeIndividualesYaEjecutado($sabado);
+    }
+
     /**
-     * Las siguientes $cantidad fechas de servicio consecutivas a partir de la que le toca a un pedido nuevo
-     * (para paquetes de 1, 2 o 6 días).
+     * Sábado en que llega un pedido de individuales hecho en $ahora: el primer sábado de servicio que todavía admite pedidos.
+     * Lunes a viernes antes de la hora de corte → el sábado de esa semana; viernes desde la hora de corte, sábado y domingo → el siguiente.
+     */
+    public function fechaDeEntregaDeIndividuales(?CarbonInterface $ahora = null): CarbonImmutable
+    {
+        $ahora = $this->ahora($ahora);
+        $candidata = $ahora->startOfDay();
+
+        for ($i = 0; $i < 70; $i++, $candidata = $candidata->addDay()) {
+            if ($this->esDiaDeEntregaDeIndividuales($candidata) && $this->pedidosDeIndividualesAbiertos($candidata, $ahora)) {
+                return $candidata;
+            }
+        }
+
+        throw new ReglaDeNegocioException('sin_dia_de_entrega', 'Por ahora no hay sábados de entrega para clientes individuales: intenta más tarde.');
+    }
+
+    /**
+     * Los $cantidad días de comida de un pedido de individuales: los siguientes días de servicio consecutivos DESPUÉS de la entrega
+     * (lunes a sábado de la semana siguiente; el domingo y los festivos no cuentan).
      *
      * @return array<int, CarbonImmutable>
      */
-    public function fechasDeUnPaquete(int $cantidad, ?CarbonInterface $ahora = null): array
+    public function diasDeComidaDeUnPedido(int $cantidad, CarbonInterface|string $entrega): array
     {
-        $ahora = $this->ahora($ahora);
-        $fechas = [$this->fechaDeEntregaParaPedidoNuevo($ahora)];
-
-        while (count($fechas) < $cantidad) {
-            $candidata = end($fechas)->addDay();
-            while (! $this->esDiaDeServicio($candidata)) {
-                $candidata = $candidata->addDay();
+        $fechas = [];
+        for ($candidata = $this->dia($entrega)->addDay(); count($fechas) < $cantidad; $candidata = $candidata->addDay()) {
+            if ($this->esDiaDeServicio($candidata)) {
+                $fechas[] = $candidata;
             }
-            $fechas[] = $candidata;
         }
 
         return $fechas;

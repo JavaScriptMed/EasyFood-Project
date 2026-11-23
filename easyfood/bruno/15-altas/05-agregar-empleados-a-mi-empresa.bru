@@ -1,0 +1,43 @@
+meta {
+  name: Agregar empleados a mi empresa
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{baseUrl}}/api/v1/empresa/empleados
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenEmpresa}}
+}
+
+body:json {
+  {
+    "personas": [
+      { "nombre": "Empleado Uno de Bruno", "correo": "{{correoEmpleadoUno}}" },
+      { "nombre": "Empleado Dos de Bruno" },
+      { "nombre": "Repetido de Bruno", "correo": "{{correoEmpleadoUno}}" }
+    ]
+  }
+}
+
+script:pre-request {
+  const t = Date.now(); bru.setVar("correoEmpleadoUno", "empleado." + t + "@nexo.test");
+}
+
+tests {
+  test("responde 201 con lo agregado y lo omitido", function () {
+    expect(res.getStatus()).to.equal(201);
+    expect(res.body.agregados).to.equal(2);
+    expect(res.body.omitidos).to.equal(1);
+    expect(res.body.correos_omitidos).to.have.length(1);
+    expect(res.body.correos_omitidos[0].motivo).to.be.oneOf(["ya_tiene_cuenta", "repetido_en_el_archivo"]);
+  });
+}
+
+docs {
+  Cada empleado recibe una invitación para crear su contraseña. Sin correo se arma con el nombre y el dominio de la empresa; un correo repetido se omite.
+}

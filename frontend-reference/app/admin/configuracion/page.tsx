@@ -28,7 +28,10 @@ const opcionesRegla: { valor: ReglaSinEleccion; etiqueta: string; detalle: strin
   { valor: "no_entregar", etiqueta: "No entregar", detalle: "Quien no eligió antes del corte se queda sin comida ese día." },
 ]
 
-const aFormulario = (c: ConfiguracionOperacion) => ({ ...c, capacidad_auto_entregas: String(c.capacidad_auto_entregas), capacidad_auto_platillos: String(c.capacidad_auto_platillos) })
+const aFormulario = (c: ConfiguracionOperacion) => ({
+  ...c, capacidad_auto_entregas: String(c.capacidad_auto_entregas), capacidad_auto_platillos: String(c.capacidad_auto_platillos),
+  ahorro_apps_porcentaje: String(c.ahorro_apps_porcentaje), costo_maquila_limite: String(c.costo_maquila_limite),
+})
 
 export default function ConfiguracionPage() {
   const [tab, setTab] = useState<"operacion" | "usuarios" | "bitacora">("operacion")
@@ -62,7 +65,10 @@ function OperacionTab() {
     if (!form) return
     setSaving(true)
     try {
-      const guardada = await guardarConfiguracionOperacion({ ...form, capacidad_auto_entregas: Number(form.capacidad_auto_entregas), capacidad_auto_platillos: Number(form.capacidad_auto_platillos) })
+      const guardada = await guardarConfiguracionOperacion({
+        ...form, capacidad_auto_entregas: Number(form.capacidad_auto_entregas), capacidad_auto_platillos: Number(form.capacidad_auto_platillos),
+        ahorro_apps_porcentaje: Number(form.ahorro_apps_porcentaje), costo_maquila_limite: Number(form.costo_maquila_limite),
+      })
       config.setData(guardada)
       toast.success("Configuración guardada")
     } catch (error) {
@@ -95,6 +101,13 @@ function OperacionTab() {
             <label className="text-sm">Platillos por ruta<Input type="number" min={1} value={form.capacidad_auto_platillos} onChange={(e) => cambiar("capacidad_auto_platillos", e.target.value)} className="mt-1" /></label>
           </div>
           <p className="mt-2 text-xs text-muted-foreground">Al crear rutas, cada auto se llena hasta el primero de los dos límites.</p>
+        </fieldset>
+
+        <fieldset><legend className="mb-2 text-sm font-medium">Parámetros de los indicadores del dashboard</legend>
+          <div className="grid gap-5 sm:grid-cols-2">
+            <label className="text-sm">Sobreprecio estimado de las apps de entrega (%)<Input type="number" min={0} max={100} step="0.5" value={form.ahorro_apps_porcentaje} onChange={(e) => cambiar("ahorro_apps_porcentaje", e.target.value)} className="mt-1" /><span className="mt-1 block text-xs text-muted-foreground">Con esto se calcula el ahorro estimado por empleado.</span></label>
+            <label className="text-sm">Tope del pago a cada cocina por platillo (MXN)<Input type="number" min={1} step="0.5" value={form.costo_maquila_limite} onChange={(e) => cambiar("costo_maquila_limite", e.target.value)} className="mt-1" /><span className="mt-1 block text-xs text-muted-foreground">El dashboard avisa si algún contrato pasa de este monto.</span></label>
+          </div>
         </fieldset>
 
         <div className="flex items-center justify-end gap-3 border-t pt-5">

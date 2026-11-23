@@ -1,0 +1,30 @@
+meta {
+  name: Reembolsar un pedido pagado con Stripe
+  type: http
+  seq: 7
+}
+
+post {
+  url: {{baseUrl}}/api/v1/admin/pedidos/{{pedidoId}}/reembolso
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenSoporte}}
+}
+
+tests {
+  test("sin claves de Stripe responde 503; con claves, el pedido de ejemplo está por pagar y responde 422", function () {
+    if (res.getStatus() === 503) {
+      expect(res.body.codigo).to.equal("pagos_no_configurados");
+      return;
+    }
+    expect(res.getStatus()).to.equal(422);
+    expect(res.body.codigo).to.equal("pedido_no_reembolsable");
+  });
+}
+
+docs {
+  Reembolso total de un pedido **pagado con Stripe** (administración y soporte). Reembolsa el cobro, deja el pedido `cancelado` con `reembolsado_en`, `monto_reembolsado` y `stripe_refund_id` (no hay estado nuevo) y anota en la bitácora quién lo hizo. No se reembolsa dos veces (422 `pedido_ya_reembolsado`) ni más de lo cobrado. Un pedido que no está pagado responde 422 `pedido_no_reembolsable`; si Stripe falla, 502 `pasarela_con_error` y el pedido no cambia. Para ver un reembolso completo hay que pagar el pedido con una tarjeta de prueba (ver el README, «Pagos con Stripe»).
+}

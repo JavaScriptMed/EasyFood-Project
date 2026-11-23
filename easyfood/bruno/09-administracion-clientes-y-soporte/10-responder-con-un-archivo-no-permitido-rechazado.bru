@@ -1,0 +1,27 @@
+meta {
+  name: Responder con un archivo no permitido (rechazado)
+  type: http
+  seq: 10
+}
+
+post {
+  url: {{baseUrl}}/api/v1/admin/tickets/{{ticketId}}/mensajes
+  body: multipartForm
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+body:multipart-form {
+  texto: Te comparto una foto
+  adjunto: @file(17-platillos-fotos-y-precios/no-es-una-foto.txt)
+}
+
+tests {
+  test("responde 422 con el error en adjunto", function () {
+    expect(res.getStatus()).to.equal(422);
+    expect(res.body.errores).to.have.property("adjunto");
+  });
+}

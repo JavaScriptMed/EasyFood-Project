@@ -7,12 +7,12 @@ import { SelectorTema } from "@/components/tema"
 import { listarIncidencias } from "@/lib/api"
 import { cerrarSesion, useSesionPortal } from "@/lib/sesion"
 import { useAsync } from "@/lib/use-async"
-import { Bell, ChevronRight, LayoutDashboard, UtensilsCrossed, ShoppingBag, Route, Bike, Users, LifeBuoy, Settings, Menu, X, Building2, Landmark, Receipt, LogOut } from "lucide-react"
+import { Bell, ChevronRight, LayoutDashboard, UtensilsCrossed, ShoppingBag, Route, Bike, Users, LifeBuoy, Settings, Menu, X, Building2, Landmark, Receipt, LogOut, Wallet, MapPin } from "lucide-react"
 
 const grupos = [
-  { titulo: "Operación", items: [{ label: "Dashboard", href: "/admin", icon: LayoutDashboard }, { label: "Pedidos", href: "/admin/pedidos", icon: ShoppingBag }, { label: "Rutas", href: "/admin/rutas", icon: Route }, { label: "Repartidores", href: "/admin/repartidores", icon: Bike }, { label: "Catálogo", href: "/admin/menus", icon: UtensilsCrossed }] },
+  { titulo: "Operación", items: [{ label: "Dashboard", href: "/admin", icon: LayoutDashboard }, { label: "Pedidos", href: "/admin/pedidos", icon: ShoppingBag }, { label: "Rutas", href: "/admin/rutas", icon: Route }, { label: "Zonas", href: "/admin/zonas", icon: MapPin }, { label: "Repartidores", href: "/admin/repartidores", icon: Bike }, { label: "Catálogo", href: "/admin/menus", icon: UtensilsCrossed }] },
   { titulo: "Cuentas", items: [{ label: "Comedores", href: "/admin/comedores", icon: Building2 }, { label: "Empresas y contratos", href: "/admin/empresas", icon: Landmark }, { label: "Clientes", href: "/admin/clientes", icon: Users }] },
-  { titulo: "Finanzas", items: [{ label: "Facturación", href: "/admin/facturacion", icon: Receipt }] },
+  { titulo: "Finanzas", items: [{ label: "Facturación", href: "/admin/facturacion", icon: Receipt }, { label: "Costos operativos", href: "/admin/costos", icon: Wallet }] },
   { titulo: "Sistema", items: [{ label: "Soporte", href: "/admin/soporte", icon: LifeBuoy }, { label: "Configuración", href: "/admin/configuracion", icon: Settings }] },
 ]
 

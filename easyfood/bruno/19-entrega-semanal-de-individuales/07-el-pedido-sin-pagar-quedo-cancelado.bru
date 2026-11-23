@@ -1,0 +1,23 @@
+meta {
+  name: El pedido sin pagar quedó cancelado
+  type: http
+  seq: 7
+}
+
+get {
+  url: {{baseUrl}}/api/v1/cliente/pedidos/{{pedidoSabadoId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenCliente}}
+}
+
+tests {
+  test("responde 200 y está cancelado", function () {
+    expect(res.getStatus()).to.equal(200);
+    expect(res.body.estado).to.equal("cancelado");
+    expect(res.body.segundos_para_pagar).to.equal(null);
+  });
+}

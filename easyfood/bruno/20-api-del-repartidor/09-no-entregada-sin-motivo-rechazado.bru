@@ -1,0 +1,26 @@
+meta {
+  name: No entregada sin motivo rechazado
+  type: http
+  seq: 9
+}
+
+post {
+  url: {{baseUrl}}/api/v1/repartidor/paradas/{{paradaUnoId}}/no-entregada
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenRepartidor}}
+}
+
+body:json {
+  {}
+}
+
+tests {
+  test("responde 422 con el error del motivo", function () {
+    expect(res.getStatus()).to.equal(422);
+    expect(res.body.errores).to.have.property("motivo");
+  });
+}

@@ -1,0 +1,46 @@
+meta {
+  name: Invitar a varias personas de un archivo (con un omitido)
+  type: http
+  seq: 15
+}
+
+post {
+  url: {{baseUrl}}/api/v1/cuentas/invitaciones/lote
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+body:json {
+  {
+    "organizacion_tipo": "plataforma",
+    "rol": "soporte",
+    "personas": [
+      { "nombre": "Lote Uno de Bruno", "correo": "{{correoLoteUno}}" },
+      { "nombre": "Lote Dos de Bruno", "correo": "{{correoLoteDos}}" },
+      { "nombre": "Lote Uno repetido", "correo": "{{correoLoteUno}}" }
+    ]
+  }
+}
+
+script:pre-request {
+  const t = Date.now();
+  bru.setVar("correoLoteUno", "lote.uno." + t + "@easylunch.test");
+  bru.setVar("correoLoteDos", "lote.dos." + t + "@easylunch.test");
+}
+
+tests {
+  test("responde 201: invita a las nuevas y dice cuál omitió", function () {
+    expect(res.getStatus()).to.equal(201);
+    expect(res.body.invitados).to.equal(2);
+    expect(res.body.omitidos).to.equal(1);
+    expect(res.body.correos_omitidos[0].motivo).to.equal("repetido_en_el_archivo");
+  });
+}
+
+docs {
+  Es lo que usa el diálogo «Invitar usuario → Desde un archivo» (Excel o CSV). Un correo que ya tiene cuenta (`ya_tiene_cuenta`) o repetido en la lista (`repetido_en_el_archivo`) se omite y se informa en `correos_omitidos`.
+}

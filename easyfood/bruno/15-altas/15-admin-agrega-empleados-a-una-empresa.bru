@@ -1,0 +1,38 @@
+meta {
+  name: El administrador agrega empleados a una empresa (con un omitido)
+  type: http
+  seq: 15
+}
+
+post {
+  url: {{baseUrl}}/api/v1/admin/empresas/{{empresaNuevaId}}/empleados
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+body:json {
+  {
+    "personas": [
+      { "nombre": "Empleado del Admin Uno" },
+      { "nombre": "El Contacto de la Empresa", "correo": "{{correoEmpresaNueva}}" }
+    ]
+  }
+}
+
+
+tests {
+  test("responde 201 y dice cuál correo se omitió y por qué", function () {
+    expect(res.getStatus()).to.equal(201);
+    expect(res.body.agregados).to.equal(1);
+    expect(res.body.omitidos).to.equal(1);
+    expect(res.body.correos_omitidos[0].motivo).to.equal("ya_tiene_cuenta");
+  });
+}
+
+docs {
+  Igual que `POST /api/v1/empresa/empleados`, pero lo hace el administrador sobre cualquier empresa (lo usa el paso 4 del alta de empresa). Un correo que ya tiene cuenta, como el del contacto, se omite y se informa en `correos_omitidos`.
+}

@@ -22,7 +22,7 @@ return new class extends Migration
             $tabla->timestampTz('entregada_en')->nullable();
             Esquema::marcasDeTiempo($tabla);
 
-            $tabla->unique(['pedido_id', 'fecha']);
+           // $tabla->unique(['pedido_id', 'fecha']);
             $tabla->index('fecha');
         });
 

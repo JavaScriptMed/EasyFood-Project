@@ -19,7 +19,7 @@ body:json {
     "paquete_id": "{{paqueteUnDiaId}}",
     "direccion_id": "{{direccionCasaId}}",
     "platillos": [
-      "{{platilloComidaId2}}"
+      { "comida": "{{platilloComidaId2}}" }
     ]
   }
 }
@@ -33,6 +33,10 @@ tests {
     expect(res.getStatus()).to.equal(201);
   });
 
+  test("es de 1 comida por día", function () {
+    expect(res.body.comidas_por_dia).to.equal(1);
+  });
+
   test("nace pendiente de pago con el tiempo para pagar", function () {
     expect(res.body.estado).to.equal("pendiente_pago");
     expect(res.body.segundos_para_pagar).to.be.greaterThan(0);
@@ -41,5 +45,5 @@ tests {
 }
 
 docs {
-  Las fechas son los siguientes días de servicio con el corte abierto. El pedido vence (se cancela) en el corte de su primer día si no se paga: `vence_pago_en` y `segundos_para_pagar` lo muestran.
+  `platillos` trae un elemento por día y cada uno indica qué platillo va en cada tiempo de comida (`desayuno`, `comida`, `cena`): el cliente elige 1, 2 o 3 comidas por día. Las fechas son los siguientes días de servicio con el corte abierto. El pedido vence (se cancela) en el corte de su primer día si no se paga: `vence_pago_en` y `segundos_para_pagar` lo muestran.
 }

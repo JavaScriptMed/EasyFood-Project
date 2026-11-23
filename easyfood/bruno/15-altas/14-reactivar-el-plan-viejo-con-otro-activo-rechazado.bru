@@ -1,0 +1,28 @@
+meta {
+  name: Reactivar el plan viejo con otro activo (rechazado)
+  type: http
+  seq: 14
+}
+
+patch {
+  url: {{baseUrl}}/api/v1/admin/paquetes/{{planSemanaId}}/estado
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+body:json {
+  {
+    "activo": true
+  }
+}
+
+tests {
+  test("responde 422 plan_de_esos_dias_activo", function () {
+    expect(res.getStatus()).to.equal(422);
+    expect(res.body.codigo).to.equal("plan_de_esos_dias_activo");
+  });
+}
