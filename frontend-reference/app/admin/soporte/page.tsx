@@ -3,13 +3,16 @@
 import { PageTitle } from "@/components/panel"
 import { AdminShell } from "@/components/admin-shell"
 import { AdjuntoDelMensaje, AdjuntoElegido, motivoDeAdjuntoInvalido, TIPOS_DE_ADJUNTO } from "@/components/adjunto-de-ticket"
-import { useEffect, useRef, useState } from "react"
-import { CheckCheck, ChevronRight, Clock3, Paperclip, Search, Send, UserRound } from "lucide-react"
+import Link from "next/link"
+import { useEffect, useMemo, useRef, useState } from "react"
+import { Camera, CheckCheck, ChevronRight, Paperclip, Search, Send, UserRound } from "lucide-react"
 
 import { toast } from "sonner"
 import { BloqueEstado, ErrorEstado } from "@/components/estados"
+import { FotoDeEvidencia } from "@/components/foto-de-evidencia"
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog"
 import { Skeleton } from "@/components/ui/skeleton"
-import { enviarMensajeTicket, listarTickets, obtenerTicket } from "@/lib/api"
+import { cambiarEstadoTicket, enviarMensajeTicket, listarPedidos, listarTickets, obtenerTicket } from "@/lib/api"
 import { AHORA_MOCK } from "@/lib/config"
 import { etiquetasEstadoTicket } from "@/lib/etiquetas"
 import { formatMXN, horaDe, iniciales, tiempoRelativo } from "@/lib/format"
@@ -24,11 +27,17 @@ export default function SoportePage() {
   const detalle = useAsync(async () => (activeId ? obtenerTicket(activeId) : undefined), [activeId])
   const [messages, setMessages] = useState<MensajeTicket[]>([])
   const [draft, setDraft] = useState("")
-  const [typing, setTyping] = useState(false)
+  const [busqueda, setBusqueda] = useState("")
+  const [cambiandoEstado, setCambiandoEstado] = useState(false)
+  const [verEvidencia, setVerEvidencia] = useState(false)
   const [adjunto, setAdjunto] = useState<File | null>(null)
   const [enviando, setEnviando] = useState(false)
   const entradaArchivo = useRef<HTMLInputElement>(null)
   const active = tickets.data?.find((t) => t.id === activeId) ?? null
+  const visibles = useMemo(() => {
+    const q = busqueda.trim().toLowerCase()
+    return (tickets.data ?? []).filter((t) => !q || `${t.cliente_nombre} ${t.asunto} ${t.pedido_folio ?? ""} ${t.id}`.toLowerCase().includes(q))
+  }, [tickets.data, busqueda])
   const resumen = detalle.data?.resumen_pedido
 
   useEffect(() => { if (!activeId && tickets.data?.length) setActiveId(tickets.data[0].id) }, [activeId, tickets.data])
@@ -44,8 +53,7 @@ export default function SoportePage() {
       setDraft("")
       setAdjunto(null)
       setMessages((current) => [...current, mensaje])
-      setTyping(true)
-      window.setTimeout(() => setTyping(false), 1800)
+      tickets.reload({ silent: true }) // el ticket pasa a «en proceso» y se limpian sus mensajes sin leer
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "No se pudo enviar el mensaje")
     } finally {
@@ -61,6 +69,20 @@ export default function SoportePage() {
     setAdjunto(archivo)
   }
 
+  async function cambiarEstado(estado: EstadoTicket) {
+    if (!activeId || cambiandoEstado) return
+    setCambiandoEstado(true)
+    try {
+      await cambiarEstadoTicket(activeId, estado)
+      toast.success(estado === "cerrado" ? "Ticket cerrado" : "Ticket reabierto")
+      tickets.reload({ silent: true })
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "No se pudo cambiar el estado del ticket")
+    } finally {
+      setCambiandoEstado(false)
+    }
+  }
+
   function quickReply(text: string) {
     setDraft(text)
   }
@@ -70,24 +92,39 @@ export default function SoportePage() {
       <div className="mx-auto max-w-[1500px]">
         <header className="mb-6 flex flex-wrap items-end justify-between gap-4 border-b pb-6">
           <div><PageTitle eyebrow="Atención operativa" title="Soporte" description="Resuelve dudas de clientes sin perder el contexto del pedido." /></div>
-          <div className="flex items-center gap-2 rounded-lg border bg-card px-3 py-2 text-sm"><span className="size-2 rounded-full bg-emerald-500" /> 3 agentes conectados</div>
         </header>
 
         <section className="grid min-h-[680px] overflow-hidden rounded-2xl border bg-card shadow-sm lg:grid-cols-[300px_minmax(420px,1fr)_300px]">
           <aside className="border-b lg:border-b-0 lg:border-r">
-            <div className="border-b p-4"><div className="mb-3 flex items-center justify-between"><h2 className="font-semibold">Tickets</h2><span className="rounded-full bg-red-500/10 px-2 py-0.5 text-xs font-bold text-red-600">{(tickets.data ?? []).reduce((suma, t) => suma + t.mensajes_sin_leer, 0)} nuevos</span></div><div className="flex items-center gap-2 rounded-lg border bg-background px-3 py-2"><Search size={15} className="text-muted-foreground" /><input placeholder="Buscar ticket..." className="w-full bg-transparent text-sm outline-none" /></div></div>
-            <div className="max-h-[590px] overflow-y-auto"><BloqueEstado cargando={tickets.loading} error={tickets.error} vacio={!tickets.data?.length} mensajeVacio="No hay tickets por atender." onReintentar={tickets.reload} cantidad={5} className="m-3" />{tickets.data?.map((ticket) => <button key={ticket.id} onClick={() => setActiveId(ticket.id)} className={`w-full border-b p-4 text-left transition hover:bg-muted/60 ${activeId === ticket.id ? "border-l-2 border-l-primary bg-primary/5" : "border-l-2 border-l-transparent"}`}><div className="flex gap-3"><div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-secondary text-xs font-bold">{iniciales(ticket.cliente_nombre)}</div><div className="min-w-0 flex-1"><div className="flex items-center justify-between gap-2"><span className="truncate text-sm font-semibold">{ticket.cliente_nombre}</span>{ticket.mensajes_sin_leer > 0 && <span className="rounded-full bg-primary px-1.5 text-[10px] font-bold">{ticket.mensajes_sin_leer}</span>}</div><p className="mt-1 truncate text-sm">{ticket.asunto}</p><div className="mt-2 flex items-center justify-between gap-2 text-[11px] text-muted-foreground"><span>{ticket.pedido_folio}</span><span>{tiempoRelativo(ticket.actualizado_en, AHORA_MOCK)}</span></div><span className={`mt-2 inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${statusStyles[ticket.estado]}`}>{etiquetasEstadoTicket[ticket.estado]}</span></div></div></button>)}</div>
+            <div className="border-b p-4"><div className="mb-3 flex items-center justify-between"><h2 className="font-semibold">Tickets</h2><span className="rounded-full bg-red-500/10 px-2 py-0.5 text-xs font-bold text-red-600">{(tickets.data ?? []).reduce((suma, t) => suma + t.mensajes_sin_leer, 0)} nuevos</span></div><label className="flex items-center gap-2 rounded-lg border bg-background px-3 py-2"><Search size={15} className="text-muted-foreground" /><input value={busqueda} onChange={(e) => setBusqueda(e.target.value)} placeholder="Buscar por cliente, asunto o folio" aria-label="Buscar ticket" className="w-full bg-transparent text-sm outline-none" /></label></div>
+            <div className="max-h-[590px] overflow-y-auto"><BloqueEstado cargando={tickets.loading} error={tickets.error} vacio={!visibles.length} mensajeVacio={busqueda.trim() ? "Ningún ticket coincide con la búsqueda." : "No hay tickets por atender."} onReintentar={tickets.reload} cantidad={5} className="m-3" />{visibles.map((ticket) => <button key={ticket.id} onClick={() => setActiveId(ticket.id)} className={`w-full border-b p-4 text-left transition hover:bg-muted/60 ${activeId === ticket.id ? "border-l-2 border-l-primary bg-primary/5" : "border-l-2 border-l-transparent"}`}><div className="flex gap-3"><div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-secondary text-xs font-bold">{iniciales(ticket.cliente_nombre)}</div><div className="min-w-0 flex-1"><div className="flex items-center justify-between gap-2"><span className="truncate text-sm font-semibold">{ticket.cliente_nombre}</span>{ticket.mensajes_sin_leer > 0 && <span className="rounded-full bg-primary px-1.5 text-[10px] font-bold">{ticket.mensajes_sin_leer}</span>}</div><p className="mt-1 truncate text-sm">{ticket.asunto}</p><div className="mt-2 flex items-center justify-between gap-2 text-[11px] text-muted-foreground"><span>{ticket.pedido_folio}</span><span>{tiempoRelativo(ticket.actualizado_en, AHORA_MOCK)}</span></div><span className={`mt-2 inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${statusStyles[ticket.estado]}`}>{etiquetasEstadoTicket[ticket.estado]}</span></div></div></button>)}</div>
           </aside>
 
           <section className="flex min-h-[680px] flex-col">
             <div className="flex items-center justify-between border-b px-5 py-4">{active ? <><div className="flex items-center gap-3"><div className="flex size-10 items-center justify-center rounded-full bg-primary/20 text-sm font-bold">{iniciales(active.cliente_nombre)}</div><div><h2 className="font-semibold">{active.cliente_nombre}</h2><p className="text-xs text-muted-foreground">{active.id} · {active.asunto}</p></div></div><span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${statusStyles[active.estado]}`}>{etiquetasEstadoTicket[active.estado]}</span></> : <Skeleton className="h-10 w-64" />}</div>
-            <div className="flex-1 space-y-5 overflow-y-auto bg-muted/20 p-5">{detalle.loading && <div className="space-y-4" aria-hidden="true"><Skeleton className="h-12 w-3/5" /><Skeleton className="ml-auto h-12 w-1/2" /><Skeleton className="h-12 w-2/3" /></div>}{detalle.error && <ErrorEstado error={detalle.error} onReintentar={detalle.reload} />}{!detalle.loading && !detalle.error && !messages.length && <p className="py-10 text-center text-sm text-muted-foreground">Este ticket todavía no tiene mensajes.</p>}{messages.map((message) => <div key={message.id} className={`flex ${message.autor === "agente" ? "justify-end" : "justify-start"}`}><div className={`max-w-[78%] ${message.autor === "agente" ? "items-end" : "items-start"}`}><div className={`rounded-2xl px-4 py-3 text-sm leading-relaxed ${message.autor === "agente" ? "rounded-br-sm bg-primary text-primary-foreground" : "rounded-bl-sm border bg-card"}`}>{message.texto}{message.adjunto && <AdjuntoDelMensaje adjunto={message.adjunto} />}</div><div className={`mt-1 flex items-center gap-1 text-[11px] text-muted-foreground ${message.autor === "agente" ? "justify-end" : ""}`}>{horaDe(message.enviado_en)} {message.autor === "agente" && <CheckCheck size={13} />}</div></div></div>)}{typing && <div className="flex items-center gap-2 text-xs text-muted-foreground"><span className="flex gap-1"><i className="size-1.5 animate-bounce rounded-full bg-current" /><i className="size-1.5 animate-bounce rounded-full bg-current [animation-delay:120ms]" /><i className="size-1.5 animate-bounce rounded-full bg-current [animation-delay:240ms]" /></span> {active?.cliente_nombre.split(" ")[0]} está escribiendo...</div>}</div>
+            <div className="flex-1 space-y-5 overflow-y-auto bg-muted/20 p-5">{detalle.loading && <div className="space-y-4" aria-hidden="true"><Skeleton className="h-12 w-3/5" /><Skeleton className="ml-auto h-12 w-1/2" /><Skeleton className="h-12 w-2/3" /></div>}{detalle.error && <ErrorEstado error={detalle.error} onReintentar={detalle.reload} />}{!detalle.loading && !detalle.error && !messages.length && <p className="py-10 text-center text-sm text-muted-foreground">Este ticket todavía no tiene mensajes.</p>}{messages.map((message) => <div key={message.id} className={`flex ${message.autor === "agente" ? "justify-end" : "justify-start"}`}><div className={`max-w-[78%] ${message.autor === "agente" ? "items-end" : "items-start"}`}><div className={`rounded-2xl px-4 py-3 text-sm leading-relaxed ${message.autor === "agente" ? "rounded-br-sm bg-primary text-primary-foreground" : "rounded-bl-sm border bg-card"}`}>{message.texto}{message.adjunto && <AdjuntoDelMensaje adjunto={message.adjunto} />}</div><div className={`mt-1 flex items-center gap-1 text-[11px] text-muted-foreground ${message.autor === "agente" ? "justify-end" : ""}`}>{horaDe(message.enviado_en)} {message.autor === "agente" && <CheckCheck size={13} />}</div></div></div>)}</div>
             <div className="border-t p-4"><div className="mb-3 flex flex-wrap gap-2">{["Estoy revisando tu pedido.", "Te confirmo en un momento.", "Podemos reprogramar tu entrega."].map((reply) => <button key={reply} onClick={() => quickReply(reply)} className="rounded-full border px-3 py-1.5 text-xs text-muted-foreground transition hover:border-primary hover:text-foreground">{reply}</button>)}</div>{adjunto && <AdjuntoElegido archivo={adjunto} onQuitar={() => setAdjunto(null)} />}<div className="flex items-end gap-2 rounded-xl border bg-background p-2"><input ref={entradaArchivo} type="file" accept={TIPOS_DE_ADJUNTO.join(",")} className="sr-only" tabIndex={-1} aria-label="Elegir archivo para adjuntar" onChange={(event) => archivoElegido(event.target.files?.[0])} /><button type="button" onClick={() => entradaArchivo.current?.click()} disabled={enviando} aria-label="Adjuntar un archivo" title="Adjuntar una foto o un PDF (hasta 5 MB)" className="rounded-lg p-2 text-muted-foreground hover:bg-muted disabled:opacity-50"><Paperclip size={17} /></button><textarea value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing && event.keyCode !== 229) { event.preventDefault(); sendMessage() } }} placeholder="Escribe una respuesta..." rows={2} className="min-h-10 flex-1 resize-none bg-transparent px-1 py-1 text-sm outline-none" /><button type="button" onClick={sendMessage} disabled={enviando || (!draft.trim() && !adjunto)} aria-label="Enviar mensaje" className="rounded-lg bg-primary p-2.5 text-primary-foreground transition hover:brightness-95 disabled:opacity-50"><Send size={17} /></button></div><p className="mt-2 text-[11px] text-muted-foreground">Enter para enviar · Shift + Enter para salto de línea · Clip: foto o PDF de hasta 5 MB</p></div>
           </section>
 
-          <aside className="border-t bg-muted/20 p-5 lg:border-l lg:border-t-0"><div className="mb-5 flex items-center justify-between"><h2 className="font-semibold">Resumen del pedido</h2><button className="text-xs font-medium text-primary">Ver pedido <ChevronRight className="inline" size={13} /></button></div><div className="rounded-xl border bg-card p-4"><div className="mb-4 flex items-center justify-between"><span className="text-xs text-muted-foreground">Folio</span><span className="text-sm font-bold">{active?.pedido_folio ?? "—"}</span></div>{detalle.loading && <div className="space-y-3 border-t pt-4" aria-hidden="true"><Skeleton className="h-4 w-full" /><Skeleton className="h-4 w-full" /><Skeleton className="h-4 w-full" /><Skeleton className="h-4 w-full" /></div>}{resumen && <div className="space-y-3 border-t pt-4 text-sm"><div className="flex justify-between"><span className="text-muted-foreground">Plan</span><span>{resumen.plan}</span></div><div className="flex justify-between"><span className="text-muted-foreground">Próxima entrega</span><span>{resumen.proxima_entrega}</span></div><div className="flex justify-between"><span className="text-muted-foreground">Zona</span><span>{resumen.zona}</span></div><div className="flex justify-between"><span className="text-muted-foreground">Total</span><strong>{formatMXN(resumen.total)} MXN</strong></div></div>}</div><div className="mt-5 rounded-xl border bg-card p-4"><div className="mb-3 flex items-center gap-2"><UserRound size={15} /><span className="text-sm font-semibold">Dirección de entrega</span></div>{resumen ? <><p className="text-sm leading-relaxed">{resumen.direccion.split("\n").map((linea, i) => <span key={i}>{i > 0 && <br />}{linea}</span>)}</p><p className="mt-2 text-xs text-muted-foreground">{resumen.referencias}</p></> : <Skeleton className="h-12 w-full" />}</div><div className="mt-5 space-y-2"><button className="w-full rounded-lg border bg-card px-3 py-2.5 text-sm font-semibold hover:bg-muted">Reprogramar entrega</button><button className="w-full rounded-lg border bg-card px-3 py-2.5 text-sm font-semibold hover:bg-muted">Ver evidencia</button><button className="w-full rounded-lg bg-foreground px-3 py-2.5 text-sm font-semibold text-background hover:opacity-90">Cerrar ticket</button></div><div className="mt-5 flex items-center gap-2 text-xs text-muted-foreground"><Clock3 size={14} /> Tiempo de primera respuesta: 2 min</div></aside>
+          <aside className="border-t bg-muted/20 p-5 lg:border-l lg:border-t-0"><div className="mb-5 flex items-center justify-between"><h2 className="font-semibold">Resumen del pedido</h2>{active?.pedido_folio ? <Link href={`/admin/pedidos?folio=${encodeURIComponent(active.pedido_folio)}`} className="text-xs font-medium text-primary hover:underline">Ver pedido <ChevronRight className="inline" size={13} /></Link> : null}</div><div className="rounded-xl border bg-card p-4"><div className="mb-4 flex items-center justify-between"><span className="text-xs text-muted-foreground">Folio</span><span className="text-sm font-bold">{active?.pedido_folio ?? "—"}</span></div>{detalle.loading && <div className="space-y-3 border-t pt-4" aria-hidden="true"><Skeleton className="h-4 w-full" /><Skeleton className="h-4 w-full" /><Skeleton className="h-4 w-full" /><Skeleton className="h-4 w-full" /></div>}{resumen && <div className="space-y-3 border-t pt-4 text-sm"><div className="flex justify-between"><span className="text-muted-foreground">Plan</span><span>{resumen.plan}</span></div><div className="flex justify-between"><span className="text-muted-foreground">Próxima entrega</span><span>{resumen.proxima_entrega}</span></div><div className="flex justify-between"><span className="text-muted-foreground">Zona</span><span>{resumen.zona}</span></div><div className="flex justify-between"><span className="text-muted-foreground">Total</span><strong>{formatMXN(resumen.total)} MXN</strong></div></div>}</div><div className="mt-5 rounded-xl border bg-card p-4"><div className="mb-3 flex items-center gap-2"><UserRound size={15} /><span className="text-sm font-semibold">Dirección de entrega</span></div>{resumen ? <><p className="text-sm leading-relaxed">{resumen.direccion.split("\n").map((linea, i) => <span key={i}>{i > 0 && <br />}{linea}</span>)}</p><p className="mt-2 text-xs text-muted-foreground">{resumen.referencias}</p></> : <Skeleton className="h-12 w-full" />}</div><div className="mt-5 space-y-2"><button type="button" onClick={() => setVerEvidencia(true)} disabled={!active?.pedido_folio} className="flex w-full items-center justify-center gap-2 rounded-lg border bg-card px-3 py-2.5 text-sm font-semibold hover:bg-muted disabled:opacity-50"><Camera size={15} /> Ver evidencia</button>{active?.estado === "cerrado" || active?.estado === "resuelto" ? <button type="button" onClick={() => cambiarEstado("en_proceso")} disabled={cambiandoEstado} className="w-full rounded-lg border bg-card px-3 py-2.5 text-sm font-semibold hover:bg-muted disabled:opacity-50">{cambiandoEstado ? "Reabriendo…" : "Reabrir ticket"}</button> : <button type="button" onClick={() => cambiarEstado("cerrado")} disabled={!active || cambiandoEstado} className="w-full rounded-lg bg-foreground px-3 py-2.5 text-sm font-semibold text-background hover:opacity-90 disabled:opacity-50">{cambiandoEstado ? "Cerrando…" : "Cerrar ticket"}</button>}</div></aside>
         </section>
       </div>
-    </div></AdminShell>
+    </div>{verEvidencia && active?.pedido_folio && <EvidenciaDelPedido folio={active.pedido_folio} onCerrar={() => setVerEvidencia(false)} />}</AdminShell>
+  )
+}
+
+/** La foto que dejó el repartidor al entregar el pedido del ticket (o el aviso de que todavía no hay). */
+function EvidenciaDelPedido({ folio, onCerrar }: { folio: string; onCerrar: () => void }) {
+  const pedidos = useAsync(listarPedidos)
+  const pedido = pedidos.data?.find((p) => p.folio === folio)
+  return (
+    <Dialog open onOpenChange={(abierto) => { if (!abierto) onCerrar() }}>
+      <DialogContent className="sm:max-w-md">
+        <DialogTitle>Evidencia de entrega · {folio}</DialogTitle>
+        <DialogDescription className="sr-only">La foto que dejó el repartidor al entregar este pedido.</DialogDescription>
+        <BloqueEstado cargando={pedidos.loading} error={pedidos.error} vacio={false} mensajeVacio="" onReintentar={pedidos.reload} cantidad={1} />
+        {pedidos.data && (pedido?.evidencia_foto_url ? <FotoDeEvidencia url={pedido.evidencia_foto_url} alt={`Foto de entrega del pedido ${folio}`} /> : <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">Este pedido todavía no tiene foto de entrega.</p>)}
+      </DialogContent>
+    </Dialog>
   )
 }

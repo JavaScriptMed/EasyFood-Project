@@ -271,6 +271,7 @@ const real: typeof mock = {
     const t = await leer<any>(`/api/v1/admin/tickets/${id}`)
     return { ...ticket(t), mensajes: t.mensajes, resumen_pedido: t.resumen_pedido ?? { plan: '', proxima_entrega: '', zona: '', total: 0, direccion: '', referencias: '' } } as TicketDetalle
   },
+  cambiarEstadoTicket: async (id, estado) => ticket(await patch<any>(`/api/v1/admin/tickets/${id}/estado`, { estado })),
   enviarMensajeTicket: async (id, texto, adjunto) => {
     if (!adjunto) return ids(await post<MensajeTicket>(`/api/v1/admin/tickets/${id}/mensajes`, { texto }))
     const formulario = new FormData()
@@ -372,6 +373,7 @@ export const listarPedidos = elegir('listarPedidos')
 export const listarTickets = elegir('listarTickets')
 export const obtenerTicket = elegir('obtenerTicket')
 export const enviarMensajeTicket = elegir('enviarMensajeTicket')
+export const cambiarEstadoTicket = elegir('cambiarEstadoTicket')
 export const obtenerMiMenu = elegir('obtenerMiMenu')
 export const listarMisElecciones = elegir('listarMisElecciones')
 export const consumoDiarioEmpresa = elegir('consumoDiarioEmpresa')

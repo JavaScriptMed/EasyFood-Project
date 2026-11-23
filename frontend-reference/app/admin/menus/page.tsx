@@ -1,8 +1,8 @@
 "use client"
 
 import { PageTitle } from "@/components/panel"
-import { useMemo, useState } from "react"
-import { Search, Plus, Pencil, Power, SlidersHorizontal, X, Upload, CalendarDays, Check, ChevronLeft, ChevronRight, GripVertical, UtensilsCrossed } from "lucide-react"
+import { useEffect, useMemo, useState } from "react"
+import { Search, Plus, Pencil, Power, X, Upload, CalendarDays, ChevronLeft, ChevronRight, GripVertical, UtensilsCrossed } from "lucide-react"
 import { AdminShell } from "@/components/admin-shell"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -14,10 +14,10 @@ import { toast } from "sonner"
 import { BloqueEstado } from "@/components/estados"
 import { CampoLista, CampoParrafo, CampoTexto, VentanaConfirmar, VentanaFormulario } from "@/components/ventanas"
 import { cambiarEstadoPlan, cambiarEstadoPlatillo, crearPlan, editarPlan, guardarPlatillo, subirImagenPlatillo, listarComedores, listarHistorialPrecios, listarPlanes, listarPlatillos, obtenerMenuSemanal, programarPrecioPlatillo } from "@/lib/api"
-import { FECHA_MANANA } from "@/lib/config"
+import { FECHA_MANANA, FECHA_OPERACION } from "@/lib/config"
 import { BotonCambiarFoto, motivoDeFotoInvalida, TIPOS_DE_FOTO } from "@/components/subir-foto"
 import { etiquetasTiempoComida } from "@/lib/etiquetas"
-import { etiquetaDiaCorta, formatDate } from "@/lib/format"
+import { etiquetaDiaCorta, formatDate, formatRangoFechas, lunesDe, sumarDias } from "@/lib/format"
 import type { Plan, PlatilloDetalle, TiempoComida } from "@/lib/types"
 import { useAsync } from "@/lib/use-async"
 
@@ -26,6 +26,8 @@ export default function MenusPage() {
   const [query, setQuery] = useState("")
   const [meal, setMeal] = useState("Todos")
   const [activeOnly, setActiveOnly] = useState(false)
+  const [proveedor, setProveedor] = useState("Todos")
+  const [cargadoA, setCargadoA] = useState<Date | null>(null)
   const [selected, setSelected] = useState<PlatilloDetalle | null>(null)
   const [showNew, setShowNew] = useState(false)
   const [editando, setEditando] = useState(false)
@@ -48,15 +50,17 @@ export default function MenusPage() {
     }
   }
   const platillos = useAsync(() => listarPlatillos())
-  const filtered = useMemo(() => (platillos.data ?? []).filter((dish) => (!query || dish.nombre.toLowerCase().includes(query.toLowerCase())) && (meal === "Todos" || etiquetasTiempoComida[dish.tiempo_comida] === meal) && (!activeOnly || dish.activo)), [platillos.data, query, meal, activeOnly])
+  useEffect(() => { if (platillos.data) setCargadoA(new Date()) }, [platillos.data])
+  const proveedores = useMemo(() => Array.from(new Set((platillos.data ?? []).map((dish) => dish.comedor_nombre))).sort((a, b) => a.localeCompare(b, "es")), [platillos.data])
+  const filtered = useMemo(() => (platillos.data ?? []).filter((dish) => (!query || dish.nombre.toLowerCase().includes(query.toLowerCase())) && (meal === "Todos" || etiquetasTiempoComida[dish.tiempo_comida] === meal) && (proveedor === "Todos" || dish.comedor_nombre === proveedor) && (!activeOnly || dish.activo)), [platillos.data, query, meal, proveedor, activeOnly])
 
   return <AdminShell active="Menús y platillos">
     <div className="min-h-screen bg-background p-5 md:p-8">
       <header className="mb-7 flex flex-wrap items-end justify-between gap-4 border-b pb-6"><div><PageTitle eyebrow="Catálogo operativo" title="Menús y platillos" description="Administra tu oferta, precios y disponibilidad semanal." /></div><Button onClick={() => setShowNew(true)} className="gap-2"><Plus /> Nuevo platillo</Button></header>
       <div className="mb-6 flex gap-1 border-b">{["Platillos", "Menú semanal", "Planes"].map((item) => <button key={item} onClick={() => setTab(item)} className={`border-b-2 px-4 py-3 text-sm font-semibold transition-colors ${tab === item ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"}`}>{item}</button>)}</div>
       {tab === "Platillos" && <>
-        <div className="mb-5 flex flex-wrap gap-3"><div className="relative min-w-[250px] flex-1"><Search className="absolute left-3 top-2.5 text-muted-foreground" /><Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar platillo..." className="pl-10" /></div><select value={meal} onChange={(e) => setMeal(e.target.value)} className="rounded-md border bg-background px-3 text-sm"><option>Todos</option><option>Desayuno</option><option>Comida</option><option>Cena</option></select><Button variant="outline" className="gap-2"><SlidersHorizontal /> Proveedor</Button><label className="flex items-center gap-2 rounded-md border px-3 text-sm"><Switch checked={activeOnly} onCheckedChange={setActiveOnly} /> Solo activos</label></div>
-        <div className="mb-4 flex items-center justify-between text-sm text-muted-foreground"><span>{filtered.length} platillos en catálogo</span><span>Actualizado hace 8 min</span></div>
+        <div className="mb-5 flex flex-wrap gap-3"><div className="relative min-w-[250px] flex-1"><Search className="absolute left-3 top-2.5 text-muted-foreground" /><Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar platillo..." className="pl-10" /></div><select value={meal} onChange={(e) => setMeal(e.target.value)} className="rounded-md border bg-background px-3 text-sm"><option>Todos</option><option>Desayuno</option><option>Comida</option><option>Cena</option></select><select value={proveedor} onChange={(e) => setProveedor(e.target.value)} aria-label="Filtrar por proveedor" className="rounded-md border bg-background px-3 text-sm"><option value="Todos">Todos los proveedores</option>{proveedores.map((nombre) => <option key={nombre} value={nombre}>{nombre}</option>)}</select><label className="flex items-center gap-2 rounded-md border px-3 text-sm"><Switch checked={activeOnly} onCheckedChange={setActiveOnly} /> Solo activos</label></div>
+        <div className="mb-4 flex items-center justify-between text-sm text-muted-foreground"><span>{filtered.length} platillos en catálogo</span><span>{cargadoA ? `Actualizado a las ${cargadoA.toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" })}` : ""}</span></div>
         <BloqueEstado variante="tarjetas" cantidad={6} cargando={platillos.loading} error={platillos.error} vacio={!filtered.length} mensajeVacio="No hay platillos que coincidan con la búsqueda." onReintentar={platillos.reload} />
         <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">{filtered.map((dish) => <Card key={dish.id} className="group overflow-hidden transition-shadow hover:shadow-lg"><div className="relative h-44 overflow-hidden">{dish.foto_url ? <img src={dish.foto_url} alt={dish.nombre} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" /> : <div className="h-full w-full bg-gradient-to-br from-primary/30 to-muted" />}<Badge className="absolute left-3 top-3 bg-background/90 text-foreground backdrop-blur">{etiquetasTiempoComida[dish.tiempo_comida]}</Badge><span className={`absolute right-3 top-3 size-2 rounded-full ${dish.activo ? "bg-emerald-500" : "bg-muted-foreground"}`} /></div><CardContent className="p-4"><div className="flex items-start justify-between gap-3"><div><h3 className="font-display font-bold">{dish.nombre}</h3><p className="mt-1 text-xs text-muted-foreground">{dish.comedor_nombre} · {dish.calorias} kcal</p></div><span className="font-display text-lg font-bold">${dish.precio_venta}<small className="text-xs font-normal"> MXN</small></span></div><div className="mt-3 flex flex-wrap gap-1.5">{dish.alergenos.map((allergen) => <Badge key={allergen} variant="outline" className="text-[11px]">{allergen}</Badge>)}{dish.etiquetas.map((tag) => <Badge key={tag} variant="secondary" className="text-[11px]">{tag}</Badge>)}</div><Button variant="ghost" className="mt-3 w-full justify-between" onClick={() => setSelected(dish)}>Ver detalle <ChevronRight /></Button></CardContent></Card>)}</div>
       </>}
@@ -100,8 +104,11 @@ function HistorialPrecios({ platilloId }: { platilloId: string }) {
 }
 
 function WeeklyMenu() {
-  const semana = useAsync(() => obtenerMenuSemanal("2026-11-16"))
-  return <div><div className="mb-5 flex items-center justify-between"><div><h2 className="font-display text-xl font-bold">Semana del 16 al 22 de noviembre</h2><p className="text-sm text-muted-foreground">Los cambios se guardan como borrador.</p></div><div className="flex gap-2"><Button variant="outline" size="icon"><ChevronLeft /></Button><Button variant="outline" size="icon"><ChevronRight /></Button><Button className="gap-2"><Check /> Publicar menú</Button></div></div><BloqueEstado variante="tarjetas" cantidad={3} cargando={semana.loading} error={semana.error} vacio={false} mensajeVacio="" onReintentar={semana.reload} />{semana.data && <div className="grid overflow-x-auto rounded-xl border md:grid-cols-6">{semana.data.map((dia) => <div key={dia.fecha} className="min-w-[170px] border-r last:border-0"><div className="border-b bg-muted p-3 text-center text-sm font-bold">{etiquetaDiaCorta(dia.fecha)}</div>{(Object.keys(etiquetasTiempoComida) as TiempoComida[]).map((tiempo) => { const celda = dia.celdas[tiempo]; return <div key={tiempo} className="min-h-36 border-b p-3 last:border-0"><p className="mb-2 text-[11px] font-semibold uppercase text-muted-foreground">{etiquetasTiempoComida[tiempo]}</p>{celda && <div className="rounded-lg border bg-card p-2 text-xs shadow-sm"><strong>{celda.platillo_nombre}</strong><p className="mt-1 text-muted-foreground">${celda.precio_venta} · {celda.porciones_maximas} porciones</p></div>}</div> })}</div>)}</div>}</div>
+  const semanaActual = lunesDe(FECHA_OPERACION)
+  const [inicio, setInicio] = useState(semanaActual)
+  const semana = useAsync(() => obtenerMenuSemanal(inicio), [inicio])
+  const hayPlatillos = !!semana.data?.some((dia) => Object.keys(dia.celdas).length > 0)
+  return <div><div className="mb-5 flex flex-wrap items-center justify-between gap-3"><div><h2 className="font-display text-xl font-bold">Semana del {formatRangoFechas(inicio, sumarDias(inicio, 5))}</h2><p className="text-sm text-muted-foreground">Se arma sola: muestra los platillos publicados que cada comedor marcó como disponibles ese día.</p></div><div className="flex gap-2">{inicio !== semanaActual && <Button variant="outline" onClick={() => setInicio(semanaActual)}>Esta semana</Button>}<Button variant="outline" size="icon" aria-label="Semana anterior" onClick={() => setInicio((s) => sumarDias(s, -7))}><ChevronLeft /></Button><Button variant="outline" size="icon" aria-label="Semana siguiente" onClick={() => setInicio((s) => sumarDias(s, 7))}><ChevronRight /></Button></div></div><BloqueEstado variante="tarjetas" cantidad={3} cargando={semana.loading} error={semana.error} vacio={false} mensajeVacio="" onReintentar={semana.reload} />{semana.data && !hayPlatillos && <p role="status" className="mb-4 rounded-lg border border-dashed p-4 text-sm text-muted-foreground">Ningún comedor ha marcado disponibilidad para esta semana todavía. Cada comedor lo hace desde su portal, en «Disponibilidad».</p>}{semana.data && <div className="grid overflow-x-auto rounded-xl border md:grid-cols-6">{semana.data.map((dia) => <div key={dia.fecha} className="min-w-[170px] border-r last:border-0"><div className="border-b bg-muted p-3 text-center text-sm font-bold">{etiquetaDiaCorta(dia.fecha)}</div>{(Object.keys(etiquetasTiempoComida) as TiempoComida[]).map((tiempo) => { const celda = dia.celdas[tiempo]; return <div key={tiempo} className="min-h-36 border-b p-3 last:border-0"><p className="mb-2 text-[11px] font-semibold uppercase text-muted-foreground">{etiquetasTiempoComida[tiempo]}</p>{celda && <div className="rounded-lg border bg-card p-2 text-xs shadow-sm"><strong>{celda.platillo_nombre}</strong><p className="mt-1 text-muted-foreground">${celda.precio_venta} · {celda.porciones_maximas} porciones</p></div>}</div> })}</div>)}</div>}</div>
 }
 
 function Plans() {

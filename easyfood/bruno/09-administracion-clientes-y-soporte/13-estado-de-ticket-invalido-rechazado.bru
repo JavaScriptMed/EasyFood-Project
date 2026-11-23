@@ -1,0 +1,28 @@
+meta {
+  name: Estado de ticket inválido (rechazado)
+  type: http
+  seq: 13
+}
+
+patch {
+  url: {{baseUrl}}/api/v1/admin/tickets/{{ticketId}}/estado
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenSoporte}}
+}
+
+body:json {
+  {
+    "estado": "archivado"
+  }
+}
+
+tests {
+  test("responde 422 con el campo estado", function () {
+    expect(res.getStatus()).to.equal(422);
+    expect(res.body.errores).to.have.property("estado");
+  });
+}

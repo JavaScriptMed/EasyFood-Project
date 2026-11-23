@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation"
 import { useState } from "react"
 import { SelectorTema } from "@/components/tema"
 import { listarIncidencias } from "@/lib/api"
-import { cerrarSesion, useSesionPortal } from "@/lib/sesion"
+import { cerrarSesion, useSesionPortal, useUsuarioSesion } from "@/lib/sesion"
 import { useAsync } from "@/lib/use-async"
 import { Bell, ChevronRight, LayoutDashboard, UtensilsCrossed, ShoppingBag, Route, Bike, Users, LifeBuoy, Settings, Menu, X, Building2, Landmark, Receipt, LogOut, Wallet, MapPin } from "lucide-react"
 
@@ -20,6 +20,7 @@ export function AdminShell({ children }: { children: React.ReactNode; active?: s
   const path = usePathname()
   const [open, setOpen] = useState(false)
   const sesionOk = useSesionPortal("admin")
+  const sesion = useUsuarioSesion()
   const abiertas = useAsync(() => listarIncidencias({ abiertas: true }))
   const pendientes = abiertas.data?.length ?? 0
   const activo = (href: string) => (href === "/admin" ? path === href : path === href || path.startsWith(`${href}/`))
@@ -41,8 +42,8 @@ export function AdminShell({ children }: { children: React.ReactNode; active?: s
         </div>)}
       </nav>
       <div className="m-3 flex items-center gap-3 rounded-xl border bg-muted/40 p-3">
-        <span className="grid size-9 place-items-center rounded-full bg-primary/20 text-sm font-bold">A</span>
-        <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold leading-tight">Admin</p><p className="truncate text-xs text-muted-foreground">Administrador</p></div>
+        <span className="grid size-9 place-items-center rounded-full bg-primary/20 text-sm font-bold">{(sesion.usuario?.nombre ?? "Admin").trim().charAt(0).toUpperCase()}</span>
+        <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold leading-tight">{sesion.usuario?.nombre ?? "Admin"}</p><p className="truncate text-xs text-muted-foreground">{sesion.rol === "soporte" ? "Soporte" : "Administrador"}</p></div>
         <Link href="/login" onClick={cerrarSesion} aria-label="Cerrar sesión" className="rounded-lg p-2 text-muted-foreground transition hover:bg-muted hover:text-foreground"><LogOut className="size-4" /></Link>
       </div>
     </aside>
