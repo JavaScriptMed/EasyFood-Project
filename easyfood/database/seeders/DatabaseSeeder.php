@@ -2,7 +2,6 @@
 
 namespace Database\Seeders;
 
-use App\Models\User;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 
@@ -15,11 +14,10 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        // User::factory(10)->create();
-
-        User::factory()->create([
-            'name' => 'Test User',
-            'email' => 'test@example.com',
+        // Ejecutamos únicamente los seeders oficiales del sistema y de ejemplo
+        $this->call([
+            InitialDataSeeder::class,     // Inserta los roles base (customer, admin, driver, etc.)
+            DatosDeEjemploSeeder::class,  // Carga todo el entorno completo de EasyLunch (zonas, comedores, empresas, etc.)
         ]);
     }
 }
