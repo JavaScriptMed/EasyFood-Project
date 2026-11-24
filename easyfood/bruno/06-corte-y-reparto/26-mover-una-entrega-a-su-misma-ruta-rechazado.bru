@@ -1,0 +1,28 @@
+meta {
+  name: Mover una entrega a la ruta donde ya está (rechazado)
+  type: http
+  seq: 26
+}
+
+post {
+  url: {{baseUrl}}/api/v1/admin/paradas/{{entregaPorMover}}/mover
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+body:json {
+  {
+    "ruta_id": {{rutaDeLaEntrega}}
+  }
+}
+
+tests {
+  test("responde 422 misma_ruta", function () {
+    expect(res.getStatus()).to.equal(422);
+    expect(res.body.codigo).to.equal("misma_ruta");
+  });
+}

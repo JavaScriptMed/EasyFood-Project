@@ -1,0 +1,27 @@
+meta {
+  name: Mover una entrega como soporte (rechazado)
+  type: http
+  seq: 28
+}
+
+post {
+  url: {{baseUrl}}/api/v1/admin/paradas/{{entregaPorMover}}/mover
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenSoporte}}
+}
+
+body:json {
+  {
+    "ruta_id": {{rutaDeLaEntrega}}
+  }
+}
+
+tests {
+  test("responde 403", function () {
+    expect(res.getStatus()).to.equal(403);
+  });
+}

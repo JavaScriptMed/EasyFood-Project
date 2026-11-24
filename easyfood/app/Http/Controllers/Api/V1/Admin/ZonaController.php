@@ -29,7 +29,7 @@ class ZonaController extends Controller
         return response()->json($zonas->detalle($zona['id']), 201);
     }
 
-    /** Reemplaza el polígono de una zona. El nombre no cambia: ya está escrito en empresas, comedores, repartidores y direcciones. */
+    /** Reemplaza el polígono de una zona. El nombre no cambia con este endpoint: para corregirlo usa PATCH /zonas/{id}. */
     public function update(Request $request, int $id, ZonasDeEntrega $zonas): JsonResponse
     {
         $d = $request->validate(['geojson' => 'required|array']);
@@ -37,6 +37,14 @@ class ZonaController extends Controller
         $zonas->guardar($request->user(), $actual['nombre'], $d['geojson']);
 
         return response()->json($zonas->detalle($id));
+    }
+
+    /** Cambia el nombre de la zona y lo actualiza en empresas, comedores, repartidores, rutas y direcciones. 422 `zona_repetida` si ya existe otra con ese nombre. */
+    public function renombrar(Request $request, int $id, ZonasDeEntrega $zonas): JsonResponse
+    {
+        $d = $request->validate(['nombre' => 'required|string|max:100']);
+
+        return response()->json($zonas->renombrar($request->user(), $id, $d['nombre']));
     }
 
     /** Carga varias zonas de una vez desde un FeatureCollection (cada polígono con su `properties.nombre`). Todo o nada. */

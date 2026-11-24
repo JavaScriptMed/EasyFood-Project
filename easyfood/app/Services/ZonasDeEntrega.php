@@ -7,8 +7,8 @@ use App\Models\User;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Las zonas de entrega: un polígono por zona (PostGIS). Su nombre es el que se escribe en empresas, comedores, repartidores y direcciones,
- * por eso NO se renombra: cambiarlo dejaría esos textos apuntando a una zona que ya no existe. Se valida el GeoJSON antes de guardar
+ * Las zonas de entrega: un polígono por zona (PostGIS). Su nombre es el que se escribe en empresas, comedores, repartidores, rutas y direcciones,
+ * por eso solo se cambia con `renombrar`, que actualiza todos esos textos en la misma transacción (editar el polígono nunca toca el nombre). Se valida el GeoJSON antes de guardar
  * (coordenadas [longitud, latitud], anillos cerrados, sin cruzarse), y al guardar la base recalcula la zona de todas las direcciones.
  *
  * Lo usan el comando `easylunch:cargar-zona` y la API (`/admin/zonas`).
@@ -46,6 +46,39 @@ class ZonasDeEntrega
             Bitacora::registrar($actor, $existente ? 'actualizar' : 'crear', 'zonas', $id, ($existente ? 'Cambió el polígono de' : 'Creó').' la zona «'.$nombreFinal.'».');
 
             return ['id' => $id, 'nombre' => $nombreFinal, 'creada' => ! $existente, 'area_km2' => $this->area($id)];
+        });
+    }
+
+    /**
+     * Cambia el nombre de una zona (por ejemplo, para corregir una falta de ortografía) y lo actualiza en todos los lugares donde está escrito como
+     * texto: empresas, comedores, repartidores y rutas. Las direcciones se recalculan solas (el trigger de `zonas`). Todo o nada.
+     *
+     * @return array<string, mixed> la zona con su polígono, como `detalle`
+     */
+    public function renombrar(?User $actor, int $id, string $nombre): array
+    {
+        $nombre = trim($nombre);
+        if ($nombre === '' || mb_strlen($nombre) > 100) {
+            throw new ReglaDeNegocioException('nombre_de_zona_invalido', 'El nombre de la zona es obligatorio y de hasta 100 caracteres.');
+        }
+
+        return DB::transaction(function () use ($actor, $id, $nombre) {
+            $zona = DB::table('zonas')->where('id', $id)->lockForUpdate()->first() ?? throw new \Illuminate\Database\Eloquent\ModelNotFoundException;
+            if ($zona->nombre === $nombre) {
+                return $this->detalle($id);
+            }
+            $repetida = DB::table('zonas')->where('id', '<>', $id)->whereRaw('lower(nombre) = lower(?)', [$nombre])->first();
+            if ($repetida) {
+                throw new ReglaDeNegocioException('zona_repetida', "Ya hay otra zona llamada «{$repetida->nombre}»: elige un nombre distinto.");
+            }
+
+            DB::update('update zonas set nombre = ?, actualizado_en = now() where id = ?', [$nombre, $id]);
+            foreach ([['empresas', 'zona'], ['providers', 'zona'], ['repartidores', 'zona_base'], ['rutas', 'zona']] as [$tabla, $columna]) {
+                DB::table($tabla)->whereRaw("lower({$columna}) = lower(?)", [$zona->nombre])->update([$columna => $nombre]);
+            }
+            Bitacora::registrar($actor, 'actualizar', 'zonas', $id, "Cambió el nombre de la zona «{$zona->nombre}» a «{$nombre}».");
+
+            return $this->detalle($id);
         });
     }
 

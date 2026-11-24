@@ -127,7 +127,7 @@ class GeneradorDeRutas
      *
      * @return array{0: string, 1: string, 2: \Closure}
      */
-    private function ventana(\Illuminate\Support\Collection $items, ?string $noAntesDe): array
+    public function ventana(\Illuminate\Support\Collection $items, ?string $noAntesDe): array
     {
         $empresas = $items->where('tipo', 'empresa');
         $clientes = $items->where('tipo', 'cliente');
@@ -146,7 +146,7 @@ class GeneradorDeRutas
     }
 
     /** A qué hora termina la ruta de empresas que ese repartidor ya tiene ese día (para que la de clientes no se le empalme). */
-    private function finDeSuRutaDeEmpresas(Repartidor $repartidor, string $fecha): ?string
+    public function finDeSuRutaDeEmpresas(Repartidor $repartidor, string $fecha): ?string
     {
         return Ruta::query()->whereDate('fecha', $fecha)->where('repartidor_id', $repartidor->id)
             ->whereHas('paradas', fn ($p) => $p->whereNotNull('entrega_empresa_id'))->max('ventana_fin');
