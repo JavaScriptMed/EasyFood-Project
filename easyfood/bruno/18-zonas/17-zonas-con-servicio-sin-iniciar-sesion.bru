@@ -1,0 +1,25 @@
+meta {
+  name: Zonas con servicio, sin iniciar sesión
+  type: http
+  seq: 17
+}
+
+get {
+  url: {{baseUrl}}/api/v1/zonas
+  body: none
+  auth: none
+}
+
+tests {
+  test("responde 200 sin token", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("solo trae id, nombre y polígono de zonas activas", function () {
+    expect(res.body.length).to.be.greaterThan(0);
+    res.body.forEach((zona) => {
+      expect(Object.keys(zona)).to.eql(["id", "nombre", "geojson"]);
+      expect(zona.geojson.type).to.equal("Feature");
+    });
+  });
+}

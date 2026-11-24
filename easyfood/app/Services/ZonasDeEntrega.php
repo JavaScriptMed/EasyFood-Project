@@ -127,6 +127,22 @@ class ZonasDeEntrega
         return array_map(fn ($z) => $this->vista($z), DB::select($this->consultaBase().' order by z.nombre'));
     }
 
+    /**
+     * Las zonas donde hay servicio (solo las activas), para mostrarlas sin iniciar sesión: nombre y un polígono simplificado (unos 40 m de
+     * tolerancia, 4 decimales) como Feature de GeoJSON. No incluye conteos ni nada interno.
+     *
+     * @return array<int, array{id: int, nombre: string, geojson: array<string, mixed>}>
+     */
+    public function disponibles(): array
+    {
+        $filas = DB::select('select id, nombre, ST_AsGeoJSON(ST_SimplifyPreserveTopology(area::geometry, 0.0004), 4) as g from zonas where activo order by nombre');
+
+        return array_map(fn ($z) => [
+            'id' => $z->id, 'nombre' => $z->nombre,
+            'geojson' => ['type' => 'Feature', 'properties' => ['nombre' => $z->nombre], 'geometry' => json_decode($z->g, true)],
+        ], $filas);
+    }
+
     /** @return array<string, mixed> la zona con su polígono como un Feature de GeoJSON */
     public function detalle(int $id): array
     {

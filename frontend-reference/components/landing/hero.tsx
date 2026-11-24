@@ -3,7 +3,8 @@
 import { motion, useReducedMotion } from 'motion/react'
 import { ArrowRight, MapPin } from 'lucide-react'
 import { Ambiente } from './ambiente'
-import { ObjetoHero } from './objeto-hero'
+import { BowlHero } from './bowl-hero'
+import { PolvoDorado } from './particulas-hero'
 import { ease, LineasMascara, Magnetico } from './ui'
 
 export function Hero() {
@@ -13,7 +14,9 @@ export function Hero() {
   return (
     <section id="inicio" className="relative isolate flex min-h-[100svh] items-center overflow-hidden">
       <Ambiente />
-      <div className="relative mx-auto grid w-full max-w-7xl items-center gap-10 px-5 pb-16 pt-32 lg:grid-cols-[1.15fr_0.85fr] lg:gap-8 lg:px-8 lg:pb-24">
+      <PolvoDorado />
+      <a href="#platillos" className="absolute left-5 top-1/2 z-10 hidden -translate-y-1/2 items-center gap-4 text-[11px] font-bold uppercase tracking-[0.3em] text-lgold/70 transition-colors hover:text-lgold xl:flex [writing-mode:vertical-rl] rotate-180"><span aria-hidden="true" className="h-14 w-px bg-lgold/60" />Explora el menú</a>
+      <div className="relative mx-auto grid w-full max-w-7xl items-center gap-10 px-5 pb-16 pt-32 lg:grid-cols-[1fr_1fr] lg:gap-6 lg:px-8 lg:pb-24">
         <div>
           <h1 className="font-heading text-[2.6rem] leading-[1.02] text-lcream sm:text-6xl lg:text-7xl xl:text-[5.5rem]">
             <LineasMascara alMontar delay={0.15} lineas={['Tu comida', 'de la semana,', <span key="r" className="text-lgold">resuelta.</span>]} />
@@ -27,7 +30,7 @@ export function Hero() {
         </div>
 
         <motion.div {...(reducido ? {} : { initial: { opacity: 0, scale: 0.92 }, animate: { opacity: 1, scale: 1 }, transition: { duration: 1.1, ease, delay: 0.4 } })}>
-          <ObjetoHero />
+          <BowlHero />
         </motion.div>
       </div>
     </section>

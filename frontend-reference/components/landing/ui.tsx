@@ -1,7 +1,7 @@
 'use client'
 
-import { motion, useMotionValue, useReducedMotion, useSpring } from 'motion/react'
-import type { PointerEvent, ReactNode } from 'react'
+import { motion, useInView, useMotionValue, useReducedMotion, useSpring } from 'motion/react'
+import { useRef, type PointerEvent, type ReactNode } from 'react'
 
 export const ease = [0.22, 1, 0.36, 1] as const
 const viewport = { once: true, margin: '0px 0px -12% 0px' } as const
@@ -16,14 +16,17 @@ export function Reveal({ children, delay = 0, className = '', y = 28 }: { childr
 /** Texto por líneas con efecto de máscara: cada línea sube desde debajo de su caja. */
 export function LineasMascara({ lineas, className = '', lineaClassName = '', delay = 0, alMontar = false }: { lineas: ReactNode[]; className?: string; lineaClassName?: string; delay?: number; alMontar?: boolean }) {
   const reducido = useReducedMotion()
+  // Se observa el contenedor y no cada línea: la línea arranca recortada por su máscara y el detector la daría siempre por no visible (el título nunca aparecía).
+  const caja = useRef<HTMLSpanElement>(null)
+  const visto = useInView(caja, { once: true, margin: '0px 0px -12% 0px' })
   return (
-    <span className={`block ${className}`}>
+    <span ref={caja} className={`block ${className}`}>
       {lineas.map((linea, i) => (
         <span key={i} className="block overflow-hidden pb-[0.14em] -mb-[0.14em]">
           {reducido ? (
             <span className={`block ${lineaClassName}`}>{linea}</span>
           ) : (
-            <motion.span className={`block will-change-transform ${lineaClassName}`} initial={{ y: '115%' }} {...(alMontar ? { animate: { y: 0 } } : { whileInView: { y: 0 }, viewport })} transition={{ duration: 0.9, ease, delay: delay + i * 0.12 }}>{linea}</motion.span>
+            <motion.span className={`block will-change-transform ${lineaClassName}`} initial={{ y: '115%' }} animate={{ y: alMontar || visto ? 0 : '115%' }} transition={{ duration: 0.9, ease, delay: delay + i * 0.12 }}>{linea}</motion.span>
           )}
         </span>
       ))}

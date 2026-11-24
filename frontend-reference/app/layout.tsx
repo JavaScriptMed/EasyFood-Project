@@ -1,6 +1,7 @@
 import { Analytics } from '@vercel/analytics/next'
 import type { Metadata, Viewport } from 'next'
 import { DM_Sans, Inter, Plus_Jakarta_Sans } from 'next/font/google'
+import { PantallaDeCarga } from '@/components/pantalla-de-carga'
 import { AvisosTema } from '@/components/tema'
 import { scriptTema } from '@/lib/tema'
 import './globals.css'
@@ -51,6 +52,7 @@ export default function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: scriptTema }} />
       </head>
       <body className={`${inter.variable} ${jakarta.variable} ${dmSans.variable} antialiased`}>
+        <PantallaDeCarga />
         {children}
         <AvisosTema />
         {process.env.NODE_ENV === 'production' && <Analytics />}

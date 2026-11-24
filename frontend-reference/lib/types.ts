@@ -1019,3 +1019,10 @@ export interface MensajeContacto {
 }
 
 export type NuevoMensajeContacto = Pick<MensajeContacto, 'nombre' | 'correo' | 'mensaje'> & { empresa: string }
+
+/** Una zona con servicio, tal como la ve cualquier visitante (sin sesión): nombre y polígono simplificado como Feature de GeoJSON. */
+export interface ZonaDisponible {
+  id: string
+  nombre: string
+  geojson: { type: 'Feature'; properties: { nombre: string }; geometry: { type: 'Polygon' | 'MultiPolygon'; coordinates: unknown } }
+}

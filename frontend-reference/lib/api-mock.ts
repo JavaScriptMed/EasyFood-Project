@@ -17,7 +17,7 @@ import type {
   CalificacionPendiente, CalificarEntrega, CalificarPlatillo, CostoOperativo, IndicadoresEmpresa, NuevoCostoOperativo, ProgramarPrecio, EdicionComedor, EdicionEmpleado, EdicionEmpresa, EdicionPlan, EdicionRepartidor, EdicionUsuarioAcceso, EntregaDetalle, EstadoContrato, FacturaConEmpresa, FacturaDetalle, FacturaMensual, FilaReporteProveedor, GuardarPlatillo, HistorialPrecio,
   LiquidacionComedor, LiquidacionConComedor, MenuSemanalDia, MensajeTicket, NuevaEmpresa, NuevoComedor, ResultadoImportarZonas, ZonaDetalle, NuevoPlan, NuevoRepartidor, OrdenProduccionDetalle, PedidoDetalle,
   CorreoOmitido, NuevasInvitaciones, ResultadoInvitacionesEnLote, PedidosMananaEmpresa, Plan, Platillo, PlatilloDetalle, RegistroAuditoriaDetalle, RepartidorDetalle, ResultadoAltaEmpleados, ResultadoCorte, RutaDetalle,
-  CapacidadDelAuto, ResultadoMoverParada, EstadoTicket, Ticket, MensajeContacto, NuevoMensajeContacto, ClienteDetalle, ClienteResumen, ConsumoDiario, EstadoInvitacion, Incidencia, MiEleccion, MiMenu, OpcionMenu, InvitacionDetalle, InvitacionPublica, Invitacion, NuevaInvitacion, Portal, ResultadoAceptacion, SolicitudRestablecimiento, TipoOrganizacion, UsuarioAcceso, ValidacionToken, RegistroAuditoria, Repartidor, Ruta, TicketDetalle, TicketResumen, TiempoComida, TipoVehiculo, Usuario, UsuarioResumen,
+  CapacidadDelAuto, ResultadoMoverParada, ZonaDisponible, EstadoTicket, Ticket, MensajeContacto, NuevoMensajeContacto, ClienteDetalle, ClienteResumen, ConsumoDiario, EstadoInvitacion, Incidencia, MiEleccion, MiMenu, OpcionMenu, InvitacionDetalle, InvitacionPublica, Invitacion, NuevaInvitacion, Portal, ResultadoAceptacion, SolicitudRestablecimiento, TipoOrganizacion, UsuarioAcceso, ValidacionToken, RegistroAuditoria, Repartidor, Ruta, TicketDetalle, TicketResumen, TiempoComida, TipoVehiculo, Usuario, UsuarioResumen,
 } from './types'
 
 // ---------------------------------------------------------------- infraestructura
@@ -1099,6 +1099,8 @@ function exigirPoligono(g: unknown) {
 }
 
 export const listarZonas = () => llamar<ZonaDetalle[]>(() => [...zonasMock].sort((a, b) => a.nombre.localeCompare(b.nombre)))
+/** Las zonas activas con su polígono, como las entrega el sitio público. */
+export const listarZonasDisponibles = () => llamar<ZonaDisponible[]>(() => zonasMock.filter((z) => z.activo && poligonosMock[z.nombre]).map((z) => ({ id: z.id, nombre: z.nombre, geojson: poligonosMock[z.nombre] as ZonaDisponible['geojson'] })))
 export const obtenerZona = (id: string) => llamar<ZonaDetalle>(() => {
   const zona = zonasMock.find((z) => z.id === id)
   if (!zona) throw new Error('La zona no existe.')

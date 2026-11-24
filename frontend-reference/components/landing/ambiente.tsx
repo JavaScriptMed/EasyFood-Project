@@ -16,9 +16,8 @@ function azar(semilla: number) {
 
 const rnd = azar(7)
 const vapor = Array.from({ length: 11 }, (_, i) => ({ left: `${(i * 9.4 + rnd() * 6).toFixed(1)}%`, tamano: Math.round(110 + rnd() * 120), dur: 15 + rnd() * 11, retraso: -(i * 2.3 + rnd() * 3), dx: Math.round(-40 + rnd() * 80), op: 0.18 + rnd() * 0.16 }))
-const destellos = Array.from({ length: 22 }, () => ({ left: `${(rnd() * 100).toFixed(1)}%`, top: `${(18 + rnd() * 72).toFixed(1)}%`, tamano: Math.round(3 + rnd() * 4), dur: 5 + rnd() * 5, retraso: -(rnd() * 9), dx: Math.round(-14 + rnd() * 28), op: 0.55 + rnd() * 0.4 }))
 
-/** Fondo del hero: foto de platillos difuminada, viñeta oscura, vapor y destellos dorados. */
+/** Fondo del hero: foto de platillos difuminada, viñeta oscura, vapor (los destellos dorados son el polvo del canvas, que reacciona al cursor). */
 export function Ambiente() {
   const reducido = useReducedMotion()
   const [hayFoto, setHayFoto] = useState(true)
@@ -37,14 +36,10 @@ export function Ambiente() {
           </>
         )}
       </motion.div>
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_35%,rgba(14,22,29,0.25)_0%,rgba(14,22,29,0.82)_62%,#0E161D_100%)]" />
-      <div className="absolute inset-x-0 bottom-0 h-48 bg-gradient-to-b from-transparent to-lbg" />
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_38%,rgba(14,22,29,0.1)_0%,rgba(14,22,29,0.45)_70%,rgba(14,22,29,0.7)_100%)]" />
 
       {vapor.map((v, i) => (
         <span key={`v${i}`} className="landing-vapor absolute bottom-0 block rounded-full bg-[radial-gradient(closest-side,rgba(250,248,242,0.55),transparent)]" style={{ left: v.left, width: v.tamano, height: v.tamano, ['--dur' as string]: `${v.dur}s`, ['--delay' as string]: `${v.retraso}s`, ['--dx' as string]: `${v.dx}px`, ['--op' as string]: v.op }} />
-      ))}
-      {destellos.map((d, i) => (
-        <span key={`d${i}`} className="landing-destello absolute block rounded-full bg-lgold shadow-[0_0_12px_3px_rgba(224,168,19,0.55)]" style={{ left: d.left, top: d.top, width: d.tamano, height: d.tamano, ['--dur' as string]: `${d.dur}s`, ['--delay' as string]: `${d.retraso}s`, ['--dx' as string]: `${d.dx}px`, ['--op' as string]: d.op }} />
       ))}
     </div>
   )

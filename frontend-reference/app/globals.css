@@ -354,6 +354,153 @@ html {
 }
 
 
+/* Fondo de la página de inicio: verduras en trazo dorado sobre azul oscuro (se repite y queda fijo al desplazarse). */
+.landing-patron {
+  background-color: #0e161d;
+  background-image: url('/fondo/patron-verduras.webp');
+  background-size: 540px 540px;
+  opacity: 0.3;
+}
+
+/* Conector punteado entre los pasos: puntos dorados que avanzan de un paso al siguiente. */
+@keyframes landing-puntos {
+  to {
+    background-position: 28px 0;
+  }
+}
+
+.landing-puntos {
+  background-image: radial-gradient(circle, #e0a813 2.2px, transparent 2.8px);
+  background-size: 14px 8px;
+  background-repeat: repeat-x;
+  background-position: 0 center;
+  animation: landing-puntos 1.6s linear infinite;
+}
+
+/* Respiración del borde dorado de las tarjetas. */
+@keyframes landing-brillo {
+  0%,
+  100% {
+    box-shadow: 0 0 0 1px rgba(224, 168, 19, 0.75), 0 0 26px -6px rgba(224, 168, 19, 0.35);
+  }
+  50% {
+    box-shadow: 0 0 0 1px rgba(224, 168, 19, 0.95), 0 0 46px -4px rgba(224, 168, 19, 0.6);
+  }
+}
+
+.landing-brillo {
+  animation: landing-brillo 4.2s ease-in-out infinite;
+}
+
+/* Pantalla de carga: camioneta en marcha con barra de progreso. */
+@keyframes carga-bote {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-3px);
+  }
+}
+
+@keyframes carga-rueda {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes carga-camino {
+  to {
+    transform: translateX(-60px);
+  }
+}
+
+@keyframes carga-humo {
+  0% {
+    transform: translate(0, 0) scale(0.5);
+    opacity: 0;
+  }
+  25% {
+    opacity: 0.9;
+  }
+  100% {
+    transform: translate(-26px, -46px) scale(1.5);
+    opacity: 0;
+  }
+}
+
+@keyframes carga-polvo {
+  0% {
+    transform: translate(0, 0) scale(0.6);
+    opacity: 0.7;
+  }
+  100% {
+    transform: translate(-34px, -10px) scale(1.4);
+    opacity: 0;
+  }
+}
+
+@keyframes carga-lineas {
+  0%,
+  100% {
+    transform: translateX(0);
+    opacity: 0.35;
+  }
+  50% {
+    transform: translateX(-10px);
+    opacity: 0.9;
+  }
+}
+
+.carga-camion {
+  animation: carga-bote 0.55s ease-in-out infinite;
+}
+
+.carga-rueda {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: carga-rueda 0.7s linear infinite;
+}
+
+.carga-camino {
+  animation: carga-camino 0.6s linear infinite;
+}
+
+.carga-humo {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: carga-humo 1.5s ease-out var(--retraso, 0s) infinite;
+}
+
+.carga-polvo {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: carga-polvo 1.1s ease-out var(--retraso, 0s) infinite;
+}
+
+.carga-lineas {
+  animation: carga-lineas 0.5s ease-in-out var(--retraso, 0s) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-puntos,
+  .landing-brillo,
+  .carga-camion,
+  .carga-rueda,
+  .carga-camino,
+  .carga-humo,
+  .carga-polvo,
+  .carga-lineas {
+    animation: none;
+  }
+
+  .carga-humo,
+  .carga-polvo {
+    opacity: 0.4;
+  }
+}
+
+
 /* ---------------------------------------------------------------- tema oscuro: textos de estado
    Las etiquetas de estado usan tonos 600/700 pensados para fondo claro; en oscuro se aclaran para mantener el contraste. */
 .dark .text-emerald-600, .dark .text-emerald-700 { color: oklch(0.82 0.15 160); }
