@@ -212,6 +212,8 @@ El correo es el acceso de la cuenta, así que solo se corrige **mientras la pers
 
 Un polígono por zona (PostGIS). Su **nombre** es el texto que se escribe en empresas, comedores, repartidores y direcciones, así que **no se renombra**. Solo `admin`.
 
+**Zonas con servicio, sin sesión.** `GET /api/v1/zonas` (público, 60 por minuto) devuelve solo las zonas **activas** como `[{ id, nombre, geojson }]`, con el polígono simplificado (Feature de GeoJSON, unos 40 m de tolerancia). No trae conteos ni datos internos. Lo usa el sitio de inicio para mostrar dónde hay cobertura, y sirve a las apps para listar las zonas.
+
 | Qué | Endpoint |
 |---|---|
 | Listar (con cuántas direcciones, empresas, comedores y repartidores usa cada una) | `GET /admin/zonas` |
