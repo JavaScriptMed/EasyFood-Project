@@ -15,8 +15,11 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        // Claves locales: van en ~/.gradle/gradle.properties, nunca en el repositorio.
         val stripeKey = project.findProperty("STRIPE_PUBLISHABLE_KEY") as? String ?: ""
         buildConfigField("String", "STRIPE_PUBLISHABLE_KEY", "\"$stripeKey\"")
+        val mapboxToken = project.findProperty("MAPBOX_ACCESS_TOKEN") as? String ?: ""
+        buildConfigField("String", "MAPBOX_ACCESS_TOKEN", "\"$mapboxToken\"")
     }
 
     buildTypes {
@@ -70,4 +73,7 @@ dependencies {
 
     // SDK de Stripe para pagos con tarjeta en Android
     implementation("com.stripe:stripe-android:20.48.0")
+
+    // Mapa para marcar el punto de la dirección y dibujar las zonas de cobertura
+    implementation("com.mapbox.maps:android:11.15.0")
 }
