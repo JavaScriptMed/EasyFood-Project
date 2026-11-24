@@ -37,8 +37,7 @@ export function Ambiente() {
           </>
         )}
       </motion.div>
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_35%,rgba(14,22,29,0.25)_0%,rgba(14,22,29,0.82)_62%,#0E161D_100%)]" />
-      <div className="absolute inset-x-0 bottom-0 h-48 bg-gradient-to-b from-transparent to-lbg" />
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_38%,rgba(14,22,29,0.1)_0%,rgba(14,22,29,0.45)_70%,rgba(14,22,29,0.7)_100%)]" />
 
       {vapor.map((v, i) => (
         <span key={`v${i}`} className="landing-vapor absolute bottom-0 block rounded-full bg-[radial-gradient(closest-side,rgba(250,248,242,0.55),transparent)]" style={{ left: v.left, width: v.tamano, height: v.tamano, ['--dur' as string]: `${v.dur}s`, ['--delay' as string]: `${v.retraso}s`, ['--dx' as string]: `${v.dx}px`, ['--op' as string]: v.op }} />
