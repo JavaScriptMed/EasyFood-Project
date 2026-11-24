@@ -3,6 +3,7 @@
 import { useState, type FormEvent } from 'react'
 import { Check, CircleAlert, Clock3, Mail, MapPin, MessageCircle, Phone } from 'lucide-react'
 import { enviarMensajeContacto } from '@/lib/api'
+import { Cobertura } from './cobertura'
 import { Encabezado, Magnetico, Reveal } from './ui'
 
 type Campos = { nombre: string; correo: string; empresa: string; mensaje: string }
@@ -78,7 +79,7 @@ function Formulario() {
   }
 
   return (
-    <form onSubmit={enviar} noValidate className="flex flex-col gap-5 rounded-3xl border border-white/10 bg-white/[0.04] p-6 sm:p-8">
+    <form onSubmit={enviar} noValidate className="flex flex-col gap-5 rounded-3xl border border-white/10 bg-[#101a22]/90 p-6 backdrop-blur-sm sm:p-8">
       <Campo id="nombre" etiqueta="Nombre" error={errores.nombre}><input id="nombre" name="nombre" autoComplete="name" value={campos.nombre} onChange={(e) => cambiar('nombre', e.target.value)} onBlur={() => salir('nombre')} placeholder="Tu nombre" {...atributos('nombre')} /></Campo>
       <Campo id="correo" etiqueta="Correo" error={errores.correo}><input id="correo" name="correo" type="email" autoComplete="email" value={campos.correo} onChange={(e) => cambiar('correo', e.target.value)} onBlur={() => salir('correo')} placeholder="tu@empresa.mx" {...atributos('correo')} /></Campo>
       <Campo id="empresa" etiqueta="Empresa" opcional><input id="empresa" name="empresa" autoComplete="organization" value={campos.empresa} onChange={(e) => cambiar('empresa', e.target.value)} placeholder="Nombre de tu empresa" className={`${base} border-white/15`} /></Campo>
@@ -114,7 +115,8 @@ export function Contacto() {
               </li>
             ))}
           </ul>
-          <p className="mt-8 text-sm text-lcream/65">Los datos entre corchetes son provisionales.</p>
+          <Cobertura />
+          <p className="mt-6 text-sm text-lcream/65">Los datos entre corchetes son provisionales.</p>
         </Reveal>
       </div>
     </section>

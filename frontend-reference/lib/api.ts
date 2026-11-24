@@ -13,7 +13,7 @@ import * as mock from './api-mock'
 import type {
   BloqueHorario, CalificacionPendiente, CostoOperativo, IndicadoresEmpresa, InvitacionDetalle, InvitacionPublica, ResultadoAceptacion, SolicitudRestablecimiento,
   ResultadoAltaEmpleados, ResultadoInvitacionesEnLote, TipoOrganizacion, UsuarioAcceso, ValidacionToken, CalendarioServicio, ClienteDetalle, ClienteResumen, ComedorDetalle, ConfiguracionOperacion, ConsumoDiario, ContratoPorVencer, Corte,
-  DashboardAdmin, DiaSinServicio, DisponibilidadConPlatillo, EleccionEmpleado, Empleado, EmpleadoDetalle, EmpresaDetalle, EntregaDetalle, FacturaConEmpresa, HistorialPrecio, ResultadoImportarZonas, ZonaDetalle,
+  DashboardAdmin, DiaSinServicio, DisponibilidadConPlatillo, EleccionEmpleado, Empleado, EmpleadoDetalle, EmpresaDetalle, EntregaDetalle, FacturaConEmpresa, HistorialPrecio, ResultadoImportarZonas, ZonaDetalle, ZonaDisponible,
   FacturaDetalle, FacturaMensual, FilaReporteProveedor, IncidenciaDetalle, LiquidacionComedor, LiquidacionConComedor, MensajeContacto, MensajeTicket,
   MenuSemanalDia, MiEleccion, MiMenu, OrdenProduccionDetalle, PedidoDetalle, PedidosMananaEmpresa, Plan, PlatilloDetalle, RegistroAuditoriaDetalle,
   RepartidorDetalle, ResultadoCorte, Rol, RutaDetalle, TicketDetalle, TicketResumen, TipoVehiculo, VistaPreviaCorte,
@@ -191,6 +191,8 @@ const real: typeof mock = {
   listarComedores: async () => leer<ComedorDetalle[]>('/api/v1/admin/comedores'),
   obtenerComedor: async (id) => leer<ComedorDetalle>(esRol('comedor') ? '/api/v1/comedor/perfil' : `/api/v1/admin/comedores/${id}`),
   listarZonas: async () => leer<ZonaDetalle[]>('/api/v1/admin/zonas'),
+  // Público (sin sesión): las zonas activas con su polígono simplificado, para mostrar dónde hay servicio en la página de inicio.
+  listarZonasDisponibles: async () => ids(await http<ZonaDisponible[]>('GET', '/api/v1/zonas', { publico: true })),
   obtenerZona: async (id) => leer<ZonaDetalle>(`/api/v1/admin/zonas/${id}`),
   crearZona: async (nombre, geojson) => ids(await post<ZonaDetalle>('/api/v1/admin/zonas', { nombre, geojson })),
   reemplazarPoligonoZona: async (id, geojson) => ids(await put<ZonaDetalle>(`/api/v1/admin/zonas/${id}`, { geojson })),
@@ -392,6 +394,7 @@ export const crearPlan = elegir('crearPlan')
 export const cambiarEstadoPlan = elegir('cambiarEstadoPlan')
 export const crearComedor = elegir('crearComedor')
 export const listarZonas = elegir('listarZonas')
+export const listarZonasDisponibles = elegir('listarZonasDisponibles')
 export const obtenerZona = elegir('obtenerZona')
 export const crearZona = elegir('crearZona')
 export const reemplazarPoligonoZona = elegir('reemplazarPoligonoZona')

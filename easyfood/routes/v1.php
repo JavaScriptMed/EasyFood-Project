@@ -17,6 +17,7 @@ use App\Http\Controllers\Api\V1\Comedor;
 use App\Http\Controllers\Api\V1\Cuentas;
 use App\Http\Controllers\Api\V1\CalificacionMenuController;
 use App\Http\Controllers\Api\V1\ContactoController;
+use App\Http\Controllers\Api\V1\ZonaDisponibleController;
 use App\Http\Controllers\Api\V1\Empleado;
 use App\Http\Controllers\Api\V1\Empresa;
 use App\Http\Controllers\Api\V1\Repartidor;
@@ -29,6 +30,7 @@ Route::pattern('id', '[0-9]+');
 
 // ---------------------------------------------------------------------------------------------- público
 Route::post('contacto', [ContactoController::class, 'store'])->middleware('throttle:10,1')->name('v1.contacto.store');
+Route::get('zonas', [ZonaDisponibleController::class, 'index'])->middleware('throttle:60,1')->name('v1.zonas.disponibles');
 
 // Stripe avisa aquí cuando se cobra un pedido. Público: se confía en la firma del webhook, no en un token.
 Route::post('webhooks/stripe', [Webhooks\StripeController::class, 'recibir'])->middleware('throttle:300,1')->name('v1.webhooks.stripe');
