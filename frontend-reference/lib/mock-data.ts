@@ -67,11 +67,11 @@ export const usuarios: Usuario[] = [
 // ---------------------------------------------------------------- repartidores
 
 const repartidoresBase: { nombre: string; vehiculo: TipoVehiculo; zona: string; estado: Repartidor['estado']; bloques: BloqueHorario[]; asignadas: number; completadas: number; ubicacion: string; personalizado: boolean }[] = [
-  { nombre: 'Carlos Ramírez', vehiculo: 'motocicleta', zona: 'Centro', estado: 'en_ruta', bloques: ['manana', 'mediodia'], asignadas: 12, completadas: 7, ubicacion: '2026-11-16T12:45:00', personalizado: false },
-  { nombre: 'Sofía Hernández', vehiculo: 'bicicleta', zona: 'Providencia', estado: 'libre', bloques: ['mediodia'], asignadas: 0, completadas: 0, ubicacion: '2026-11-16T12:43:00', personalizado: false },
+  { nombre: 'Carlos Ramírez', vehiculo: 'automovil', zona: 'Centro', estado: 'en_ruta', bloques: ['manana', 'mediodia'], asignadas: 12, completadas: 7, ubicacion: '2026-11-16T12:45:00', personalizado: false },
+  { nombre: 'Sofía Hernández', vehiculo: 'automovil', zona: 'Providencia', estado: 'libre', bloques: ['mediodia'], asignadas: 0, completadas: 0, ubicacion: '2026-11-16T12:43:00', personalizado: false },
   { nombre: 'Diego Morales', vehiculo: 'automovil', zona: 'Zapopan', estado: 'asignado', bloques: ['manana'], asignadas: 18, completadas: 10, ubicacion: '2026-11-16T12:47:00', personalizado: false },
-  { nombre: 'Valeria Torres', vehiculo: 'motocicleta', zona: 'Tlaquepaque', estado: 'no_disponible', bloques: [], asignadas: 0, completadas: 0, ubicacion: '2026-11-16T10:48:00', personalizado: true },
-  { nombre: 'Andrés Castillo', vehiculo: 'bicicleta', zona: 'Centro', estado: 'libre', bloques: [], asignadas: 0, completadas: 0, ubicacion: '2026-11-16T12:40:00', personalizado: false },
+  { nombre: 'Valeria Torres', vehiculo: 'automovil', zona: 'Tlaquepaque', estado: 'no_disponible', bloques: [], asignadas: 0, completadas: 0, ubicacion: '2026-11-16T10:48:00', personalizado: true },
+  { nombre: 'Andrés Castillo', vehiculo: 'automovil', zona: 'Centro', estado: 'libre', bloques: [], asignadas: 0, completadas: 0, ubicacion: '2026-11-16T12:40:00', personalizado: false },
   { nombre: 'Mariana López', vehiculo: 'automovil', zona: 'Valle Real', estado: 'en_ruta', bloques: ['manana', 'mediodia'], asignadas: 26, completadas: 19, ubicacion: '2026-11-16T12:46:00', personalizado: false },
   { nombre: 'Luis Navarro', vehiculo: 'automovil', zona: 'Zapopan', estado: 'libre', bloques: [], asignadas: 0, completadas: 0, ubicacion: '2026-11-16T12:41:00', personalizado: false },
   { nombre: 'Fernanda Cruz', vehiculo: 'automovil', zona: 'Centro', estado: 'libre', bloques: [], asignadas: 0, completadas: 0, ubicacion: '2026-11-16T12:44:00', personalizado: false },
@@ -84,11 +84,11 @@ usuarios.push(...repartidoresBase.map((r, i): Usuario => ({
 
 export const repartidores: Repartidor[] = repartidoresBase.map((r, i) => ({
   id: `REP-${String(i + 1).padStart(3, '0')}`, usuario_id: `USR-REP-${String(i + 1).padStart(2, '0')}`, numero_empleado: numerosEmpleado[i], tipo_vehiculo: r.vehiculo,
-  vehiculo_personalizado: r.personalizado, placas: r.vehiculo === 'bicicleta' ? null : `JAL-${100 + i * 17}-${'ABCDEFGH'[i]}`, zona_base: r.zona, estado: r.estado,
+  vehiculo_personalizado: r.personalizado, placas: `JAL-${100 + i * 17}-${'ABCDEFGH'[i]}`, zona_base: r.zona, estado: r.estado,
   bloques_reservados: r.bloques, entregas_asignadas: r.asignadas, entregas_completadas: r.completadas, ultima_ubicacion_en: r.ubicacion,
 }))
 
-export const capacidades_vehiculo: Record<TipoVehiculo, number> = { bicicleta: 8, motocicleta: 15, automovil: 30 }
+export const capacidades_vehiculo: Record<TipoVehiculo, number> = { automovil: 30 }
 
 // ---------------------------------------------------------------- platillos
 
@@ -221,15 +221,15 @@ export const ordenes_produccion: OrdenProduccion[] = [
 ]
 
 const estadosEntrega: EntregaEmpresa['estado'][] = ['entregada', 'en_ruta', 'en_consolidacion', 'programada', 'no_localizado', 'reprogramada', 'cancelada', 'programada']
-const vehiculosEntrega: TipoVehiculo[] = ['bicicleta', 'motocicleta', 'automovil', 'bicicleta', 'motocicleta', 'automovil', 'bicicleta', 'motocicleta']
+const vehiculosEntrega: TipoVehiculo[] = ['automovil', 'automovil', 'automovil', 'automovil', 'automovil', 'automovil', 'automovil', 'automovil']
 
 export const entregas_empresa: EntregaEmpresa[] = empresasBase.map((e, i) => ({
   id: `EL-${1048 + i}`, empresa_id: e.id, ruta_id: i < 3 ? `R-0${i + 1}` : null, fecha: '2026-10-30', zona: e.zona, ventana_inicio: e.ventana[0], ventana_fin: e.ventana[1], estado: estadosEntrega[i], tipo_vehiculo: vehiculosEntrega[i],
 }))
 
 export const rutas: Ruta[] = [
-  { id: 'R-01', fecha: '2026-11-16', repartidor_id: 'REP-001', tipo_vehiculo: 'motocicleta', zona: 'Centro · Americana', bloque: 'manana', ventana_inicio: '07:00', ventana_fin: '09:00', capacidad_maxima: 15, entregas_asignadas: 15, distancia_km: 18.4, hora_fin_estimada: '08:52', excede_bloque: true, estado: 'borrador' },
-  { id: 'R-02', fecha: '2026-11-16', repartidor_id: 'REP-002', tipo_vehiculo: 'bicicleta', zona: 'Providencia', bloque: 'manana', ventana_inicio: '07:00', ventana_fin: '09:00', capacidad_maxima: 8, entregas_asignadas: 6, distancia_km: 9.7, hora_fin_estimada: '08:31', excede_bloque: false, estado: 'borrador' },
+  { id: 'R-01', fecha: '2026-11-16', repartidor_id: 'REP-001', tipo_vehiculo: 'automovil', zona: 'Centro · Americana', bloque: 'manana', ventana_inicio: '07:00', ventana_fin: '09:00', capacidad_maxima: 30, entregas_asignadas: 15, distancia_km: 18.4, hora_fin_estimada: '08:52', excede_bloque: true, estado: 'borrador' },
+  { id: 'R-02', fecha: '2026-11-16', repartidor_id: 'REP-002', tipo_vehiculo: 'automovil', zona: 'Centro · Americana', bloque: 'manana', ventana_inicio: '07:00', ventana_fin: '09:00', capacidad_maxima: 30, entregas_asignadas: 6, distancia_km: 9.7, hora_fin_estimada: '08:31', excede_bloque: false, estado: 'borrador' },
   { id: 'R-03', fecha: '2026-11-16', repartidor_id: 'REP-003', tipo_vehiculo: 'automovil', zona: 'Zapopan', bloque: 'mediodia', ventana_inicio: '11:30', ventana_fin: '13:30', capacidad_maxima: 30, entregas_asignadas: 23, distancia_km: 26.1, hora_fin_estimada: '13:18', excede_bloque: false, estado: 'borrador' },
 ]
 

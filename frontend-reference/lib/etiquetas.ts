@@ -20,11 +20,9 @@ export const clasesEstadoEntrega: Record<EstadoEntrega, string> = {
   cancelada: 'bg-destructive/15 text-destructive',
 }
 
-export const etiquetasVehiculo: Record<TipoVehiculo, string> = { bicicleta: 'Bicicleta', motocicleta: 'Motocicleta', automovil: 'Automóvil' }
-export const etiquetasVehiculoCorto: Record<TipoVehiculo, string> = { bicicleta: 'Bici', motocicleta: 'Moto', automovil: 'Carro' }
+export const etiquetasVehiculo: Record<TipoVehiculo, string> = { automovil: 'Automóvil' }
+export const etiquetasVehiculoCorto: Record<TipoVehiculo, string> = { automovil: 'Auto' }
 export const clasesVehiculo: Record<TipoVehiculo, string> = {
-  bicicleta: 'bg-success/10 text-success',
-  motocicleta: 'bg-warning/10 text-warning',
   automovil: 'bg-info/10 text-info',
 }
 
