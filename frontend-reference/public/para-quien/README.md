@@ -1,7 +1,7 @@
 # Fotos de «Para quién»
 
 Pon aquí las tres fotos de las tarjetas (horizontales o verticales, unos 900 px de ancho, mejor en WebP y menos de 150 KB cada una).
-Mientras no existan, la tarjeta muestra un marcador con el icono.
+Ya están las tres. Si falta alguna, la tarjeta muestra un marcador con el icono.
 
 | Archivo | Tarjeta |
 | --- | --- |
