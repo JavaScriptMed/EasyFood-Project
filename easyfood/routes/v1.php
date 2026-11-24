@@ -118,6 +118,7 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::post('zonas/importar', [Admin\ZonaController::class, 'importar'])->name('zonas.importar');
             Route::get('zonas/{id}', [Admin\ZonaController::class, 'show'])->name('zonas.show');
             Route::put('zonas/{id}', [Admin\ZonaController::class, 'update'])->name('zonas.update');
+            Route::patch('zonas/{id}', [Admin\ZonaController::class, 'renombrar'])->name('zonas.renombrar');
             Route::patch('zonas/{id}/estado', [Admin\ZonaController::class, 'estado'])->name('zonas.estado');
 
             Route::get('repartidores', [Admin\RepartidorController::class, 'index'])->name('repartidores.index');
@@ -131,6 +132,7 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('rutas', [Admin\RutaController::class, 'index'])->name('rutas.index');
             Route::post('rutas/generar', [Admin\RutaController::class, 'generar'])->name('rutas.generar');
             Route::post('rutas/aprobar', [Admin\RutaController::class, 'aprobar'])->name('rutas.aprobar');
+            Route::post('paradas/{id}/mover', [Admin\RutaController::class, 'moverParada'])->name('paradas.mover');
             Route::get('entregas', [Admin\EntregaController::class, 'index'])->name('entregas.index');
             Route::get('reportes/proveedor', [Admin\ReporteController::class, 'proveedor'])->name('reportes.proveedor');
             Route::get('menu-semanal', MenuSemanalController::class)->name('menu-semanal');

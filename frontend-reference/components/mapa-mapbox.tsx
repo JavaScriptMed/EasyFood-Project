@@ -390,7 +390,7 @@ export function MapaOperacion({
       {enVivo && (
         <div className="pointer-events-none absolute bottom-3 left-3 flex items-center gap-2 rounded-full bg-slate-900/85 px-3 py-1.5 text-xs font-semibold text-white shadow-sm">
           <span className="size-2 animate-pulse rounded-full bg-emerald-400" />
-          Monitoreo activo
+          Actualizando cada 30 s
         </div>
       )}
     </div>

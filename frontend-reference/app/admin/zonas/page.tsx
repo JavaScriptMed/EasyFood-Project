@@ -2,22 +2,23 @@
 
 import { useRef, useState } from "react"
 import { toast } from "sonner"
-import { FileUp, MapPin, Plus, Power, Upload } from "lucide-react"
+import { FileUp, MapPin, Pencil, Plus, Power, Upload } from "lucide-react"
 import { AdminShell } from "@/components/admin-shell"
 import { FilasEstado } from "@/components/estados"
 import { PageTitle, Pill } from "@/components/panel"
 import { anillosDe, leerGeoJson, VistaPreviaPoligono } from "@/components/poligono"
 import { Button } from "@/components/ui/button"
 import { CampoTexto, VentanaConfirmar, VentanaFormulario } from "@/components/ventanas"
-import { cambiarEstadoZona, crearZona, importarZonas, listarZonas, reemplazarPoligonoZona } from "@/lib/api"
+import { cambiarEstadoZona, crearZona, importarZonas, listarZonas, reemplazarPoligonoZona, renombrarZona } from "@/lib/api"
 import type { ZonaDetalle } from "@/lib/types"
 import { useAsync } from "@/lib/use-async"
 
-/** Zonas de entrega: el polígono de cada una se carga desde un archivo GeoJSON. El nombre no cambia (lo usan empresas, comedores y repartidores). */
+/** Zonas de entrega: el polígono de cada una se carga desde un archivo GeoJSON. El nombre se puede corregir: el servidor lo actualiza en empresas, comedores, repartidores y rutas. */
 export default function ZonasPage() {
   const zonas = useAsync(listarZonas)
   const [creando, setCreando] = useState(false)
   const [cambiando, setCambiando] = useState<ZonaDetalle | null>(null)
+  const [renombrando, setRenombrando] = useState<ZonaDetalle | null>(null)
   const [desactivando, setDesactivando] = useState<ZonaDetalle | null>(null)
   const [trabajando, setTrabajando] = useState(false)
   const [importando, setImportando] = useState(false)
@@ -88,6 +89,7 @@ export default function ZonasPage() {
             <td className="px-5 py-3.5 tabular-nums">{z.repartidores}</td>
             <td className="px-5 py-3.5"><Pill tono={z.activo ? "success" : "neutral"}>{z.activo ? "Activa" : "Inactiva"}</Pill></td>
             <td className="px-5 py-3.5"><div className="flex justify-end gap-1">
+              <Button variant="ghost" size="sm" onClick={() => setRenombrando(z)} aria-label={`Cambiar el nombre de ${z.nombre}`}><Pencil /> Cambiar nombre</Button>
               <Button variant="ghost" size="sm" onClick={() => setCambiando(z)} aria-label={`Cambiar el polígono de ${z.nombre}`}><Upload /> Cambiar polígono</Button>
               {z.activo
                 ? <Button variant="ghost" size="sm" className="text-destructive hover:bg-destructive/10" onClick={() => setDesactivando(z)} aria-label={`Desactivar ${z.nombre}`}><Power /> Desactivar</Button>
@@ -100,10 +102,33 @@ export default function ZonasPage() {
   </div></div>
     {creando && <VentanaDePoligono titulo="Nueva zona" descripcion="Elige el archivo GeoJSON con el polígono de la zona." textoEnviar="Crear zona" pideNombre onCerrar={() => setCreando(false)}
       onEnviar={async (nombre, geojson) => { await crearZona(nombre, geojson); toast.success(`Zona «${nombre}» creada`); setCreando(false); zonas.reload({ silent: true }) }} />}
+    {renombrando && <VentanaDeNombre zona={renombrando} onCerrar={() => setRenombrando(null)}
+      onGuardado={(nombre) => { toast.success(`La zona ahora se llama «${nombre}»`); setRenombrando(null); zonas.reload({ silent: true }) }} />}
     {cambiando && <VentanaDePoligono titulo={`Cambiar el polígono de ${cambiando.nombre}`} descripcion="El nombre no cambia. Las direcciones se recalculan con el polígono nuevo." textoEnviar="Reemplazar polígono" onCerrar={() => setCambiando(null)}
       onEnviar={async (_nombre, geojson) => { await reemplazarPoligonoZona(cambiando.id, geojson); toast.success(`Polígono de «${cambiando.nombre}» actualizado`); setCambiando(null); zonas.reload({ silent: true }) }} />}
     {desactivando && <VentanaConfirmar titulo={`¿Desactivar ${desactivando.nombre}?`} descripcion={<>Las <strong className="text-foreground">{desactivando.direcciones}</strong> dirección(es) que cubre quedarán sin cobertura hasta que la reactives. No se puede si hay empresas, comedores o repartidores activos en ella.</>} textoConfirmar="Desactivar" trabajando={trabajando} onCerrar={() => setDesactivando(null)} onConfirmar={() => desactivar(desactivando)} />}
   </AdminShell>
+}
+
+/** Corregir el nombre de una zona (por ejemplo, una falta de ortografía). Se actualiza también donde ya está escrito. */
+function VentanaDeNombre({ zona, onCerrar, onGuardado }: { zona: ZonaDetalle; onCerrar: () => void; onGuardado: (nombre: string) => void }) {
+  const [nombre, setNombre] = useState(zona.nombre)
+  const [guardando, setGuardando] = useState(false)
+  const usos = zona.empresas + zona.comedores + zona.repartidores
+  async function guardar() {
+    setGuardando(true)
+    try {
+      const actualizada = await renombrarZona(zona.id, nombre.trim())
+      onGuardado(actualizada.nombre)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "No se pudo cambiar el nombre")
+    } finally {
+      setGuardando(false)
+    }
+  }
+  return <VentanaFormulario titulo={`Cambiar el nombre de ${zona.nombre}`} descripcion={usos ? `Se actualiza también en ${zona.empresas} empresa(s), ${zona.comedores} comedor(es) y ${zona.repartidores} repartidor(es) que ya la usan.` : "Ninguna empresa, comedor ni repartidor la usa todavía."} textoEnviar="Guardar nombre" trabajando={guardando} deshabilitarEnvio={!nombre.trim() || nombre.trim() === zona.nombre} onCerrar={onCerrar} onEnviar={guardar}>
+    <CampoTexto etiqueta="Nombre de la zona" required autoFocus maxLength={100} value={nombre} onChange={(e) => setNombre(e.target.value)} />
+  </VentanaFormulario>
 }
 
 /** Pide el archivo GeoJSON (y el nombre si hace falta), lo dibuja para que lo revises y lo manda. */

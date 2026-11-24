@@ -6,7 +6,11 @@ export type TiempoComida = 'desayuno' | 'comida' | 'cena'
 export type EstadoRevision = 'borrador' | 'en_revision' | 'publicado' | 'rechazado'
 export type OrigenEleccion = 'manual' | 'por_defecto'
 export type EstadoEntrega = 'programada' | 'en_consolidacion' | 'en_ruta' | 'entregada' | 'no_localizado' | 'reprogramada' | 'cancelada'
-export type TipoVehiculo = 'bicicleta' | 'motocicleta' | 'automovil'
+/** Solo se reparte en automóvil (regla del backend: otro vehículo se rechaza con `solo_automovil`). */
+export type TipoVehiculo = 'automovil'
+
+/** Lo que cabe en el auto en cada ruta: `automovil` es lo mismo que `entregas` (se conserva por compatibilidad con la API). */
+export interface CapacidadDelAuto { automovil: number; entregas: number; platillos: number }
 export type EstadoRepartidor = 'libre' | 'asignado' | 'en_ruta' | 'no_disponible'
 export type BloqueHorario = 'manana' | 'mediodia' | 'tarde'
 export type EstadoRuta = 'borrador' | 'aprobada' | 'en_curso' | 'completada'
@@ -375,6 +379,12 @@ export interface ParadaConEstado extends Parada {}
 export interface RutaDetalle extends Ruta {
   repartidor_nombre: string
   paradas: Parada[]
+}
+
+/** Lo que responde mover una entrega de una ruta a otra: el mensaje y las dos rutas ya actualizadas (origen y destino). */
+export interface ResultadoMoverParada {
+  mensaje: string
+  rutas: RutaDetalle[]
 }
 
 export interface PedidoDetalle extends Pedido {

@@ -1,0 +1,27 @@
+meta {
+  name: Mover una entrega a una ruta que no existe (rechazado)
+  type: http
+  seq: 27
+}
+
+post {
+  url: {{baseUrl}}/api/v1/admin/paradas/{{entregaPorMover}}/mover
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+body:json {
+  {
+    "ruta_id": 999999
+  }
+}
+
+tests {
+  test("responde 404", function () {
+    expect(res.getStatus()).to.equal(404);
+  });
+}

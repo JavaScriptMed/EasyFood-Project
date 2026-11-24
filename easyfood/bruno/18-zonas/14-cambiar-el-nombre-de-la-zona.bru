@@ -1,0 +1,33 @@
+meta {
+  name: Cambiar el nombre de la zona
+  type: http
+  seq: 14
+}
+
+patch {
+  url: {{baseUrl}}/api/v1/admin/zonas/{{zonaNuevaId}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenAdmin}}
+}
+
+body:json {
+  {
+    "nombre": "{{nombreZona}} corregida"
+  }
+}
+
+tests {
+  test("responde 200", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("trae el nombre nuevo (sin espacios de más) y conserva el polígono", function () {
+    expect(res.body.nombre).to.equal(bru.getVar("nombreZona") + " corregida");
+    expect(res.body.geojson.properties.nombre).to.equal(res.body.nombre);
+    expect(res.body.geojson.geometry.type).to.equal("MultiPolygon");
+  });
+}

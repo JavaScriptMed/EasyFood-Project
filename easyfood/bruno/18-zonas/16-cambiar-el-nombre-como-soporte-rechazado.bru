@@ -1,0 +1,27 @@
+meta {
+  name: Cambiar el nombre de una zona como soporte (rechazado)
+  type: http
+  seq: 16
+}
+
+patch {
+  url: {{baseUrl}}/api/v1/admin/zonas/{{zonaNuevaId}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenSoporte}}
+}
+
+body:json {
+  {
+    "nombre": "Zona del soporte"
+  }
+}
+
+tests {
+  test("responde 403", function () {
+    expect(res.getStatus()).to.equal(403);
+  });
+}

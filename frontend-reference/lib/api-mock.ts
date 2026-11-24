@@ -17,7 +17,7 @@ import type {
   CalificacionPendiente, CalificarEntrega, CalificarPlatillo, CostoOperativo, IndicadoresEmpresa, NuevoCostoOperativo, ProgramarPrecio, EdicionComedor, EdicionEmpleado, EdicionEmpresa, EdicionPlan, EdicionRepartidor, EdicionUsuarioAcceso, EntregaDetalle, EstadoContrato, FacturaConEmpresa, FacturaDetalle, FacturaMensual, FilaReporteProveedor, GuardarPlatillo, HistorialPrecio,
   LiquidacionComedor, LiquidacionConComedor, MenuSemanalDia, MensajeTicket, NuevaEmpresa, NuevoComedor, ResultadoImportarZonas, ZonaDetalle, NuevoPlan, NuevoRepartidor, OrdenProduccionDetalle, PedidoDetalle,
   CorreoOmitido, NuevasInvitaciones, ResultadoInvitacionesEnLote, PedidosMananaEmpresa, Plan, Platillo, PlatilloDetalle, RegistroAuditoriaDetalle, RepartidorDetalle, ResultadoAltaEmpleados, ResultadoCorte, RutaDetalle,
-  ZonaDisponible, EstadoTicket, Ticket, MensajeContacto, NuevoMensajeContacto, ClienteDetalle, ClienteResumen, ConsumoDiario, EstadoInvitacion, Incidencia, MiEleccion, MiMenu, OpcionMenu, InvitacionDetalle, InvitacionPublica, Invitacion, NuevaInvitacion, Portal, ResultadoAceptacion, SolicitudRestablecimiento, TipoOrganizacion, UsuarioAcceso, ValidacionToken, RegistroAuditoria, Repartidor, Ruta, TicketDetalle, TicketResumen, TiempoComida, TipoVehiculo, Usuario, UsuarioResumen,
+  CapacidadDelAuto, ResultadoMoverParada, ZonaDisponible, EstadoTicket, Ticket, MensajeContacto, NuevoMensajeContacto, ClienteDetalle, ClienteResumen, ConsumoDiario, EstadoInvitacion, Incidencia, MiEleccion, MiMenu, OpcionMenu, InvitacionDetalle, InvitacionPublica, Invitacion, NuevaInvitacion, Portal, ResultadoAceptacion, SolicitudRestablecimiento, TipoOrganizacion, UsuarioAcceso, ValidacionToken, RegistroAuditoria, Repartidor, Ruta, TicketDetalle, TicketResumen, TiempoComida, TipoVehiculo, Usuario, UsuarioResumen,
 } from './types'
 
 // ---------------------------------------------------------------- infraestructura
@@ -1125,6 +1125,25 @@ export const reemplazarPoligonoZona = (zona_id: string, geojson: unknown) => lla
   return zona
 })
 
+/** Corrige el nombre de una zona y lo actualiza donde está escrito (empresas, repartidores y rutas), como el backend. */
+export const renombrarZona = (zona_id: string, nombre: string) => llamar<ZonaDetalle>(() => {
+  const zona = zonasMock.find((z) => z.id === zona_id)
+  if (!zona) throw new Error('La zona no existe.')
+  const nuevo = nombre.trim()
+  if (!nuevo || nuevo.length > 100) throw new Error('El nombre de la zona es obligatorio y de hasta 100 caracteres.')
+  const repetida = zonasMock.find((z) => z.id !== zona.id && z.nombre.toLowerCase() === nuevo.toLowerCase())
+  if (repetida) throw new Error(`Ya hay otra zona llamada «${repetida.nombre}»: elige un nombre distinto.`)
+  const anterior = zona.nombre
+  const igual = (texto: string) => texto.trim().toLowerCase() === anterior.toLowerCase()
+  zona.nombre = nuevo
+  if (poligonosMock[anterior]) { poligonosMock[nuevo] = poligonosMock[anterior]; delete poligonosMock[anterior] }
+  db.empresas.filter((e) => igual(e.zona)).forEach((e) => { e.zona = nuevo })
+  db.repartidores.filter((r) => igual(r.zona_base)).forEach((r) => { r.zona_base = nuevo })
+  db.rutas.filter((r) => igual(r.zona)).forEach((r) => { r.zona = nuevo })
+  auditar('actualizar', 'zona', zona.id, `Cambió el nombre de la zona ${anterior} a ${nuevo}`)
+  return zona
+})
+
 export const importarZonas = (coleccion: any) => llamar<ResultadoImportarZonas>(() => {
   if (coleccion?.type !== 'FeatureCollection' || !coleccion.features?.length) throw new Error('Manda un FeatureCollection con una zona por polígono, cada una con su nombre en properties.nombre.')
   const nombres = new Set<string>()
@@ -1260,7 +1279,7 @@ const conNombre = (r: Repartidor): RepartidorDetalle => ({ ...r, nombre: nombreD
 export const listarRepartidores = (filtro: { estado?: RepartidorDetalle['estado'] } = {}) =>
   llamar<RepartidorDetalle[]>(() => db.repartidores.filter((r) => !filtro.estado || r.estado === filtro.estado).map(conNombre))
 
-export const obtenerCapacidadesVehiculo = () => llamar<Record<TipoVehiculo, number>>(() => db.capacidades_vehiculo)
+export const obtenerCapacidadesVehiculo = () => llamar<CapacidadDelAuto>(() => ({ automovil: db.capacidades_vehiculo.automovil, entregas: db.capacidades_vehiculo.automovil, platillos: db.configuracion_operacion.capacidad_auto_platillos }))
 
 export const cambiarDisponibilidadRepartidor = (repartidor_id: string) => llamar<RepartidorDetalle>(() => {
   const repartidor = db.repartidores.find((r) => r.id === repartidor_id)
@@ -1272,12 +1291,12 @@ export const cambiarDisponibilidadRepartidor = (repartidor_id: string) => llamar
 
 export const crearRepartidor = (datos: NuevoRepartidor) => llamar<RepartidorDetalle>(() => {
   if (!datos.nombre.trim()) throw new Error('Escribe el nombre del repartidor.')
-  if (datos.tipo_vehiculo !== 'bicicleta' && !datos.placas.trim()) throw new Error('Las placas son obligatorias para moto y carro.')
+  if (!datos.placas.trim()) throw new Error('Las placas del auto son obligatorias.')
   const id = siguienteId('REP-', db.repartidores.map((r) => r.id))
   const usuario: Usuario = { id: `USR-${id}`, nombre: datos.nombre.trim(), correo: datos.correo.trim() || `${id.toLowerCase()}@easylunch.mx`, telefono: datos.telefono.trim() || null, rol: 'repartidor', activo: true }
   const repartidor: Repartidor = {
     id, usuario_id: usuario.id, numero_empleado: datos.numero_empleado.trim() || `EMP-${id.slice(4).padStart(4, '0')}`, tipo_vehiculo: datos.tipo_vehiculo, vehiculo_personalizado: false,
-    placas: datos.tipo_vehiculo === 'bicicleta' ? null : datos.placas.trim(), zona_base: datos.zona_base.trim() || 'Centro', estado: 'libre', bloques_reservados: [],
+    placas: datos.placas.trim(), zona_base: datos.zona_base.trim() || 'Centro', estado: 'libre', bloques_reservados: [],
     entregas_asignadas: 0, entregas_completadas: 0, ultima_ubicacion_en: AHORA_MOCK,
   }
   db.usuarios.push(usuario)
@@ -1290,10 +1309,10 @@ export const editarRepartidor = (repartidor_id: string, datos: EdicionRepartidor
   const repartidor = db.repartidores.find((r) => r.id === repartidor_id)
   if (!repartidor) throw new Error('El repartidor no existe.')
   if (!datos.nombre.trim()) throw new Error('Escribe el nombre del repartidor.')
-  if (datos.tipo_vehiculo !== 'bicicleta' && !datos.placas.trim()) throw new Error('Las placas son obligatorias para moto y carro.')
+  if (!datos.placas.trim()) throw new Error('Las placas del auto son obligatorias.')
   const usuario = buscarUsuario(repartidor.usuario_id)
   if (usuario) Object.assign(usuario, { nombre: datos.nombre.trim(), telefono: datos.telefono.trim() || null })
-  Object.assign(repartidor, { numero_empleado: datos.numero_empleado.trim() || repartidor.numero_empleado, tipo_vehiculo: datos.tipo_vehiculo, placas: datos.tipo_vehiculo === 'bicicleta' ? null : datos.placas.trim(), zona_base: datos.zona_base.trim() || repartidor.zona_base })
+  Object.assign(repartidor, { numero_empleado: datos.numero_empleado.trim() || repartidor.numero_empleado, tipo_vehiculo: 'automovil', placas: datos.placas.trim(), zona_base: datos.zona_base.trim() || repartidor.zona_base })
   auditar('actualizar', 'repartidor', repartidor_id, `Editó al repartidor ${datos.nombre.trim()}`)
   return conNombre(repartidor)
 })
@@ -1309,13 +1328,13 @@ export const cambiarEstadoRepartidor = (repartidor_id: string, activo: boolean) 
 })
 
 /** Cuántas entregas cabe en cada tipo de vehículo; las rutas nuevas usan estos límites. */
-export const guardarCapacidadesVehiculo = (capacidades: Record<TipoVehiculo, number>) => llamar<Record<TipoVehiculo, number>>(() => {
+export const guardarCapacidadesVehiculo = (capacidades: Record<TipoVehiculo, number>) => llamar<CapacidadDelAuto>(() => {
   for (const tipo of Object.keys(capacidades) as TipoVehiculo[]) {
     if (!Number.isInteger(capacidades[tipo]) || capacidades[tipo] < 1) throw new Error('Cada límite debe ser un número entero mayor a cero.')
   }
   Object.assign(db.capacidades_vehiculo, capacidades)
   auditar('actualizar', 'repartidor', 'capacidades', 'Cambió los límites de entregas por vehículo')
-  return db.capacidades_vehiculo
+  return { automovil: db.capacidades_vehiculo.automovil, entregas: db.capacidades_vehiculo.automovil, platillos: db.configuracion_operacion.capacidad_auto_platillos }
 })
 
 const conParadas = (ruta: Ruta): RutaDetalle => ({
@@ -1333,6 +1352,31 @@ export const generarRutas = (fecha: string) => llamar<RutaDetalle[]>(() => {
   auditar('generar_rutas', 'ruta', fecha, `Generó las rutas del ${fecha}`)
   return rutas.map(conParadas)
 }, 2000)
+
+/** Pasa una entrega pendiente a otra ruta del mismo día, zona y capacidad (las mismas reglas que valida el backend). */
+export const moverParada = (parada_id: string, ruta_id: string) => llamar<ResultadoMoverParada>(() => {
+  const parada = db.paradas.find((p) => p.id === parada_id)
+  const destino = db.rutas.find((r) => r.id === ruta_id)
+  if (!parada || !destino) throw new Error('La entrega o la ruta no existe.')
+  const origen = db.rutas.find((r) => r.id === parada.ruta_id)
+  if (!origen) throw new Error('La ruta de origen no existe.')
+  if (origen.id === destino.id) throw new Error('Esa entrega ya está en esa ruta: elige otra.')
+  if (parada.estado !== 'pendiente') throw new Error('Solo se pueden mover entregas pendientes: esta ya está en camino o se cerró.')
+  for (const ruta of [origen, destino]) {
+    if (!['borrador', 'aprobada'].includes(ruta.estado)) throw new Error(`La ruta ${ruta.id} ya salió a repartir: no se le pueden quitar ni agregar entregas.`)
+  }
+  if (origen.fecha !== destino.fecha) throw new Error('Las dos rutas deben ser del mismo día.')
+  if (origen.zona.trim().toLowerCase() !== destino.zona.trim().toLowerCase()) throw new Error(`La entrega es de la zona ${origen.zona} y la ruta destino es de la zona ${destino.zona}: elige una ruta de la misma zona.`)
+  if (db.paradas.filter((p) => p.ruta_id === origen.id).length <= 1) throw new Error('Esa es la única entrega de su ruta: si la mueves, la ruta se queda sin nada.')
+  if (destino.entregas_asignadas + 1 > destino.capacidad_maxima) throw new Error(`La ruta de ${conParadas(destino).repartidor_nombre} ya lleva ${destino.entregas_asignadas} de ${destino.capacidad_maxima} entregas permitidas para su vehículo.`)
+  parada.ruta_id = destino.id
+  parada.orden = Math.max(0, ...db.paradas.filter((p) => p.ruta_id === destino.id && p !== parada).map((p) => p.orden)) + 1
+  db.paradas.filter((p) => p.ruta_id === origen.id).sort((a, b) => a.orden - b.orden).forEach((p, i) => { p.orden = i + 1 })
+  origen.entregas_asignadas -= 1
+  destino.entregas_asignadas += 1
+  auditar('mover_parada', 'ruta', parada.id, `Movió la entrega de ${parada.nombre_destinatario} de la ruta ${origen.id} a la ruta ${destino.id}`)
+  return { mensaje: `La entrega de ${parada.nombre_destinatario} pasó a la ruta de ${conParadas(destino).repartidor_nombre}.`, rutas: [conParadas(origen), conParadas(destino)] }
+})
 
 export const aprobarRutas = (fecha: string) => llamar<number>(() => {
   const rutas = db.rutas.filter((r) => r.fecha === fecha)

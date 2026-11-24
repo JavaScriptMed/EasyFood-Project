@@ -210,7 +210,7 @@ El correo es el acceso de la cuenta, así que solo se corrige **mientras la pers
 
 **Punto de entrega de las empresas.** `POST /admin/empresas` y `PUT /admin/empresas/{id}` aceptan `latitud` y `longitud` (opcionales, las dos o ninguna; -90 a 90 y -180 a 180; se guardan con 6 decimales). Con punto, la zona se calcula sola con PostGIS (`ST_Covers`, igual que las direcciones de clientes: gana la zona activa más pequeña) y **manda sobre cualquier `zona` que se envíe**; un punto fuera de toda zona activa responde 422 `fuera_de_cobertura`. Sin punto, el alta sigue pidiendo `zona` y la edición conserva la que tenía. Editar el polígono de una zona nunca mueve empresas: la zona de una empresa solo cambia al guardar un punto nuevo. `GET /admin/rutas` trae `ubicacion` (`{ latitud, longitud }` o `null`) en cada parada (clientes: el punto de la dirección; empresas: su punto guardado), y `GET /repartidor/rutas` la rellena para las paradas de empresa que ya tienen punto. El front usa Mapbox (`NEXT_PUBLIC_MAPBOX_TOKEN`, token público `pk.`; sin él los mapas muestran un aviso).
 
-Un polígono por zona (PostGIS). Su **nombre** es el texto que se escribe en empresas, comedores, repartidores y direcciones, así que **no se renombra**. Solo `admin`.
+Un polígono por zona (PostGIS). Su **nombre** es el texto que se escribe en empresas, comedores, repartidores, rutas y direcciones: editar el polígono nunca lo cambia, y para corregirlo (por ejemplo, una falta de ortografía) se usa `PATCH /admin/zonas/{id} { nombre }`, que lo actualiza en todos esos lugares dentro de una sola transacción. Solo `admin`.
 
 **Zonas con servicio, sin sesión.** `GET /api/v1/zonas` (público, 60 por minuto) devuelve solo las zonas **activas** como `[{ id, nombre, geojson }]`, con el polígono simplificado (Feature de GeoJSON, unos 40 m de tolerancia). No trae conteos ni datos internos. Lo usa el sitio de inicio para mostrar dónde hay cobertura, y sirve a las apps para listar las zonas.
 
@@ -220,6 +220,7 @@ Un polígono por zona (PostGIS). Su **nombre** es el texto que se escribe en emp
 | Ver una (con su polígono como Feature) | `GET /admin/zonas/{id}` |
 | Crear | `POST /admin/zonas { nombre, geojson }` (nombre repetido: `zona_repetida`) |
 | Cambiar el polígono | `PUT /admin/zonas/{id} { geojson }` |
+| Cambiar el nombre | `PATCH /admin/zonas/{id} { nombre }` (otro con ese nombre, sin importar mayúsculas: `zona_repetida`) |
 | Importar varias de una vez | `POST /admin/zonas/importar` con un `FeatureCollection` (cada polígono con `properties.nombre`); todo o nada |
 | Desactivar o reactivar | `PATCH /admin/zonas/{id}/estado { activo }` |
 
@@ -227,6 +228,7 @@ El `geojson` puede ser Polygon, MultiPolygon, Feature o un FeatureCollection de 
 
 ## Rutas e incidencias
 
+- **Mover una entrega a otra ruta** (`POST /admin/paradas/{id}/mover { ruta_id }`, solo `admin`): pasa una entrega **pendiente** a otra ruta para balancear a los repartidores. Las dos rutas deben ser del mismo día, de la misma zona y del mismo tipo (empresas o clientes), y estar en borrador o aprobadas (una ruta que ya salió no se toca). La ruta destino no puede pasar de la capacidad del auto (entregas y platillos: `capacidad_insuficiente`) ni empalmarse con otra ruta del mismo repartidor (`ruta_se_empalma`), y la de origen no puede quedar vacía (`ruta_quedaria_vacia`). Después se reordenan las paradas y se recalculan horarios y totales de las dos rutas (`MovimientoDeParadas`). Responde `{ mensaje, rutas: [origen, destino] }` con sus paradas. Otros códigos 422: `misma_ruta`, `parada_cerrada`, `ruta_ya_iniciada`, `otra_fecha`, `otra_zona`, `otro_tipo_de_ruta`, `parada_ya_movida`.
 - **Generar rutas** (`POST /admin/rutas/generar { fecha }`, solo `admin`): completa las rutas de una fecha **ya cortada** con lo que quedó sin repartidor (por ejemplo, después de dar de alta a uno). Usa el mismo `GeneradorDeRutas` que el corte: por zona, primero empresas y luego clientes, sin pasar la capacidad del auto. Nunca toca una ruta existente (borrador o aprobada), no duplica incidencias abiertas y cierra solas las de «falta de repartidores» de lo que ya tiene ruta. Rechaza una fecha sin corte (`corte_pendiente`), pasada o sin servicio.
 - **Reasignar** (`GET /admin/incidencias/{id}/candidatos`, `POST /admin/incidencias/{id}/reasignar { repartidor_id, nota }`, admin y soporte): solo para una incidencia **abierta ligada a una ruta**. Es candidato el repartidor activo, disponible, distinto del actual y con capacidad libre ese día (auto menos lo que ya lleva); «alcanza» si le cabe toda la ruta. Al reasignar, la ruta cambia de repartidor (conserva su estado), la incidencia queda `reasignada` y se registra en la bitácora.
 

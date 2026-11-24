@@ -10,6 +10,7 @@ use App\Models\Ruta;
 use App\Services\Bitacora;
 use App\Services\CalendarioDeServicio;
 use App\Services\GeneradorDeRutas;
+use App\Services\MovimientoDeParadas;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -76,5 +77,20 @@ class RutaController extends Controller
         }
 
         return response()->json(['aprobadas' => $aprobadas, 'mensaje' => $aprobadas ? "Se aprobaron {$aprobadas} ruta(s)." : 'No había rutas en borrador para esa fecha.']);
+    }
+
+    /**
+     * Pasa una entrega pendiente a otra ruta del mismo día, zona y tipo (para balancear a los repartidores). Respeta la capacidad del auto,
+     * no vacía la ruta de origen y no deja empalmada la de destino. Devuelve las dos rutas ya actualizadas, con sus paradas.
+     */
+    public function moverParada(Request $request, int $id, MovimientoDeParadas $movimientos): JsonResponse
+    {
+        $d = $request->validate(['ruta_id' => 'required|integer|min:1']);
+        [$origen, $destino, $destinatario] = $movimientos->mover($request->user(), $id, (int) $d['ruta_id']);
+
+        return response()->json([
+            'mensaje' => "La entrega de {$destinatario} pasó a la ruta de ".($destino->repartidor?->usuario?->name ?? "la ruta #{$destino->id}").'.',
+            'rutas' => Vistas::rutas(collect([$origen, $destino]), true),
+        ]);
     }
 }

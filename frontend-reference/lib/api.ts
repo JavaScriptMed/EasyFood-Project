@@ -11,7 +11,7 @@ import { borrar, ErrorApi, get, http, patch, post, put } from './http'
 import { leerSesion } from './sesion'
 import * as mock from './api-mock'
 import type {
-  BloqueHorario, CalificacionPendiente, CostoOperativo, IndicadoresEmpresa, InvitacionDetalle, InvitacionPublica, ResultadoAceptacion, SolicitudRestablecimiento,
+  BloqueHorario, CapacidadDelAuto, CalificacionPendiente, CostoOperativo, IndicadoresEmpresa, InvitacionDetalle, InvitacionPublica, ResultadoAceptacion, SolicitudRestablecimiento,
   ResultadoAltaEmpleados, ResultadoInvitacionesEnLote, TipoOrganizacion, UsuarioAcceso, ValidacionToken, CalendarioServicio, ClienteDetalle, ClienteResumen, ComedorDetalle, ConfiguracionOperacion, ConsumoDiario, ContratoPorVencer, Corte,
   DashboardAdmin, DiaSinServicio, DisponibilidadConPlatillo, EleccionEmpleado, Empleado, EmpleadoDetalle, EmpresaDetalle, EntregaDetalle, FacturaConEmpresa, HistorialPrecio, ResultadoImportarZonas, ZonaDetalle, ZonaDisponible,
   FacturaDetalle, FacturaMensual, FilaReporteProveedor, IncidenciaDetalle, LiquidacionComedor, LiquidacionConComedor, MensajeContacto, MensajeTicket,
@@ -198,6 +198,8 @@ const real: typeof mock = {
   reemplazarPoligonoZona: async (id, geojson) => ids(await put<ZonaDetalle>(`/api/v1/admin/zonas/${id}`, { geojson })),
   importarZonas: async (coleccion) => ids(await post<ResultadoImportarZonas>('/api/v1/admin/zonas/importar', coleccion)),
   cambiarEstadoZona: async (id, activo) => ids(await patch<ZonaDetalle>(`/api/v1/admin/zonas/${id}/estado`, { activo })),
+  // Corrige el nombre: el backend lo actualiza también en empresas, comedores, repartidores, rutas y direcciones.
+  renombrarZona: async (id, nombre) => ids(await patch<ZonaDetalle>(`/api/v1/admin/zonas/${id}`, { nombre })),
   crearComedor: async (datos) => ids(await post<ComedorDetalle>('/api/v1/admin/comedores', datos)),
   editarComedor: async (id, datos) => ids(await put<ComedorDetalle>(`/api/v1/admin/comedores/${id}`, datos)),
   cambiarEstadoComedor: async (id, activo) => ids(await patch<ComedorDetalle>(`/api/v1/admin/comedores/${id}/estado`, { activo })),
@@ -254,16 +256,18 @@ const real: typeof mock = {
 
   // ---- repartidores y rutas
   listarRepartidores: async (filtro = {}) => (await leer<any[]>('/api/v1/admin/repartidores', { estado: filtro.estado })).map(repartidor),
-  obtenerCapacidadesVehiculo: async () => { const c = await get<{ automovil: number }>('/api/v1/admin/repartidores/capacidades'); return { bicicleta: 0, motocicleta: 0, automovil: c.automovil } as Record<TipoVehiculo, number> },
+  obtenerCapacidadesVehiculo: async () => get<CapacidadDelAuto>('/api/v1/admin/repartidores/capacidades'),
   cambiarDisponibilidadRepartidor: async (id) => repartidor(ids(await patch<any>(`/api/v1/admin/repartidores/${id}/disponibilidad`))),
   crearRepartidor: async (datos) => repartidor(ids(await post<any>('/api/v1/admin/repartidores', datos))),
   editarRepartidor: async (id, datos) => repartidor(ids(await put<any>(`/api/v1/admin/repartidores/${id}`, datos))),
   cambiarEstadoRepartidor: async (id, activo) => repartidor(ids(await patch<any>(`/api/v1/admin/repartidores/${id}/estado`, { activo }))),
   // Solo se reparte en auto: el único límite que existe es el del automóvil.
-  guardarCapacidadesVehiculo: async (capacidades) => { const c = await put<{ automovil: number }>('/api/v1/admin/repartidores/capacidades', { automovil: capacidades.automovil }); return { bicicleta: 0, motocicleta: 0, automovil: c.automovil } as Record<TipoVehiculo, number> },
+  guardarCapacidadesVehiculo: async (capacidades) => put<CapacidadDelAuto>('/api/v1/admin/repartidores/capacidades', { automovil: capacidades.automovil }),
   listarRutas: async (fecha) => (await leer<any[]>('/api/v1/admin/rutas', { fecha })).map(ruta),
   // Completa las rutas con lo que quedó sin repartidor; no toca las que ya existen.
   generarRutas: async (fecha) => (await post<{ rutas: any[] }>('/api/v1/admin/rutas/generar', { fecha })).rutas.map(ruta),
+  // Pasa una entrega pendiente a otra ruta del mismo día, zona y tipo; el backend valida la capacidad y devuelve las dos rutas.
+  moverParada: async (paradaId, rutaId) => { const r = ids(await post<{ mensaje: string; rutas: any[] }>(`/api/v1/admin/paradas/${paradaId}/mover`, { ruta_id: Number(rutaId) })); return { mensaje: r.mensaje, rutas: r.rutas.map(ruta) } },
   aprobarRutas: async (fecha) => (await post<{ aprobadas: number }>('/api/v1/admin/rutas/aprobar', { fecha })).aprobadas,
 
   // ---- pedidos y soporte
@@ -371,6 +375,7 @@ export const crearRepartidor = elegir('crearRepartidor')
 export const listarRutas = elegir('listarRutas')
 export const generarRutas = elegir('generarRutas')
 export const aprobarRutas = elegir('aprobarRutas')
+export const moverParada = elegir('moverParada')
 export const listarPedidos = elegir('listarPedidos')
 export const listarTickets = elegir('listarTickets')
 export const obtenerTicket = elegir('obtenerTicket')
@@ -400,6 +405,7 @@ export const crearZona = elegir('crearZona')
 export const reemplazarPoligonoZona = elegir('reemplazarPoligonoZona')
 export const importarZonas = elegir('importarZonas')
 export const cambiarEstadoZona = elegir('cambiarEstadoZona')
+export const renombrarZona = elegir('renombrarZona')
 export const programarPrecioPlatillo = elegir('programarPrecioPlatillo')
 export const subirImagenPlatillo = elegir('subirImagenPlatillo')
 export const editarRepartidor = elegir('editarRepartidor')
