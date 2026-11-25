@@ -398,6 +398,8 @@ final class Vistas
             'entregas_totales' => $dias->count(), 'entregas_completadas' => $dias->where('estado', 'entregada')->count(),
             'direccion_entrega' => $p->direccion?->street_address, 'referencias' => $p->direccion?->delivery_instructions,
             'metodo_pago' => $p->metodo_pago, 'ultimos_digitos' => $p->ultimos_digitos, 'tiene_evidencia' => $dias->contains(fn ($d) => $d->evidencia_foto_url !== null),
+            // Cuándo confirmó el cliente con «Recibido»; null si todavía no (o si no se cargaron las confirmaciones).
+            'recibido_en' => self::iso($dias->flatMap(fn ($d) => $d->relationLoaded('recepciones') ? $d->recepciones : [])->min('confirmada_en')),
             ...($conEvidencia ? ['evidencia_foto_url' => self::fotoDeEntrega($dias)] : []),
             'vence_pago_en' => self::iso($p->vence_pago_en), 'segundos_para_pagar' => $p->segundos_para_pagar,
             'comidas_por_dia' => $p->comidas_por_dia, 'con_extra' => (bool) $p->con_extra,

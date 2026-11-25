@@ -64,11 +64,11 @@ class PedidoController extends Controller
         $direccion = Address::query()->where('user_id', $request->user()->id)->findOrFail($datos['direccion_id']);
         $pedido = $paquetes->pedir($request->user(), $paquete, $direccion, $datos['platillos']);
 
-        return response()->json(Vistas::pedido($pedido->load(['cliente', 'paquete', 'direccion', 'dias.platillos.menu'])), 201);
+        return response()->json(Vistas::pedido($pedido->load(['cliente', 'paquete', 'direccion', 'dias.platillos.menu', 'dias.recepciones'])), 201);
     }
 
     private function propios(Request $request)
     {
-        return Pedido::query()->with(['cliente', 'paquete', 'direccion', 'dias.platillos.menu'])->where('cliente_id', $request->user()->id);
+        return Pedido::query()->with(['cliente', 'paquete', 'direccion', 'dias.platillos.menu', 'dias.recepciones'])->where('cliente_id', $request->user()->id);
     }
 }

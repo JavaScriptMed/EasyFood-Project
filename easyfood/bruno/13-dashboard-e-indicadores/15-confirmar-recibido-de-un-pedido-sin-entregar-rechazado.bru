@@ -1,0 +1,22 @@
+meta {
+  name: Confirmar «Recibido» de un pedido sin entregar (rechazado)
+  type: http
+  seq: 15
+}
+
+post {
+  url: {{baseUrl}}/api/v1/cliente/pedidos/{{pedidoId}}/recibido
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenCliente}}
+}
+
+tests {
+  test("responde 422 sin_entrega_que_confirmar", function () {
+    expect(res.getStatus()).to.equal(422);
+    expect(res.body.codigo).to.equal("sin_entrega_que_confirmar");
+  });
+}

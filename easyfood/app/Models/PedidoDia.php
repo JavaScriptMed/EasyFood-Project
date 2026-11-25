@@ -37,6 +37,12 @@ class PedidoDia extends ModeloEasyLunch
         return $this->hasMany(PedidoDiaPlatillo::class, 'pedido_dia_id');
     }
 
+    /** Las confirmaciones de «Recibido» de esta entrega. */
+    public function recepciones(): HasMany
+    {
+        return $this->hasMany(Recepcion::class, 'pedido_dia_id');
+    }
+
     public function parada(): HasOne
     {
         return $this->hasOne(Parada::class, 'pedido_dia_id');

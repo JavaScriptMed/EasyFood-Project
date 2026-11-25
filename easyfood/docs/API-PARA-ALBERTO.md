@@ -400,13 +400,25 @@ Lo que ya recibió en los últimos 14 días y todavía no calificó. Un elemento
 
 ```json
 [
-  { "fecha": "2026-11-18", "entrega_calificada": false,
+  { "fecha": "2026-11-18", "entrega_calificada": false, "recibido_en": null,
     "platillos": [ { "tiempo_comida": "comida", "platillo_id": 4, "platillo_nombre": "Caldo de res", "calificado": true } ] },
   "…"
 ]
 ```
 
-Solo aparecen días con la entrega de su empresa **ya entregada** en los que él pidió, y que tengan algo por calificar. Lista vacía = nada pendiente.
+Solo aparecen días con la entrega de su empresa **ya entregada** en los que él pidió, y que tengan algo por calificar. Lista vacía = nada pendiente. `recibido_en` es cuándo confirmó con «Recibido» (o `null`): sirve para mostrar el botón.
+
+### `POST /api/v1/empleado/recibido`
+
+Botón **Recibido**: el empleado confirma que le llegó su comida de esa fecha.
+
+```json
+{ "fecha": "2026-11-18" }
+```
+
+Respuesta `200`: `{ "recibido_en": "2026-11-18T13:05:00-06:00", "mensaje": "¡Gracias! Quedó registrado que recibiste tu comida." }`. Repetirlo devuelve la misma hora (no es error).
+
+Errores: `422 sin_entrega_que_confirmar` (el repartidor todavía no la marca como entregada, o él no pidió ese día). No es requisito para calificar.
 
 ### `POST /api/v1/empleado/calificaciones/entrega`
 
@@ -661,6 +673,16 @@ Errores:
 | `422 pedido_vencido` | Pasó el plazo (`vence_pago_en`) o ya se ejecutó el corte de individuales de ese sábado: hay que pedirlo de nuevo |
 | `503 pagos_no_configurados` | El servidor no tiene las claves de Stripe |
 | `404` | El pedido no existe o es de otra persona |
+
+### `POST /api/v1/cliente/pedidos/{id}/recibido`
+
+Botón **Recibido**: el cliente confirma que le llegó su pedido. Sin cuerpo.
+
+Respuesta `200`: `{ "recibido_en": "2026-11-14T13:05:00-06:00", "mensaje": "¡Gracias! Quedó registrado que recibiste tu pedido." }`. Repetirlo devuelve la misma hora (no es error).
+
+Errores: `422 sin_entrega_que_confirmar` (el repartidor todavía no lo marca como entregado); `404` si el pedido no es suyo.
+
+Cada pedido trae `recibido_en` (`null` hasta que confirme) en `GET /cliente/pedidos` y `GET /cliente/pedidos/{id}`. Muestra el botón cuando algún día tenga `estado: "entregada"` y `recibido_en` sea `null`. No es requisito para calificar.
 
 ### `POST /api/v1/cliente/pedidos/{id}/calificaciones/entrega`
 

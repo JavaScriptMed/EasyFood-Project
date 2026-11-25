@@ -218,6 +218,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('calificaciones/pendientes', [Empleado\CalificacionController::class, 'pendientes'])->name('calificaciones.pendientes');
         Route::post('calificaciones/entrega', [Empleado\CalificacionController::class, 'entrega'])->name('calificaciones.entrega');
         Route::post('calificaciones/platillo', [Empleado\CalificacionController::class, 'platillo'])->name('calificaciones.platillo');
+        Route::post('recibido', [Empleado\RecepcionController::class, 'store'])->name('recibido');
     });
 
     // ------------------------------------------------------------------------------------------ app móvil (clientes)
@@ -233,6 +234,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('pedidos', [Cliente\PedidoController::class, 'store'])->name('pedidos.store');
         Route::get('pedidos/{id}', [Cliente\PedidoController::class, 'show'])->name('pedidos.show');
         Route::post('pedidos/{id}/pago', [Cliente\PagoController::class, 'store'])->name('pedidos.pago');
+        Route::post('pedidos/{id}/recibido', [Cliente\RecepcionController::class, 'store'])->name('pedidos.recibido');
         Route::post('pedidos/{id}/calificaciones/entrega', [Cliente\CalificacionController::class, 'entrega'])->name('pedidos.calificaciones.entrega');
         Route::post('pedidos/{id}/calificaciones/platillo', [Cliente\CalificacionController::class, 'platillo'])->name('pedidos.calificaciones.platillo');
     });
