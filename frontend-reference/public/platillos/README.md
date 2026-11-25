@@ -1,13 +1,13 @@
 # Fotos de la página de inicio
 
-Sube aquí las fotos (JPG, 1200×1500 px aprox., horizontal u vertical, peso menor a 250 KB). Mientras no existan, la página muestra un marcador con la descripción de cada platillo.
+Fotos de los platillos en WebP, de unos 1100 px de ancho y menos de 250 KB. Si falta una, la página muestra un marcador en su lugar. El campo `encuadre` de `components/landing/platillos.tsx` indica qué parte de cada foto se ve al recortarla.
 
 | Archivo | Uso |
 | --- | --- |
 | `ambiente.jpg` | Fondo del hero (se difumina). Mesa con varios platillos, 1920×1080 |
-| `pollo-teriyaki.jpg` | Pollo teriyaki con arroz |
-| `bowl-mexicano.jpg` | Bowl mexicano |
-| `enchiladas-verdes.jpg` | Enchiladas verdes |
-| `avena-frutos-rojos.jpg` | Avena con frutos rojos |
-| `tacos-fit.jpg` | Tacos fit |
-| `pozole-ligero.jpg` | Pozole ligero |
+| `pollo-teriyaki.webp` | Pollo teriyaki con arroz |
+| `bowl-mexicano.webp` | Bowl mexicano |
+| `enchiladas-verdes.webp` | Enchiladas verdes |
+| `avena-frutos-rojos.webp` | Avena con frutos rojos |
+| `tacos-fit.webp` | Tacos fit |
+| `pozole-ligero.webp` | Pozole ligero |

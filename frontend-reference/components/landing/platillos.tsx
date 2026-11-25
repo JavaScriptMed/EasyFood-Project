@@ -8,12 +8,12 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/compone
 import { Encabezado, Reveal } from './ui'
 
 const platillos = [
-  { nombre: 'Pollo teriyaki con arroz', kcal: 520, etiquetas: ['Alto en proteína', 'Sin lácteos'], foto: '/platillos/pollo-teriyaki.jpg', descripcion: 'Pollo glaseado con arroz jazmín y verduras salteadas, en plato hondo, vista cenital.' },
-  { nombre: 'Bowl mexicano', kcal: 480, etiquetas: ['Vegetariano', 'Con fibra'], foto: '/platillos/bowl-mexicano.jpg', descripcion: 'Arroz, frijoles negros, elote, aguacate y pico de gallo en un bowl.' },
-  { nombre: 'Enchiladas verdes', kcal: 560, etiquetas: ['Tradicional', 'Con pollo'], foto: '/platillos/enchiladas-verdes.jpg', descripcion: 'Tres enchiladas bañadas en salsa verde con crema, cebolla y queso.' },
-  { nombre: 'Avena con frutos rojos', kcal: 290, etiquetas: ['Desayuno', 'Ligero'], foto: '/platillos/avena-frutos-rojos.jpg', descripcion: 'Avena cremosa con fresas, zarzamoras y nuez tostada.' },
-  { nombre: 'Tacos fit', kcal: 410, etiquetas: ['Alto en proteína', 'Bajo en carbohidratos'], foto: '/platillos/tacos-fit.jpg', descripcion: 'Tacos de tortilla de nopal con pollo a la plancha y salsa fresca.' },
-  { nombre: 'Pozole ligero', kcal: 380, etiquetas: ['Ligero', 'Sin gluten'], foto: '/platillos/pozole-ligero.jpg', descripcion: 'Pozole rojo con pollo deshebrado, lechuga, rábano y limón.' },
+  { nombre: 'Pollo teriyaki con arroz', kcal: 520, etiquetas: ['Alto en proteína', 'Sin lácteos'], foto: '/platillos/pollo-teriyaki.webp', encuadre: '50% 50%', descripcion: 'Pollo glaseado con arroz jazmín y verduras salteadas, en plato hondo, vista cenital.' },
+  { nombre: 'Bowl mexicano', kcal: 480, etiquetas: ['Vegetariano', 'Con fibra'], foto: '/platillos/bowl-mexicano.webp', encuadre: '50% 50%', descripcion: 'Arroz, frijoles negros, elote, aguacate y pico de gallo en un bowl.' },
+  { nombre: 'Enchiladas verdes', kcal: 560, etiquetas: ['Tradicional', 'Con pollo'], foto: '/platillos/enchiladas-verdes.webp', encuadre: '42% 50%', descripcion: 'Tres enchiladas bañadas en salsa verde con crema, cebolla y queso.' },
+  { nombre: 'Avena con frutos rojos', kcal: 290, etiquetas: ['Desayuno', 'Ligero'], foto: '/platillos/avena-frutos-rojos.webp', encuadre: '62% 50%', descripcion: 'Avena cremosa con fresas, zarzamoras y nuez tostada.' },
+  { nombre: 'Tacos fit', kcal: 410, etiquetas: ['Alto en proteína', 'Bajo en carbohidratos'], foto: '/platillos/tacos-fit.webp', encuadre: '45% 50%', descripcion: 'Tacos de tortilla de nopal con pollo a la plancha y salsa fresca.' },
+  { nombre: 'Pozole ligero', kcal: 380, etiquetas: ['Ligero', 'Sin gluten'], foto: '/platillos/pozole-ligero.webp', encuadre: '0% 50%', descripcion: 'Pozole rojo con pollo deshebrado, lechuga, rábano y limón.' },
 ]
 
 const filtros = ['Todos', 'Alto en proteína', 'Vegetariano', 'Desayuno', 'Sin lácteos'] as const
@@ -32,7 +32,7 @@ function Foto({ platillo, sobreFoto = false }: { platillo: Platillo; sobreFoto?:
       </div>
     )
   }
-  return <img ref={img} src={platillo.foto} alt={sobreFoto ? '' : `${platillo.nombre}: ${platillo.descripcion}`} loading="lazy" width={640} height={520} onError={() => setFalla(true)} className="size-full object-cover" />
+  return <img ref={img} src={platillo.foto} alt={sobreFoto ? '' : `${platillo.nombre}: ${platillo.descripcion}`} loading="lazy" width={640} height={520} onError={() => setFalla(true)} style={{ objectPosition: platillo.encuadre }} className="size-full object-cover" />
 }
 
 /** Cuánto se separa y se inclina cada tarjeta según qué tan lejos está de la central (efecto Coverflow). */
@@ -133,9 +133,9 @@ export function Platillos() {
                 className="absolute left-1/2 top-0 will-change-transform"
               >
                 <article className={`relative flex h-full flex-col overflow-hidden rounded-3xl bg-[#101a22] text-lcream transition-shadow duration-500 ${central ? 'landing-brillo' : 'shadow-[0_30px_60px_-30px_rgba(0,0,0,0.9)] ring-1 ring-white/10'}`}>
-                  <div className="relative aspect-[5/4] shrink-0 overflow-hidden">
+                  <div className="relative shrink-0 overflow-hidden" style={{ height: alto - 200 }}>
                     <Foto platillo={p} sobreFoto />
-                    <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 bottom-0 h-3/4 bg-gradient-to-b from-transparent via-[#101a22]/70 to-[#101a22]" />
+                    <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-b from-transparent via-[#101a22]/60 to-[#101a22]" />
                     {central ? (
                       <div className="absolute inset-x-4 bottom-3 flex flex-col gap-2">
                         <button onClick={() => setDetalle(p)} className="rounded-full bg-lgold px-4 py-2.5 text-sm font-bold text-lbg shadow-[0_10px_28px_-10px_rgba(224,168,19,0.95)] transition-colors hover:bg-[#f0bb2c]">Ver ingredientes / macros</button>
