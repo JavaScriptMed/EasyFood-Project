@@ -2,12 +2,21 @@
 
 import { Maximize } from 'lucide-react'
 
-/** Pone en pantalla completa el iframe del juego. */
+/** `lock` existe en Android pero no viene en los tipos del DOM de TypeScript. */
+type OrientacionBloqueable = ScreenOrientation & { lock?: (orientacion: 'landscape') => Promise<void> }
+
+/** Pone en pantalla completa el iframe del juego y, en celular, intenta girarlo a horizontal. */
 export function BotonPantallaCompleta({ idJuego }: { idJuego: string }) {
-  function abrir() {
-    const juego = document.getElementById(idJuego)
-    juego?.requestFullscreen?.().catch(() => {})
-    ;(juego as HTMLIFrameElement | null)?.focus()
+  async function abrir() {
+    const juego = document.getElementById(idJuego) as HTMLIFrameElement | null
+    if (!juego) return
+    try {
+      await juego.requestFullscreen()
+      await (screen.orientation as OrientacionBloqueable | undefined)?.lock?.('landscape')
+    } catch {
+      // iPhone no permite pantalla completa en un iframe y algunos navegadores no bloquean la orientación.
+    }
+    juego.focus()
   }
 
   return (

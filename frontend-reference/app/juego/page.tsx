@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { ArrowLeft, Download, MousePointerClick, MonitorSmartphone } from 'lucide-react'
+import { ArrowLeft, Download, ExternalLink, MousePointerClick, MonitorSmartphone, Smartphone } from 'lucide-react'
 import { Logo } from '@/components/landing/nav'
 import { BotonPantallaCompleta } from './pantalla-completa'
 
@@ -52,6 +52,11 @@ export default function Juego() {
         <div className="flex w-full flex-wrap items-center justify-center gap-x-6 gap-y-3">
           <div className="flex flex-wrap items-center justify-center gap-3">
             <BotonPantallaCompleta idJuego={ID_JUEGO} />
+            {/* En iPhone el iframe no puede ir a pantalla completa: abrir el juego solo ocupa toda la pantalla. */}
+            <a href="/juego-web/index.html" className="inline-flex items-center gap-2 rounded-full border border-lgold/60 px-5 py-2.5 text-sm font-semibold text-lgold transition-colors hover:bg-lgold/10 md:hidden">
+              <ExternalLink className="size-4" aria-hidden="true" />
+              Abrir solo el juego
+            </a>
             {ENLACE_WINDOWS && (
               <a href={ENLACE_WINDOWS} className="inline-flex items-center gap-2 rounded-full border border-lgold/60 px-5 py-2.5 text-sm font-semibold text-lgold transition-colors hover:bg-lgold/10">
                 <Download className="size-4" aria-hidden="true" />
@@ -60,8 +65,9 @@ export default function Juego() {
             )}
           </div>
           <ul className="flex flex-wrap justify-center gap-x-6 gap-y-1 text-xs text-lcream/65 sm:text-sm">
-            <li className="flex items-center gap-1.5"><MousePointerClick className="size-4 text-lgold" aria-hidden="true" />Haz clic en el juego para usar los controles</li>
-            <li className="flex items-center gap-1.5"><MonitorSmartphone className="size-4 text-lgold" aria-hidden="true" />Si no carga, prueba en Chrome o Edge de escritorio</li>
+            <li className="hidden items-center gap-1.5 md:flex"><MousePointerClick className="size-4 text-lgold" aria-hidden="true" />Haz clic en el juego para usar los controles</li>
+            <li className="flex items-center gap-1.5 md:hidden"><Smartphone className="size-4 rotate-90 text-lgold" aria-hidden="true" />En celular, gira el teléfono y usa los botones en pantalla</li>
+            <li className="flex items-center gap-1.5"><MonitorSmartphone className="size-4 text-lgold" aria-hidden="true" />Si no carga, prueba en Chrome, Edge o Safari actualizados</li>
           </ul>
         </div>
       </main>
