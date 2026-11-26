@@ -8,6 +8,7 @@ use App\Models\CalificacionPlatillo;
 use App\Models\EleccionEmpleado;
 use App\Models\Empleado;
 use App\Models\EntregaEmpresa;
+use App\Models\Recepcion;
 use App\Models\Pedido;
 use App\Models\PedidoDia;
 use App\Models\User;
@@ -32,7 +33,9 @@ class Calificaciones
     /**
      * Lo que un empleado ya recibió y todavía no calificó (últimos 14 días): por día, la entrega y cada platillo.
      *
-     * @return array<int, array{fecha: string, entrega_calificada: bool, platillos: array<int, array{tiempo_comida: string, platillo_id: int, platillo_nombre: string, calificado: bool}>}>
+     * Cada día trae además `recibido_en` (cuándo confirmó con «Recibido»; null si todavía no).
+     *
+     * @return array<int, array{fecha: string, entrega_calificada: bool, recibido_en: string|null, platillos: array<int, array{tiempo_comida: string, platillo_id: int, platillo_nombre: string, calificado: bool}>}>
      */
     public function pendientesDelEmpleado(Empleado $empleado, ?CarbonInterface $ahora = null): array
     {
@@ -49,6 +52,8 @@ class Calificaciones
         $califPlatillos = CalificacionPlatillo::query()->where('calificador_id', $empleado->usuario_id)->whereDate('fecha', '>=', $desde)->get()
             ->map(fn ($c) => $c->menu_id.'|'.$c->fecha->toDateString())->all();
 
+        $recibidas = Recepcion::query()->where('usuario_id', $empleado->usuario_id)->whereIn('entrega_empresa_id', $entregadas->pluck('id'))->get()->keyBy('entrega_empresa_id');
+
         $dias = [];
         $elecciones = EleccionEmpleado::query()->with('menu')->where('empleado_id', $empleado->id)->whereIn('fecha', $entregadas->keys())->orderBy('fecha')->get()->groupBy(fn ($e) => $e->fecha->toDateString());
         foreach ($entregadas as $fecha => $entrega) {
@@ -57,6 +62,7 @@ class Calificaciones
             }
             $dias[] = [
                 'fecha' => $fecha, 'entrega_calificada' => in_array($entrega->id, $califEntrega, true),
+                'recibido_en' => $recibidas->get($entrega->id)?->confirmada_en->toIso8601String(),
                 'platillos' => $elecciones[$fecha]->map(fn ($e) => [
                     'tiempo_comida' => $e->tiempo_comida, 'platillo_id' => $e->menu_id, 'platillo_nombre' => $e->menu->name, 'calificado' => in_array($e->menu_id.'|'.$fecha, $califPlatillos, true),
                 ])->values()->all(),

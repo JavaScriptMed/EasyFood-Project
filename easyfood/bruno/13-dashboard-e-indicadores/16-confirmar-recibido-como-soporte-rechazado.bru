@@ -1,0 +1,27 @@
+meta {
+  name: Confirmar «Recibido» como soporte (rechazado)
+  type: http
+  seq: 16
+}
+
+post {
+  url: {{baseUrl}}/api/v1/empleado/recibido
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenSoporte}}
+}
+
+body:json {
+  {
+    "fecha": "2026-01-01"
+  }
+}
+
+tests {
+  test("responde 403", function () {
+    expect(res.getStatus()).to.equal(403);
+  });
+}

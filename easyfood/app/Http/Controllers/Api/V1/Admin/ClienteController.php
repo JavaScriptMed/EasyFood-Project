@@ -22,7 +22,7 @@ class ClienteController extends Controller
     public function show(int $id): JsonResponse
     {
         $cliente = $this->clientes()->findOrFail($id);
-        $pedidos = Pedido::query()->with(['cliente', 'paquete', 'direccion', 'dias'])->where('cliente_id', $id)->orderByDesc('id')->get();
+        $pedidos = Pedido::query()->with(['cliente', 'paquete', 'direccion', 'dias.recepciones'])->where('cliente_id', $id)->orderByDesc('id')->get();
         $tickets = Ticket::query()->with(['cliente', 'pedido'])->where('cliente_id', $id)->orderByDesc('actualizado_en')->get();
 
         return response()->json(self::resumen($cliente) + [

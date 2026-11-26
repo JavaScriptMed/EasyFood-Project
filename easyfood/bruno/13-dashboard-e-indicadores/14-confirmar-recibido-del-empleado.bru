@@ -1,0 +1,28 @@
+meta {
+  name: Confirmar «Recibido» (empleado)
+  type: http
+  seq: 14
+}
+
+post {
+  url: {{baseUrl}}/api/v1/empleado/recibido
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tokenEmpleado}}
+}
+
+body:json {
+  {
+    "fecha": "{{fechaCalificar}}"
+  }
+}
+
+tests {
+  test("responde 200 con la hora, o 422 si no hay entrega que confirmar", function () {
+    if (res.getStatus() === 200) expect(res.body.recibido_en).to.be.a("string");
+    else expect(res.getStatus()).to.equal(422);
+  });
+}

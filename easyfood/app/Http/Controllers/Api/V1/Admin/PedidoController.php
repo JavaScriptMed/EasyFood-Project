@@ -19,7 +19,7 @@ class PedidoController extends Controller
         $f = $request->validate(['estado' => 'nullable|in:pendiente_pago,recibido,activo,completado,cancelado', 'limite' => 'nullable|integer|min:1|max:500']);
 
         return response()->json(
-            Pedido::query()->with(['cliente', 'paquete', 'direccion', 'dias'])->when($f['estado'] ?? null, fn ($q, $v) => $q->where('estado', $v))
+            Pedido::query()->with(['cliente', 'paquete', 'direccion', 'dias.recepciones'])->when($f['estado'] ?? null, fn ($q, $v) => $q->where('estado', $v))
                 ->orderByDesc('id')->limit((int) ($f['limite'] ?? 100))->get()->map(fn ($p) => Vistas::pedido($p, true))->values()
         );
     }
@@ -41,6 +41,6 @@ class PedidoController extends Controller
             return response()->json(['mensaje' => 'Stripe no pudo hacer el reembolso: '.$e->getMessage(), 'codigo' => 'pasarela_con_error'], 502);
         }
 
-        return response()->json(Vistas::pedido($pedido->load(['cliente', 'paquete', 'direccion', 'dias']), true));
+        return response()->json(Vistas::pedido($pedido->load(['cliente', 'paquete', 'direccion', 'dias.recepciones']), true));
     }
 }
