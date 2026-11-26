@@ -1,6 +1,6 @@
 # Colección de Bruno · EasyLunch API v1
 
-Peticiones listas para probar el backend a mano y ver que funciona: **266 peticiones y 423 pruebas automáticas** (cada petición revisa su respuesta). Se hicieron con [Bruno](https://www.usebruno.com/) (gratis, guarda todo en archivos de texto, así que viaja con el repositorio).
+Peticiones listas para probar el backend a mano y ver que funciona: **266 peticiones y 424 pruebas automáticas** (cada petición revisa su respuesta). Se hicieron con [Bruno](https://www.usebruno.com/) (gratis, guarda todo en archivos de texto, así que viaja con el repositorio).
 
 ## 1. Prepara la base de datos con datos de ejemplo
 

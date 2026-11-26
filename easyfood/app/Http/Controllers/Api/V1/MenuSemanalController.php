@@ -27,6 +27,7 @@ class MenuSemanalController extends Controller
             foreach ($disponibles as $d) {
                 $celdas[$d->menu->tiempo_comida] ??= [
                     'platillo_id' => $d->menu_id, 'platillo_nombre' => $d->menu->name, 'precio_venta' => round((float) $d->menu->price, 2), 'porciones_maximas' => $d->porciones_maximas,
+                    'foto_url' => $d->menu->image_url,
                 ];
             }
             $dias[] = ['fecha' => $fecha->toDateString(), 'celdas' => (object) $celdas];

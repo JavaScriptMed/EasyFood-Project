@@ -26,4 +26,9 @@ tests {
   test("seis días", function () {
     expect(res.body.length).to.equal(6);
   });
+
+  test("cada platillo trae foto_url (la dirección o null)", function () {
+    const celdas = res.body.flatMap((dia) => Object.values(dia.celdas));
+    celdas.forEach((c) => expect(c).to.have.property("foto_url"));
+  });
 }
