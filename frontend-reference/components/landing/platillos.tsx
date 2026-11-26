@@ -1,26 +1,24 @@
 'use client'
 
-import Link from 'next/link'
 import { motion, useReducedMotion } from 'motion/react'
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { ChevronLeft, ChevronRight, Flame, UtensilsCrossed } from 'lucide-react'
-import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import { Encabezado, Reveal } from './ui'
 
 const platillos = [
-  { nombre: 'Pollo teriyaki con arroz', kcal: 520, etiquetas: ['Alto en proteína', 'Sin lácteos'], foto: '/platillos/pollo-teriyaki.jpg', descripcion: 'Pollo glaseado con arroz jazmín y verduras salteadas, en plato hondo, vista cenital.' },
-  { nombre: 'Bowl mexicano', kcal: 480, etiquetas: ['Vegetariano', 'Con fibra'], foto: '/platillos/bowl-mexicano.jpg', descripcion: 'Arroz, frijoles negros, elote, aguacate y pico de gallo en un bowl.' },
-  { nombre: 'Enchiladas verdes', kcal: 560, etiquetas: ['Tradicional', 'Con pollo'], foto: '/platillos/enchiladas-verdes.jpg', descripcion: 'Tres enchiladas bañadas en salsa verde con crema, cebolla y queso.' },
-  { nombre: 'Avena con frutos rojos', kcal: 290, etiquetas: ['Desayuno', 'Ligero'], foto: '/platillos/avena-frutos-rojos.jpg', descripcion: 'Avena cremosa con fresas, zarzamoras y nuez tostada.' },
-  { nombre: 'Tacos fit', kcal: 410, etiquetas: ['Alto en proteína', 'Bajo en carbohidratos'], foto: '/platillos/tacos-fit.jpg', descripcion: 'Tacos de tortilla de nopal con pollo a la plancha y salsa fresca.' },
-  { nombre: 'Pozole ligero', kcal: 380, etiquetas: ['Ligero', 'Sin gluten'], foto: '/platillos/pozole-ligero.jpg', descripcion: 'Pozole rojo con pollo deshebrado, lechuga, rábano y limón.' },
+  { nombre: 'Pollo teriyaki con arroz', kcal: 520, etiquetas: ['Alto en proteína', 'Sin lácteos'], foto: '/platillos/pollo-teriyaki.webp', encuadre: '50% 50%', descripcion: 'Pollo glaseado con arroz jazmín y verduras salteadas, en plato hondo, vista cenital.' },
+  { nombre: 'Bowl mexicano', kcal: 480, etiquetas: ['Vegetariano', 'Con fibra'], foto: '/platillos/bowl-mexicano.webp', encuadre: '50% 50%', descripcion: 'Arroz, frijoles negros, elote, aguacate y pico de gallo en un bowl.' },
+  { nombre: 'Enchiladas verdes', kcal: 560, etiquetas: ['Tradicional', 'Con pollo'], foto: '/platillos/enchiladas-verdes.webp', encuadre: '42% 50%', descripcion: 'Tres enchiladas bañadas en salsa verde con crema, cebolla y queso.' },
+  { nombre: 'Avena con frutos rojos', kcal: 290, etiquetas: ['Desayuno', 'Ligero'], foto: '/platillos/avena-frutos-rojos.webp', encuadre: '62% 50%', descripcion: 'Avena cremosa con fresas, zarzamoras y nuez tostada.' },
+  { nombre: 'Tacos fit', kcal: 410, etiquetas: ['Alto en proteína', 'Bajo en carbohidratos'], foto: '/platillos/tacos-fit.webp', encuadre: '45% 50%', descripcion: 'Tacos de tortilla de nopal con pollo a la plancha y salsa fresca.' },
+  { nombre: 'Pozole ligero', kcal: 380, etiquetas: ['Ligero', 'Sin gluten'], foto: '/platillos/pozole-ligero.webp', encuadre: '0% 50%', descripcion: 'Pozole rojo con pollo deshebrado, lechuga, rábano y limón.' },
 ]
 
 const filtros = ['Todos', 'Alto en proteína', 'Vegetariano', 'Desayuno', 'Sin lácteos'] as const
 
 type Platillo = (typeof platillos)[number]
 
-function Foto({ platillo, sobreFoto = false }: { platillo: Platillo; sobreFoto?: boolean }) {
+function Foto({ platillo }: { platillo: Platillo }) {
   const [falla, setFalla] = useState(false)
   const img = useRef<HTMLImageElement>(null)
   // Si la foto no existe, el error llega antes de que React enganche `onError`: se revisa al montar.
@@ -32,7 +30,7 @@ function Foto({ platillo, sobreFoto = false }: { platillo: Platillo; sobreFoto?:
       </div>
     )
   }
-  return <img ref={img} src={platillo.foto} alt={sobreFoto ? '' : `${platillo.nombre}: ${platillo.descripcion}`} loading="lazy" width={640} height={520} onError={() => setFalla(true)} className="size-full object-cover" />
+  return <img ref={img} src={platillo.foto} alt="" loading="lazy" width={640} height={520} onError={() => setFalla(true)} style={{ objectPosition: platillo.encuadre }} className="size-full object-cover" />
 }
 
 /** Cuánto se separa y se inclina cada tarjeta según qué tan lejos está de la central (efecto Coverflow). */
@@ -51,7 +49,6 @@ export function Platillos() {
   const reducido = useReducedMotion()
   const [filtro, setFiltro] = useState<(typeof filtros)[number]>('Todos')
   const [activo, setActivo] = useState(2)
-  const [detalle, setDetalle] = useState<Platillo | null>(null)
   const [anchoEscena, setAnchoEscena] = useState(1100)
   const escena = useRef<HTMLDivElement>(null)
 
@@ -133,22 +130,15 @@ export function Platillos() {
                 className="absolute left-1/2 top-0 will-change-transform"
               >
                 <article className={`relative flex h-full flex-col overflow-hidden rounded-3xl bg-[#101a22] text-lcream transition-shadow duration-500 ${central ? 'landing-brillo' : 'shadow-[0_30px_60px_-30px_rgba(0,0,0,0.9)] ring-1 ring-white/10'}`}>
-                  <div className="relative aspect-[5/4] shrink-0 overflow-hidden">
-                    <Foto platillo={p} sobreFoto />
-                    <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 bottom-0 h-3/4 bg-gradient-to-b from-transparent via-[#101a22]/70 to-[#101a22]" />
-                    {central ? (
-                      <div className="absolute inset-x-4 bottom-3 flex flex-col gap-2">
-                        <button onClick={() => setDetalle(p)} className="rounded-full bg-lgold px-4 py-2.5 text-sm font-bold text-lbg shadow-[0_10px_28px_-10px_rgba(224,168,19,0.95)] transition-colors hover:bg-[#f0bb2c]">Ver ingredientes / macros</button>
-                        <Link href="/login" className="rounded-full border border-lgold/80 bg-lbg/55 px-4 py-2.5 text-center text-sm font-bold text-lgold backdrop-blur-sm transition-colors hover:bg-lgold hover:text-lbg">Agregar a mi semana</Link>
-                      </div>
-                    ) : (
-                      <p className="absolute inset-x-4 bottom-3 line-clamp-2 text-xs leading-5 text-lcream/70">{p.descripcion}</p>
-                    )}
+                  <div className="relative min-h-0 flex-1 overflow-hidden">
+                    <div className="absolute inset-0"><Foto platillo={p} /></div>
+                    <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 bottom-0 h-1/4 bg-gradient-to-b from-transparent to-[#101a22]" />
                   </div>
-                  <div className="flex flex-1 flex-col gap-3 p-5">
+                  <div className="flex shrink-0 flex-col gap-3 p-5">
                     <h3 className="font-heading text-2xl leading-tight">{p.nombre}</h3>
                     <p className="flex items-center gap-1.5 text-sm font-medium text-lgold"><Flame className="size-4" aria-hidden="true" /> {p.kcal} kcal</p>
-                    <ul className="mt-auto flex flex-wrap gap-2">{p.etiquetas.map((e) => <li key={e} className="rounded-full border border-lcream/25 px-3 py-1 text-xs font-medium text-lcream/90">{e}</li>)}</ul>
+                    <p className="line-clamp-3 text-sm leading-6 text-lcream/70">{p.descripcion}</p>
+                    <ul className="flex flex-wrap gap-2">{p.etiquetas.map((e) => <li key={e} className="rounded-full border border-lcream/25 px-3 py-1 text-xs font-medium text-lcream/90">{e}</li>)}</ul>
                   </div>
                   {!central && (
                     <>
@@ -163,26 +153,6 @@ export function Platillos() {
         </motion.div>
         <p className="sr-only" aria-live="polite">{lista[indice] ? `Platillo ${indice + 1} de ${lista.length}: ${lista[indice].nombre}` : ''}</p>
       </Reveal>
-
-      <Dialog open={!!detalle} onOpenChange={(abierto) => { if (!abierto) setDetalle(null) }}>
-        <DialogContent className="max-w-[calc(100%-2rem)] gap-5 border border-lgold/40 bg-lbg p-0 text-lcream ring-0 sm:max-w-md [&>button]:z-10 [&>button]:bg-lbg/70 [&>button]:text-lcream">
-          {detalle && (
-            <>
-              <div className="relative aspect-[5/3] overflow-hidden rounded-t-xl"><Foto platillo={detalle} /><div aria-hidden="true" className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-b from-transparent to-lbg" /></div>
-              <div className="space-y-4 px-6 pb-6">
-                <div>
-                  <DialogTitle className="font-heading text-2xl leading-tight text-lcream">{detalle.nombre}</DialogTitle>
-                  <p className="mt-2 flex items-center gap-1.5 text-sm font-semibold text-lgold"><Flame className="size-4" aria-hidden="true" /> {detalle.kcal} kcal por porción</p>
-                </div>
-                <DialogDescription className="text-base leading-7 text-lcream/85">{detalle.descripcion}</DialogDescription>
-                <ul className="flex flex-wrap gap-2">{detalle.etiquetas.map((e) => <li key={e} className="rounded-full border border-lcream/25 px-3 py-1 text-xs font-medium text-lcream/90">{e}</li>)}</ul>
-                <p className="text-sm leading-6 text-lcream/60">Los alérgenos y el detalle de cada platillo los ves al elegirlo dentro de tu cuenta.</p>
-                <Link href="/login" className="block rounded-full bg-lgold px-5 py-3 text-center text-sm font-bold text-lbg transition-colors hover:bg-[#f0bb2c]">Agregar a mi semana</Link>
-              </div>
-            </>
-          )}
-        </DialogContent>
-      </Dialog>
     </section>
   )
 }

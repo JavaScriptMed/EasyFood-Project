@@ -285,7 +285,7 @@ class ConexionConElFrontTest extends TestCase
 
     public function test_el_menu_semanal_trae_seis_dias_con_un_platillo_por_tiempo_de_comida(): void
     {
-        $comida = $this->platillo(null, 'comida', ['name' => 'Mole', 'price' => 49]);
+        $comida = $this->platillo(null, 'comida', ['name' => 'Mole', 'price' => 49, 'image_url' => 'https://ejemplo.mx/mole.jpg']);
         $cena = $this->platillo(null, 'cena', ['name' => 'Sopa']);
         $borrador = $this->platillo(null, 'desayuno', ['estado_revision' => 'borrador']);
         $this->disponible($comida, '2026-11-16', 40);
@@ -300,6 +300,7 @@ class ConexionConElFrontTest extends TestCase
             $this->assertSame('2026-11-16', $dias[0]['fecha']);
             $this->assertSame(['comida', 'cena'], array_keys($dias[0]['celdas']), 'el borrador no aparece');
             $this->assertEquals(['Mole', 49, 40], [$dias[0]['celdas']['comida']['platillo_nombre'], $dias[0]['celdas']['comida']['precio_venta'], $dias[0]['celdas']['comida']['porciones_maximas']]);
+            $this->assertSame(['https://ejemplo.mx/mole.jpg', null], [$dias[0]['celdas']['comida']['foto_url'], $dias[0]['celdas']['cena']['foto_url']], 'la foto del platillo, o null si no tiene');
             $this->assertSame([], $dias[1]['celdas']);
         }
         $this->getJson('/api/v1/admin/menu-semanal')->assertStatus(422);

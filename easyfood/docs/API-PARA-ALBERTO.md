@@ -502,12 +502,14 @@ Respuesta `200`:
 [
   { "fecha": "2026-11-30",
     "celdas": {
-      "desayuno": { "platillo_id": 6, "platillo_nombre": "Chilaquiles con huevo", "precio_venta": 49, "porciones_maximas": 40 },
-      "comida":   { "platillo_id": 1, "platillo_nombre": "Pollo en mole con arroz", "precio_venta": 49, "porciones_maximas": 40 },
-      "cena":     { "platillo_id": 7, "platillo_nombre": "Sopa de lentejas", "precio_venta": 49, "porciones_maximas": 40 } } },
+      "desayuno": { "platillo_id": 6, "platillo_nombre": "Chilaquiles con huevo", "precio_venta": 49, "porciones_maximas": 40, "foto_url": "https://…/platillo.jpg" },
+      "comida":   { "platillo_id": 1, "platillo_nombre": "Pollo en mole con arroz", "precio_venta": 49, "porciones_maximas": 40, "foto_url": "https://…/platillo.jpg" },
+      "cena":     { "platillo_id": 7, "platillo_nombre": "Sopa de lentejas", "precio_venta": 49, "porciones_maximas": 40, "foto_url": null } } },
   "… (6 días)"
 ]
 ```
+
+`foto_url` es la foto del platillo, o `null` si no tiene.
 
 Una celda que falta (por ejemplo sin `cena`) significa que ese día no hay platillo publicado de ese tiempo. Igual que en `GET /api/v1/admin/menu-semanal`, el platillo mostrado por celda es el primero disponible; **la disponibilidad real se valida al crear el pedido**.
 
